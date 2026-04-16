@@ -70,7 +70,7 @@ export default function ReportsPage() {
           </button>
         </div>
 
-        <div className="card-premium p-6 flex flex-col justify-between opacity-60">
+        <div className="card-premium p-6 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
               <FileText className="w-6 h-6 text-purple-600" />
@@ -80,12 +80,12 @@ export default function ReportsPage() {
             <h3 className="text-lg font-bold text-foreground">Monthly Tax Summary</h3>
             <p className="text-sm text-muted-foreground mt-1">Generate a comprehensive tax-ready report for the current month.</p>
           </div>
-          <button disabled className="btn-secondary w-full mt-6 cursor-not-allowed">
-            Coming Soon
-          </button>
+          <a href="/api/reports/tax" className="btn-secondary w-full mt-6 text-center inline-block">
+            Download CSV
+          </a>
         </div>
 
-        <div className="card-premium p-6 flex flex-col justify-between opacity-60">
+        <div className="card-premium p-6 flex flex-col justify-between">
           <div className="flex items-start justify-between">
             <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
               <AlertCircle className="w-6 h-6 text-orange-600" />
@@ -95,9 +95,9 @@ export default function ReportsPage() {
             <h3 className="text-lg font-bold text-foreground">Inventory Audit</h3>
             <p className="text-sm text-muted-foreground mt-1">Export a full inventory snapshot for physical count reconciliation.</p>
           </div>
-          <button disabled className="btn-secondary w-full mt-6 cursor-not-allowed">
-            Coming Soon
-          </button>
+          <a href="/api/reports/inventory" className="btn-secondary w-full mt-6 text-center inline-block">
+            Export CSV
+          </a>
         </div>
       </div>
 
