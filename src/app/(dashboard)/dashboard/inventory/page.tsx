@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { 
   Package, Search, Filter, AlertCircle, CheckCircle2, 
   ArrowUpRight, MoreHorizontal, LayoutGrid, List,
-  Edit, Trash2, Eye, History
+  Edit, Trash2, Eye, History, Plus
 } from 'lucide-react';
 
 interface Product {

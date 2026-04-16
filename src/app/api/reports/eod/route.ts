@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       const report = await generateEODReport(date ? new Date(date) : new Date());
       const pdfBuffer = await generateEODPDF(report);
 
-      return new NextResponse(pdfBuffer, {
+      return new NextResponse(new Uint8Array(pdfBuffer), {
         status: 200,
         headers: {
           'Content-Type': 'application/pdf',

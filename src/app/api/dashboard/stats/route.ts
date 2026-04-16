@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const branchId = session.user.branchId ?? undefined;
     const today = new Date();
     const todayStart = startOfDay(today);
     const todayEnd = endOfDay(today);
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     const todaySales = await prisma.sale.findMany({
       where: {
-        branchId: session.user.branchId,
+        branchId,
         status: 'COMPLETED',
         createdAt: {
           gte: todayStart,
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     const weekSales = await prisma.sale.findMany({
       where: {
-        branchId: session.user.branchId,
+        branchId,
         status: 'COMPLETED',
         createdAt: {
           gte: weekStart,
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
 
     const monthSales = await prisma.sale.findMany({
       where: {
-        branchId: session.user.branchId,
+        branchId,
         status: 'COMPLETED',
         createdAt: {
           gte: monthStart,
@@ -52,15 +53,12 @@ export async function GET(req: NextRequest) {
     const weekRevenue = weekSales.reduce((sum, sale) => sum + sale.total, 0);
     const monthRevenue = monthSales.reduce((sum, sale) => sum + sale.total, 0);
 
-    const lowStockItems = await prisma.product.count({
-      where: {
-        branchId: session.user.branchId,
-        isActive: true,
-        stockQty: {
-          lte: prisma.product.fields.lowStockThreshold,
-        },
-      },
+    // Count low stock items manually
+    const allProducts = await prisma.product.findMany({
+      where: { branchId, isActive: true },
+      select: { stockQty: true, lowStockThreshold: true },
     });
+    const lowStockItems = allProducts.filter(p => p.stockQty <= p.lowStockThreshold).length;
 
     // Chart Data: Last 7 days trend
     const salesTrend = [];
@@ -80,7 +78,7 @@ export async function GET(req: NextRequest) {
     const categorySales: Record<string, number> = {};
     const salesWithItems = await prisma.sale.findMany({
       where: {
-        branchId: session.user.branchId,
+        branchId,
         status: 'COMPLETED',
         createdAt: { gte: monthStart },
       },
@@ -97,7 +95,7 @@ export async function GET(req: NextRequest) {
 
     for (const sale of salesWithItems) {
       for (const item of sale.items) {
-        const catName = item.product.category.name;
+        const catName = item.product.category?.name ?? 'Uncategorized';
         categorySales[catName] = (categorySales[catName] || 0) + item.total;
       }
     }
