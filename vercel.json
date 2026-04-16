@@ -4,8 +4,5 @@
       "path": "/api/reports/eod/send",
       "schedule": "0 20 * * *"
     }
-  ],
-  "dependencies": {
-    "node-cron": "3.0.3"
-  }
+  ]
 }
