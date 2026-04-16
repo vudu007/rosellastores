@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { 
   Package, Search, Filter, AlertCircle, CheckCircle2, 
   ArrowUpRight, MoreHorizontal, LayoutGrid, List,
-  Edit, Trash2, Eye, History, Plus, Truck, X, PackagePlus
+  Edit, Trash2, Eye, History, Plus, Truck, X, PackagePlus, Upload, Download
 } from 'lucide-react';
 
 interface Product {
@@ -43,6 +43,61 @@ export default function InventoryPage() {
   const [productSaving, setProductSaving] = useState(false);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const downloadTemplate = () => {
+    const headers = ['name', 'sku', 'barcode', 'categoryId', 'supplierId', 'retailPrice', 'wholesalePrice', 'stockQty', 'lowStockThreshold', 'unit'];
+    const example = ['Sample Product', 'SKU-001', '', categories[0]?.id || 'cat_id', suppliers[0]?.id || 'sup_id', '1500', '1200', '50', '10', 'pcs'];
+    const csv = [headers.join(','), example.join(',')].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'inventory_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    import('papaparse').then((Papa) => {
+      Papa.default.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results: any) => {
+          try {
+            const res = await fetch('/api/products/bulk', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(results.data),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to import');
+            
+            setToast({ type: 'success', message: `${data.message}` });
+            
+            const params = new URLSearchParams();
+            if (lowStockOnly) params.append('lowStockOnly', 'true');
+            const prods = await (await fetch(`/api/inventory?${params}`)).json();
+            setProducts(prods);
+          } catch (err: any) {
+            setToast({ type: 'error', message: err.message || 'Import failed' });
+          } finally {
+            setImporting(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+          }
+        },
+        error: (err: any) => {
+          setToast({ type: 'error', message: `CSV Parse Error: ${err.message}` });
+          setImporting(false);
+        }
+      });
+    });
+  };
 
   useEffect(() => {
     if (toast) { const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); }
@@ -169,14 +224,21 @@ export default function InventoryPage() {
           <h1 className="text-3xl font-bold tracking-tight">Inventory Management</h1>
           <p className="text-muted-foreground mt-1">Track and manage your entire product catalog and stock levels.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button className="btn-secondary flex items-center gap-2">
-            <History className="w-4 h-4" />
-            Stock History
+        <div className="flex items-center gap-2">
+          <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+          
+          <button onClick={downloadTemplate} className="btn-secondary h-10 px-3 flex items-center justify-center gap-2" title="Download CSV Template">
+            <Download className="w-4 h-4" />
           </button>
-          <button onClick={() => setShowAddProduct(true)} className="btn-primary flex items-center gap-2">
+          
+          <button onClick={() => fileInputRef.current?.click()} disabled={importing} className="btn-secondary h-10 px-4 flex items-center justify-center gap-2">
+            {importing ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent flex-shrink-0" /> : <Upload className="w-4 h-4" />}
+            <span className="hidden sm:inline font-medium">Import CSV</span>
+          </button>
+
+          <button onClick={() => setShowAddProduct(true)} className="btn-primary h-10 px-4 flex items-center justify-center gap-2 shadow-lg hover:shadow-primary/25 transition-all">
             <Plus className="w-4 h-4" />
-            Add New Product
+            <span className="hidden sm:inline font-medium">Add Product</span>
           </button>
         </div>
       </div>
