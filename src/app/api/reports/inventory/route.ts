@@ -29,36 +29,20 @@ export async function GET(req: NextRequest) {
       orderBy: { name: 'asc' }
     });
 
-    // Generate CSV
-    const csvHeaders = ['SKU', 'Barcode', 'Product Name', 'Category', 'Supplier', 'Retail Price', 'Wholesale Price', 'System Stock', 'Physical Count', 'Discrepancy'];
-    
-    let csvRows = [csvHeaders.join(',')];
-    
-    for (const p of products) {
-      const row = [
-        `"${p.sku}"`,
-        `"${p.barcode || ''}"`,
-        `"${p.name.replace(/"/g, '""')}"`,
-        `"${p.category?.name || ''}"`,
-        `"${p.supplier?.name || ''}"`,
-        p.retailPrice,
-        p.wholesalePrice,
-        p.stockQty,
-        '', // Physical Count (Blank for printing)
-        ''  // Discrepancy (Blank for printing)
-      ];
-      csvRows.push(row.join(','));
-    }
+    const formattedInventory = products.map(p => ({
+      sku: p.sku,
+      barcode: p.barcode || '',
+      name: p.name,
+      category: p.category?.name || '',
+      supplier: p.supplier?.name || '',
+      retailPrice: p.retailPrice,
+      wholesalePrice: p.wholesalePrice,
+      systemStock: p.stockQty
+    }));
 
-    const csvData = csvRows.join('\n');
-    
-    // Send as file download
-    return new NextResponse(csvData, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="inventory-audit-${new Date().toISOString().split('T')[0]}.csv"`
-      }
+    return NextResponse.json({
+      date: new Date().toISOString().split('T')[0],
+      inventory: formattedInventory
     });
   } catch (error) {
     console.error('Error generating inventory audit:', error);

@@ -46,45 +46,35 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' }
     });
 
-    // Generate CSV
-    const csvHeaders = ['Date', 'Sale ID', 'Customer', 'Customer Type', 'Payment Method', 'Gross Total', 'Discount Given', 'Tax Collected', 'Net Total'];
-    let csvRows = [csvHeaders.join(',')];
-    
     let totalTax = 0;
     let totalGross = 0;
     let totalNet = 0;
 
-    for (const s of sales) {
+    const formattedSales = sales.map(s => {
       totalTax += s.tax;
       totalGross += s.subtotal;
       totalNet += s.total;
 
-      const row = [
-        `"${format(new Date(s.createdAt), 'yyyy-MM-dd HH:mm')}"`,
-        `"${s.id}"`,
-        `"${s.customer?.name || 'Walk-in'}"`,
-        `"${s.customer?.type || 'RETAIL'}"`,
-        `"${s.paymentMethod}"`,
-        s.subtotal.toFixed(2),
-        s.discount.toFixed(2),
-        s.tax.toFixed(2),
-        s.total.toFixed(2)
-      ];
-      csvRows.push(row.join(','));
-    }
+      return {
+        date: format(new Date(s.createdAt), 'yyyy-MM-dd HH:mm'),
+        id: s.id,
+        customer: s.customer?.name || 'Walk-in',
+        type: s.customer?.type || 'RETAIL',
+        paymentMethod: s.paymentMethod,
+        subtotal: s.subtotal,
+        discount: s.discount,
+        tax: s.tax,
+        total: s.total
+      };
+    });
 
-    // Add aggregate total row
-    csvRows.push('');
-    csvRows.push(`"TOTAL FOR MONTH","","","","",${totalGross.toFixed(2)},"",${totalTax.toFixed(2)},${totalNet.toFixed(2)}`);
-
-    const csvData = csvRows.join('\n');
-    
-    // Send as file download
-    return new NextResponse(csvData, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="tax-summary-${format(today, 'yyyy-MM')}.csv"`
+    return NextResponse.json({
+      period: format(today, 'yyyy-MM'),
+      sales: formattedSales,
+      summary: {
+        totalGross,
+        totalTax,
+        totalNet
       }
     });
 

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   Users, UserPlus, Trash2, Mail, Building, Key,
-  Shield, AlertCircle, CheckCircle2, Search, X
+  Shield, AlertCircle, CheckCircle2, Search, X, Pencil
 } from 'lucide-react';
 
 interface StaffMember {
@@ -29,6 +29,8 @@ export default function StaffPage() {
   const [search, setSearch] = useState('');
   
   const [showModal, setShowModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
   const [form, setForm] = useState({
@@ -73,28 +75,31 @@ export default function StaffPage() {
     }
   };
 
-  const handleAddStaff = async () => {
-    if (!form.name || !form.email || !form.password || !form.role || !form.branchId) {
-      setToast({ type: 'error', message: 'Please fill in all fields' });
+  const handleSaveStaff = async () => {
+    if (!form.name || !form.email || (!isEditing && !form.password) || !form.role || !form.branchId) {
+      setToast({ type: 'error', message: 'Please fill in all required fields' });
       return;
     }
 
     try {
+      const payload = isEditing ? { id: editId, ...form } : form;
       const res = await fetch('/api/staff', {
-        method: 'POST',
+        method: isEditing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to add staff');
+        throw new Error(data.error || 'Failed to save staff');
       }
 
-      setToast({ type: 'success', message: 'Staff member added successfully' });
+      setToast({ type: 'success', message: `Staff member ${isEditing ? 'updated' : 'added'} successfully` });
       setShowModal(false);
       setForm({ name: '', email: '', password: '', role: 'CASHIER', branchId: '' });
+      setIsEditing(false);
+      setEditId(null);
       fetchStaff();
     } catch (error: any) {
       setToast({ type: 'error', message: error.message });
@@ -151,7 +156,12 @@ export default function StaffPage() {
           <p className="text-muted-foreground mt-1">Manage team members, roles, and branch assignments.</p>
         </div>
         {session?.user.role === 'OWNER' && (
-          <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2">
+          <button onClick={() => {
+            setIsEditing(false);
+            setEditId(null);
+            setForm({ name: '', email: '', password: '', role: 'CASHIER', branchId: '' });
+            setShowModal(true);
+          }} className="btn-primary flex items-center gap-2">
             <UserPlus className="w-4 h-4" /> Add Staff Member
           </button>
         )}
@@ -189,12 +199,25 @@ export default function StaffPage() {
                     <Users className="w-6 h-6 text-blue-600" />
                   </div>
                   {session?.user.role === 'OWNER' && member.id !== session.user.id && (
-                    <button 
-                      onClick={() => handleDelete(member.id, member.name)} 
-                      className="p-2 rounded-lg hover:bg-red-50 transition-colors" title="Remove Access"
-                    >
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => {
+                          setIsEditing(true);
+                          setEditId(member.id);
+                          setForm({ name: member.name, email: member.email, password: '', role: member.role, branchId: branches.find(b => b.name === member.branch?.name)?.id || '' });
+                          setShowModal(true);
+                        }} 
+                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors" title="Edit Staff"
+                      >
+                        <Pencil className="w-4 h-4 text-gray-500" />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(member.id, member.name)} 
+                        className="p-2 rounded-lg hover:bg-red-50 transition-colors" title="Remove Access"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </button>
+                    </div>
                   )}
                 </div>
                 <h3 className="text-lg font-bold text-foreground mt-4">{member.name}</h3>
@@ -225,7 +248,7 @@ export default function StaffPage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-5 animate-slide-up">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-foreground">Add New Staff</h2>
+              <h2 className="text-xl font-bold text-foreground">{isEditing ? 'Edit Staff Details' : 'Add New Staff'}</h2>
               <button onClick={() => setShowModal(false)} className="p-2 rounded-lg hover:bg-muted/50"><X className="w-5 h-5" /></button>
             </div>
             
@@ -252,15 +275,15 @@ export default function StaffPage() {
               </div>
               
               <div>
-                <label className="text-sm font-medium text-foreground">Password *</label>
+                <label className="text-sm font-medium text-foreground">{isEditing ? 'New Password (leave blank to keep current)' : 'Password *'}</label>
                 <input 
                   type="text" 
                   value={form.password} 
                   onChange={(e) => setForm({ ...form, password: e.target.value })} 
                   className="input-base mt-1" 
-                  placeholder="Generated/Temporary password" 
+                  placeholder={isEditing ? 'Enter new password...' : 'Generated/Temporary password'} 
                 />
-                <p className="text-xs text-muted-foreground mt-1">Provide this password to the staff member so they can log in.</p>
+                {!isEditing && <p className="text-xs text-muted-foreground mt-1">Provide this password to the staff member so they can log in.</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -294,8 +317,9 @@ export default function StaffPage() {
 
             <div className="flex gap-3 pt-2">
               <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={handleAddStaff} className="btn-primary flex-1 flex justify-center gap-2 items-center">
-                <UserPlus className="w-4 h-4" /> Create Account
+              <button onClick={handleSaveStaff} className="btn-primary flex-1 flex justify-center gap-2 items-center">
+                {isEditing ? <Pencil className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />} 
+                {isEditing ? 'Save Changes' : 'Create Account'}
               </button>
             </div>
           </div>

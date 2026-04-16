@@ -106,3 +106,39 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session || session.user.role !== 'OWNER') {
+      return NextResponse.json({ error: 'Unauthorized: Only OWNER can edit staff.' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { id, name, password, email, role, branchId } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Staff ID is required' }, { status: 400 });
+    }
+
+    const updateData: any = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (role) updateData.role = role;
+    if (branchId) updateData.branchId = branchId;
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: updateData,
+    });
+
+    const { password: _, ...safeUser } = updatedUser;
+    return NextResponse.json(safeUser);
+  } catch (error) {
+    console.error('Error updating staff:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

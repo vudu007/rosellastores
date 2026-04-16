@@ -30,6 +30,64 @@ export default function ReportsPage() {
     }
   };
 
+  const downloadTaxPDF = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/reports/tax');
+      const data = await res.json();
+      
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      
+      const doc = new jsPDF('landscape');
+      doc.setFontSize(18);
+      doc.text(`Monthly Tax Summary - ${data.period}`, 14, 22);
+      
+      const tableColumn = ["Date", "Sale ID", "Customer", "Type", "Payment M.", "Gross Total", "Discount", "Tax Collected", "Net Total"];
+      const tableRows = data.sales.map((s: any) => [
+        s.date, s.id.substring(0,8)+'...', s.customer, s.type, s.paymentMethod, s.subtotal.toFixed(2), s.discount.toFixed(2), s.tax.toFixed(2), s.total.toFixed(2)
+      ]);
+      
+      tableRows.push(["TOTAL", "", "", "", "", data.summary.totalGross.toFixed(2), "", data.summary.totalTax.toFixed(2), data.summary.totalNet.toFixed(2)]);
+      
+      autoTable(doc, { head: [tableColumn], body: tableRows, startY: 30 });
+      doc.save(`tax-summary-${data.period}.pdf`);
+      setStatus({ type: 'success', message: 'Tax PDF downloaded successfully' });
+    } catch (e) {
+      setStatus({ type: 'error', message: 'Failed to generate Tax PDF' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadInventoryPDF = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/reports/inventory');
+      const data = await res.json();
+      
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+      
+      const doc = new jsPDF('landscape');
+      doc.setFontSize(18);
+      doc.text(`Inventory Audit - ${data.date}`, 14, 22);
+      
+      const tableColumn = ["SKU", "Product Name", "Category", "Supplier", "Retail", "Wholesale", "System Stock", "Phys. Count", "Diff."];
+      const tableRows = data.inventory.map((p: any) => [
+        p.sku, p.name, p.category, p.supplier, p.retailPrice, p.wholesalePrice, p.systemStock, "", ""
+      ]);
+      
+      autoTable(doc, { head: [tableColumn], body: tableRows, startY: 30 });
+      doc.save(`inventory-audit-${data.date}.pdf`);
+      setStatus({ type: 'success', message: 'Inventory PDF downloaded successfully' });
+    } catch (e) {
+      setStatus({ type: 'error', message: 'Failed to generate Inventory PDF' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="p-8 space-y-8 animate-entrance">
       <div className="flex justify-between items-end">
@@ -80,9 +138,9 @@ export default function ReportsPage() {
             <h3 className="text-lg font-bold text-foreground">Monthly Tax Summary</h3>
             <p className="text-sm text-muted-foreground mt-1">Generate a comprehensive tax-ready report for the current month.</p>
           </div>
-          <a href="/api/reports/tax" className="btn-secondary w-full mt-6 text-center inline-block">
-            Download CSV
-          </a>
+          <button onClick={downloadTaxPDF} disabled={loading} className="btn-secondary w-full mt-6 text-center inline-block">
+            Download PDF
+          </button>
         </div>
 
         <div className="card-premium p-6 flex flex-col justify-between">
@@ -95,9 +153,9 @@ export default function ReportsPage() {
             <h3 className="text-lg font-bold text-foreground">Inventory Audit</h3>
             <p className="text-sm text-muted-foreground mt-1">Export a full inventory snapshot for physical count reconciliation.</p>
           </div>
-          <a href="/api/reports/inventory" className="btn-secondary w-full mt-6 text-center inline-block">
-            Export CSV
-          </a>
+          <button onClick={downloadInventoryPDF} disabled={loading} className="btn-secondary w-full mt-6 text-center inline-block">
+            Export PDF
+          </button>
         </div>
       </div>
 
