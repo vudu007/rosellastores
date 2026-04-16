@@ -12,7 +12,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate dev",
-    "cron:start": "node --loader ts-node/esm src/lib/cron.ts"
+    "cron:start": "node --loader ts-node/esm src/lib/cron.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "next": "^14.2.0",
