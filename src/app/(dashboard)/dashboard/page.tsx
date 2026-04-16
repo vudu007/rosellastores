@@ -1,0 +1,273 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell, LineChart, Line 
+} from 'recharts';
+import { 
+  ShoppingBag, DollarSign, TrendingUp, Calendar, AlertTriangle, 
+  ArrowUpRight, ArrowDownRight, Package, Users
+} from 'lucide-react';
+
+interface ChartData {
+  date: string;
+  revenue: number;
+  count: number;
+}
+
+interface CategoryData {
+  name: string;
+  value: number;
+}
+
+interface DashboardStats {
+  todaySales: number;
+  todayRevenue: number;
+  weekRevenue: number;
+  monthRevenue: number;
+  lowStockCount: number;
+  salesTrend: ChartData[];
+  categoryDistribution: CategoryData[];
+}
+
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+
+export default function DashboardPage() {
+  const { data: session } = useSession();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/dashboard/stats');
+        const data = await response.json();
+        setStats(data);
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency: 'NGN',
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-64px)]">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <p className="mt-4 text-muted-foreground font-medium">Analyzing business data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8 space-y-8 animate-entrance">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Business Overview</h1>
+          <p className="text-muted-foreground mt-1">
+            Welcome back, <span className="text-foreground font-semibold">{session?.user.name}</span>. Here's what's happening today.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 bg-background border rounded-lg px-4 py-2 text-sm font-medium shadow-sm">
+          <Calendar className="w-4 h-4 text-muted-foreground" />
+          {new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          title="Daily Revenue"
+          value={formatCurrency(stats?.todayRevenue ?? 0)}
+          icon={<DollarSign className="w-5 h-5" />}
+          trend="+null%" // Placeholder
+          description="from yesterday"
+          color="blue"
+        />
+        <StatCard
+          title="Total Sales"
+          value={stats?.todaySales ?? 0}
+          icon={<ShoppingBag className="w-5 h-5" />}
+          trend="+null%"
+          description="transactions today"
+          color="green"
+        />
+        <StatCard
+          title="Stock Alerts"
+          value={stats?.lowStockCount ?? 0}
+          icon={<Package className="w-5 h-5" />}
+          description="items below threshold"
+          color="orange"
+          isAlert={!!stats?.lowStockCount && stats.lowStockCount > 0}
+        />
+        <StatCard
+          title="Monthly Growth"
+          value={formatCurrency(stats?.monthRevenue ?? 0)}
+          icon={<TrendingUp className="w-5 h-5" />}
+          trend="+null%"
+          description="30 day performance"
+          color="purple"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 card-premium p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-lg">Sales Revenue Trend</h3>
+            <select className="text-xs bg-muted/50 border-none rounded-md px-2 py-1 outline-none">
+              <option>Last 7 Days</option>
+              <option>Last 30 Days</option>
+            </select>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats?.salesTrend}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} tickFormatter={(val) => `₦${val/1000}k`} />
+                <Tooltip 
+                  cursor={{ fill: '#F1F5F9' }}
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  formatter={(value: number) => [formatCurrency(value), 'Revenue']}
+                />
+                <Bar dataKey="revenue" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="card-premium p-6">
+          <h3 className="font-bold text-lg mb-6">Sales by Category</h3>
+          <div className="h-[300px] w-full flex items-center justify-center">
+            {stats?.categoryDistribution.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.categoryDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {stats.categoryDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    formatter={(value: number) => [formatCurrency(value), 'Sales']}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center text-muted-foreground space-y-2">
+                <Package className="w-8 h-8 mx-auto opacity-20" />
+                <p className="text-sm">No categorical data yet</p>
+              </div>
+            )}
+          </div>
+          <div className="mt-4 space-y-2">
+            {stats?.categoryDistribution.slice(0, 3).map((cat, i) => (
+              <div key={cat.name} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
+                  <span className="text-muted-foreground">{cat.name}</span>
+                </div>
+                <span className="font-semibold">{formatCurrency(cat.value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <QuickActionCard 
+          title="New POS Sale" 
+          description="Start a new retail or wholesale transaction."
+          href="/pos"
+          icon={<ShoppingBag className="text-blue-600" />}
+        />
+        <QuickActionCard 
+          title="Inventory Check" 
+          description="Audit stock levels and manage product pricing."
+          href="/dashboard/inventory"
+          icon={<Package className="text-green-600" />}
+        />
+        <QuickActionCard 
+          title="Operational Reports" 
+          description="View EOD summaries and business performance."
+          href="/dashboard/reports"
+          icon={<FileTextIcon className="text-orange-600" />}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FileTextIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+  );
+}
+
+function StatCard({ title, value, icon, trend, description, color, isAlert }: any) {
+  const colorMap: any = {
+    blue: 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800/30',
+    green: 'bg-green-50 text-green-600 border-green-100 dark:bg-green-900/20 dark:border-green-800/30',
+    purple: 'bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-900/20 dark:border-purple-800/30',
+    orange: 'bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-900/20 dark:border-orange-800/30',
+  };
+
+  return (
+    <div className={`card-premium p-6 border ${isAlert ? 'border-destructive/50 ring-1 ring-destructive/20' : ''}`}>
+      <div className="flex items-center justify-between mb-4">
+        <div className={`p-2 rounded-lg ${colorMap[color]}`}>{icon}</div>
+        {trend && (
+          <div className="flex items-center gap-1 text-xs font-medium text-green-600">
+            <ArrowUpRight className="w-3 h-3" />
+            {trend}
+          </div>
+        )}
+      </div>
+      <div>
+        <p className="text-sm font-medium text-muted-foreground">{title}</p>
+        <p className="text-2xl font-bold mt-1 tracking-tight">{value}</p>
+        <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function QuickActionCard({ title, description, href, icon }: any) {
+  return (
+    <a href={href} className="card-premium p-6 group">
+      <div className="flex items-center gap-4">
+        <div className="p-3 bg-muted rounded-xl transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+          {icon}
+        </div>
+        <div>
+          <h4 className="font-bold text-sm">{title}</h4>
+          <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{description}</p>
+        </div>
+      </div>
+    </a>
+  );
+}

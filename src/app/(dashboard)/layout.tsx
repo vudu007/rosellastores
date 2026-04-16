@@ -1,0 +1,22 @@
+import Navbar from '@/components/shared/Navbar';
+import Sidebar from '@/components/shared/Sidebar';
+import { auth } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
+
+  if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
+    redirect('/login');
+  }
+
+  return (
+    <>
+      <Navbar />
+      <div className="flex">
+        <Sidebar />
+        <main className="flex-1">{children}</main>
+      </div>
+    </>
+  );
+}

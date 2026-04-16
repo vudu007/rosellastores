@@ -1,0 +1,54 @@
+{
+  "name": "retail-management-system",
+  "version": "1.0.0",
+  "description": "Complete full-stack retail management system with POS, inventory, and reporting",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "db:migrate": "prisma migrate dev",
+    "cron:start": "node --loader ts-node/esm src/lib/cron.ts"
+  },
+  "dependencies": {
+    "next": "^14.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.4.5",
+    "@prisma/client": "^5.11.0",
+    "prisma": "^5.11.0",
+    "next-auth": "^5.0.0-beta.18",
+    "nodemailer": "^7.0.7",
+    "node-cron": "^3.0.3",
+    "pdfkit": "^0.14.0",
+    "tailwindcss": "^3.4.3",
+    "postcss": "^8.4.38",
+    "autoprefixer": "^10.4.19",
+    "zod": "^3.23.8",
+    "lucide-react": "^0.416.0",
+    "recharts": "^2.12.7",
+    "date-fns": "^3.6.0",
+    "bcryptjs": "^2.4.3",
+    "clsx": "^2.1.1",
+    "class-variance-authority": "^0.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/nodemailer": "^6.4.14",
+    "@types/pdfkit": "^0.13.0",
+    "@types/node-cron": "^3.0.11",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.0",
+    "ts-node": "^10.9.2"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  }
+}
