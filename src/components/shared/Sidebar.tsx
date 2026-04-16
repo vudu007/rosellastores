@@ -9,6 +9,7 @@ const menuItems = [
   { href: '/dashboard/sales', label: 'Sales', roles: ['OWNER', 'MANAGER'] },
   { href: '/dashboard/inventory', label: 'Inventory', roles: ['OWNER', 'MANAGER'] },
   { href: '/dashboard/customers', label: 'Customers', roles: ['OWNER', 'MANAGER'] },
+  { href: '/dashboard/suppliers', label: 'Suppliers', roles: ['OWNER', 'MANAGER'] },
   { href: '/dashboard/reports', label: 'Reports', roles: ['OWNER', 'MANAGER'] },
   { href: '/dashboard/staff', label: 'Staff', roles: ['OWNER', 'MANAGER'] },
   { href: '/dashboard/expenses', label: 'Expenses', roles: ['OWNER', 'MANAGER'] },

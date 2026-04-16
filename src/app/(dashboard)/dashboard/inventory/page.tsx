@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { 
   Package, Search, Filter, AlertCircle, CheckCircle2, 
   ArrowUpRight, MoreHorizontal, LayoutGrid, List,
-  Edit, Trash2, Eye, History, Plus
+  Edit, Trash2, Eye, History, Plus, Truck, X, PackagePlus
 } from 'lucide-react';
 
 interface Product {
@@ -26,6 +26,41 @@ export default function InventoryPage() {
   const [search, setSearch] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [restockProduct, setRestockProduct] = useState<Product | null>(null);
+  const [restockQty, setRestockQty] = useState('');
+  const [restockLoading, setRestockLoading] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (toast) { const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); }
+  }, [toast]);
+
+  const handleRestock = async () => {
+    if (!restockProduct || !restockQty || parseInt(restockQty) <= 0) {
+      setToast({ type: 'error', message: 'Enter a valid quantity' });
+      return;
+    }
+    setRestockLoading(true);
+    try {
+      const res = await fetch('/api/inventory/restock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: restockProduct.id, qty: parseInt(restockQty) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setToast({ type: 'success', message: data.message });
+      setRestockProduct(null);
+      setRestockQty('');
+      // Refresh product list
+      const products = await (await fetch(`/api/inventory?${lowStockOnly ? 'lowStockOnly=true' : ''}`)).json();
+      setProducts(products);
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Restock failed' });
+    } finally {
+      setRestockLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -191,6 +226,9 @@ export default function InventoryPage() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => setRestockProduct(product)} className="p-2 hover:bg-green-100 text-green-600 rounded-lg transition-colors" title="Restock">
+                              <PackagePlus className="w-4 h-4" />
+                            </button>
                             <button className="p-2 hover:bg-primary/10 text-primary rounded-lg" title="View Details">
                               <Eye className="w-4 h-4" />
                             </button>
@@ -254,6 +292,7 @@ export default function InventoryPage() {
                         {product.category.name}
                       </span>
                       <div className="flex gap-1">
+                        <button onClick={() => setRestockProduct(product)} className="p-1.5 hover:bg-green-100 text-green-600 rounded-md transition-colors" title="Restock"><PackagePlus className="w-3.5 h-3.5" /></button>
                         <button className="p-1.5 hover:bg-muted rounded-md transition-colors"><Edit className="w-3.5 h-3.5" /></button>
                         <button className="p-1.5 hover:bg-destructive/10 text-destructive rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
@@ -264,6 +303,62 @@ export default function InventoryPage() {
             </div>
           )}
         </>
+      )}
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-6 right-6 z-50 p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-up ${toast.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+          {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          <span className="text-sm font-medium">{toast.message}</span>
+        </div>
+      )}
+
+      {/* Restock Modal */}
+      {restockProduct && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 animate-slide-up">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <PackagePlus className="w-5 h-5 text-green-600" /> Restock Product
+              </h2>
+              <button onClick={() => setRestockProduct(null)} className="p-2 rounded-lg hover:bg-muted/50"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="p-4 bg-muted/30 rounded-xl">
+              <p className="font-bold text-foreground">{restockProduct.name}</p>
+              <p className="text-sm text-muted-foreground font-mono">{restockProduct.sku}</p>
+              <p className="text-sm text-muted-foreground mt-1">Current stock: <span className="font-bold text-foreground">{restockProduct.stockQty} units</span></p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-foreground">Quantity to Add *</label>
+              <input
+                type="number"
+                min="1"
+                value={restockQty}
+                onChange={(e) => setRestockQty(e.target.value)}
+                className="input-base mt-1"
+                placeholder="e.g. 50"
+                autoFocus
+              />
+              {restockQty && parseInt(restockQty) > 0 && (
+                <p className="text-xs text-green-600 mt-1 font-medium">
+                  New stock level: {restockProduct.stockQty + parseInt(restockQty)} units
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setRestockProduct(null)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={handleRestock} disabled={restockLoading} className="btn-primary flex-1 gap-2 flex items-center justify-center">
+                {restockLoading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                ) : (
+                  <><PackagePlus className="w-4 h-4" /> Confirm Restock</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
