@@ -19,6 +19,14 @@ interface Product {
   category: { name: string };
 }
 
+interface CategoryOption { id: string; name: string; }
+interface SupplierOption { id: string; name: string; }
+
+const emptyProductForm = {
+  name: '', sku: '', barcode: '', categoryId: '', supplierId: '',
+  retailPrice: '', wholesalePrice: '', stockQty: '', lowStockThreshold: '10', unit: 'pcs',
+};
+
 export default function InventoryPage() {
   const { data: session } = useSession();
   const [products, setProducts] = useState<Product[]>([]);
@@ -30,10 +38,21 @@ export default function InventoryPage() {
   const [restockQty, setRestockQty] = useState('');
   const [restockLoading, setRestockLoading] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [productForm, setProductForm] = useState(emptyProductForm);
+  const [productSaving, setProductSaving] = useState(false);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
 
   useEffect(() => {
     if (toast) { const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); }
   }, [toast]);
+
+  // Fetch categories and suppliers for the Add Product form
+  useEffect(() => {
+    fetch('/api/categories').then(r => r.json()).then(d => setCategories(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch('/api/suppliers').then(r => r.json()).then(d => setSuppliers(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
 
   const handleRestock = async () => {
     if (!restockProduct || !restockQty || parseInt(restockQty) <= 0) {
@@ -102,6 +121,47 @@ export default function InventoryPage() {
     }).format(value);
   };
 
+  const handleAddProduct = async () => {
+    const f = productForm;
+    if (!f.name || !f.sku || !f.categoryId || !f.supplierId || !f.retailPrice || !f.wholesalePrice) {
+      setToast({ type: 'error', message: 'Please fill in all required fields' });
+      return;
+    }
+    setProductSaving(true);
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: f.name,
+          sku: f.sku,
+          barcode: f.barcode || undefined,
+          categoryId: f.categoryId,
+          supplierId: f.supplierId,
+          retailPrice: parseFloat(f.retailPrice),
+          wholesalePrice: parseFloat(f.wholesalePrice),
+          stockQty: parseInt(f.stockQty) || 0,
+          lowStockThreshold: parseInt(f.lowStockThreshold) || 10,
+          unit: f.unit || 'pcs',
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(Array.isArray(d.error) ? d.error.map((e: any) => e.message).join(', ') : d.error);
+      }
+      setToast({ type: 'success', message: `"${f.name}" added to inventory` });
+      setShowAddProduct(false);
+      setProductForm(emptyProductForm);
+      // Refresh inventory
+      const prods = await (await fetch(`/api/inventory?${lowStockOnly ? 'lowStockOnly=true' : ''}`)).json();
+      setProducts(prods);
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Failed to add product' });
+    } finally {
+      setProductSaving(false);
+    }
+  };
+
   return (
     <div className="p-8 space-y-8 animate-entrance">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -114,7 +174,7 @@ export default function InventoryPage() {
             <History className="w-4 h-4" />
             Stock History
           </button>
-          <button className="btn-primary flex items-center gap-2">
+          <button onClick={() => setShowAddProduct(true)} className="btn-primary flex items-center gap-2">
             <Plus className="w-4 h-4" />
             Add New Product
           </button>
@@ -304,6 +364,93 @@ export default function InventoryPage() {
           )}
         </>
       )}
+      {/* Add Product Modal */}
+      {showAddProduct && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-5 animate-slide-up max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <Plus className="w-5 h-5 text-primary" /> Add New Product
+              </h2>
+              <button onClick={() => setShowAddProduct(false)} className="p-2 rounded-lg hover:bg-muted/50"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-foreground">Product Name *</label>
+                <input value={productForm.name} onChange={(e) => setProductForm({...productForm, name: e.target.value})} className="input-base mt-1" placeholder="e.g. Golden Penny Semovita 2kg" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">SKU *</label>
+                <input value={productForm.sku} onChange={(e) => setProductForm({...productForm, sku: e.target.value})} className="input-base mt-1" placeholder="e.g. FOOD-001" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Barcode</label>
+                <input value={productForm.barcode} onChange={(e) => setProductForm({...productForm, barcode: e.target.value})} className="input-base mt-1" placeholder="Scan or type barcode" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Category *</label>
+                <select value={productForm.categoryId} onChange={(e) => setProductForm({...productForm, categoryId: e.target.value})} className="input-base mt-1">
+                  <option value="">Select category</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                {categories.length === 0 && <p className="text-xs text-amber-600 mt-1">No categories yet — create one in Dashboard → Categories first.</p>}
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Supplier *</label>
+                <select value={productForm.supplierId} onChange={(e) => setProductForm({...productForm, supplierId: e.target.value})} className="input-base mt-1">
+                  <option value="">Select supplier</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                {suppliers.length === 0 && <p className="text-xs text-amber-600 mt-1">No suppliers yet — add one in Dashboard → Suppliers first.</p>}
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Retail Price (₦) *</label>
+                <input type="number" min="0" step="0.01" value={productForm.retailPrice} onChange={(e) => setProductForm({...productForm, retailPrice: e.target.value})} className="input-base mt-1" placeholder="e.g. 2500" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Wholesale Price (₦) *</label>
+                <input type="number" min="0" step="0.01" value={productForm.wholesalePrice} onChange={(e) => setProductForm({...productForm, wholesalePrice: e.target.value})} className="input-base mt-1" placeholder="e.g. 2000" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Initial Stock Qty</label>
+                <input type="number" min="0" value={productForm.stockQty} onChange={(e) => setProductForm({...productForm, stockQty: e.target.value})} className="input-base mt-1" placeholder="e.g. 100" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Low Stock Alert At</label>
+                <input type="number" min="0" value={productForm.lowStockThreshold} onChange={(e) => setProductForm({...productForm, lowStockThreshold: e.target.value})} className="input-base mt-1" placeholder="e.g. 10" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Unit of Measure</label>
+                <select value={productForm.unit} onChange={(e) => setProductForm({...productForm, unit: e.target.value})} className="input-base mt-1">
+                  <option value="pcs">Pieces (pcs)</option>
+                  <option value="kg">Kilograms (kg)</option>
+                  <option value="g">Grams (g)</option>
+                  <option value="L">Litres (L)</option>
+                  <option value="ml">Millilitres (ml)</option>
+                  <option value="bag">Bag</option>
+                  <option value="carton">Carton</option>
+                  <option value="bottle">Bottle</option>
+                  <option value="pack">Pack</option>
+                  <option value="dozen">Dozen</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShowAddProduct(false)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={handleAddProduct} disabled={productSaving} className="btn-primary flex-1 gap-2 flex items-center justify-center">
+                {productSaving ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                ) : (
+                  <><Plus className="w-4 h-4" /> Add Product</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast */}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-up ${toast.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
