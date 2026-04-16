@@ -16,6 +16,7 @@ export default function SettingsPage() {
     eodTime: '21:00',
     ownerEmail: '',
     currency: 'NGN',
+    businessLogo: '',
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -183,6 +184,33 @@ export default function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, businessName: e.target.value })}
                   className="input-base"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Business Logo
+                </label>
+                <div className="flex items-center gap-4">
+                  {settings.businessLogo && (
+                    <img src={settings.businessLogo} alt="Logo Preview" className="w-16 h-16 object-contain border rounded bg-white" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setSettings({ ...settings, businessLogo: reader.result as string });
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="input-base file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Recommended format: PNG or JPG. Logo will appear on terminal receipts and invoices.</p>
               </div>
 
               <div>

@@ -7,6 +7,8 @@ import {
   Smartphone, Trash2, Plus, Minus, CheckCircle, 
   ChevronRight, Filter, Package, AlertCircle
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface Product {
   id: string;
@@ -54,20 +56,26 @@ export default function POSPage() {
   const [lastSale, setLastSale] = useState<any>(null);
   const [barcodeBuffer, setBarcodeBuffer] = useState('');
   const [lastScanTime, setLastScanTime] = useState(0);
+  const [storeSettings, setStoreSettings] = useState<any>({});
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productsRes, customersRes] = await Promise.all([
+        const [productsRes, customersRes, settingsRes] = await Promise.all([
           fetch('/api/products?limit=200'),
           fetch('/api/customers?limit=200'),
+          fetch('/api/settings'),
         ]);
 
         const productsData = await productsRes.json();
         const customersData = await customersRes.json();
+        const settingsData = await settingsRes.json();
 
         setProducts(productsData.products);
         setCustomers(customersData.customers);
+        if (settingsRes.ok) {
+          setStoreSettings(settingsData);
+        }
 
         const uniqueCategories = [
           ...new Set(productsData.products.map((p: Product) => p.category.name)),
@@ -221,6 +229,7 @@ export default function POSPage() {
         tax,
         subtotal,
         customerName: selectedCustomer.name,
+        customerType: selectedCustomer.type,
         date: new Date().toISOString()
       };
 
@@ -299,6 +308,7 @@ export default function POSPage() {
             body { font-family: 'Courier New', Courier, monospace; width: 300px; padding: 20px; font-size: 14px; }
             .header { text-align: center; margin-bottom: 20px; }
             .logo { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
+            .logo-img { max-width: 150px; max-height: 80px; margin: 0 auto 10px auto; display: block; }
             .divider { border-top: 1px dashed #000; margin: 10px 0; }
             .item { display: flex; justify-content: space-between; margin: 5px 0; }
             .total { font-weight: bold; margin-top: 10px; }
@@ -307,7 +317,11 @@ export default function POSPage() {
         </head>
         <body>
           <div class="header">
-            <div class="logo">RETAIL PRO</div>
+            ${storeSettings.businessLogo ? `<img src="${storeSettings.businessLogo}" class="logo-img" />` : ''}
+            <div class="logo">${storeSettings.businessName || 'RETAIL PRO'}</div>
+            ${storeSettings.businessAddress ? `<div>${storeSettings.businessAddress}</div>` : ''}
+            ${storeSettings.businessPhone ? `<div>${storeSettings.businessPhone}</div>` : ''}
+            <div class="divider"></div>
             <div>Order: ${lastSale.date.slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 1000)}</div>
             <div>Date: ${new Date(lastSale.date).toLocaleString()}</div>
           </div>
@@ -349,6 +363,73 @@ export default function POSPage() {
     printWindow.document.close();
     setSuccessMessage(null);
     setLastSale(null);
+  };
+
+  const generateInvoice = () => {
+    if (!lastSale) return;
+    const doc = new jsPDF();
+    const invoiceNo = `INV-${lastSale.date.slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 1000)}`;
+    
+    // Header
+    doc.setFontSize(22);
+    doc.text(storeSettings.businessName || 'RETAIL PRO', 14, 20);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(storeSettings.businessAddress || '', 14, 26);
+    doc.text(storeSettings.businessPhone || '', 14, 32);
+
+    // Document Title
+    doc.setFontSize(20);
+    doc.setTextColor(0);
+    doc.text('INVOICE', 160, 20);
+    
+    // Details
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Invoice No: ${invoiceNo}`, 160, 28);
+    doc.text(`Date: ${new Date(lastSale.date).toLocaleDateString()}`, 160, 34);
+    doc.text(`Due Date: Upon Receipt`, 160, 40);
+
+    // Bill To
+    doc.setTextColor(0);
+    doc.text('BILL TO:', 14, 50);
+    doc.setFontSize(12);
+    doc.text(lastSale.customerName, 14, 56);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(lastSale.customerType === 'WHOLESALE' ? 'Wholesale Customer' : 'Retail Customer', 14, 62);
+
+    // Table
+    autoTable(doc, {
+      startY: 75,
+      head: [['Item Name', 'Quantity', 'Unit Price', 'Total']],
+      body: lastSale.items.map((item: any) => [
+        item.name,
+        item.quantity.toString(),
+        formatCurrency(item.unitPrice),
+        formatCurrency(item.total)
+      ]),
+      theme: 'striped',
+      headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+      styles: { fontSize: 10 }
+    });
+
+    // Summary
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.text(`Subtotal: ${formatCurrency(lastSale.subtotal)}`, 140, finalY);
+    doc.text(`Tax: ${formatCurrency(lastSale.tax)}`, 140, finalY + 6);
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "bold");
+    doc.text(`TOTAL: ${formatCurrency(lastSale.total)}`, 140, finalY + 14);
+
+    // Footer
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(150);
+    doc.text('Thank you for your business.', 105, 280, { align: 'center' });
+
+    doc.save(`${invoiceNo}.pdf`);
   };
 
   const formatCurrency = (value: number) => {
@@ -622,12 +703,22 @@ export default function POSPage() {
             <CheckCircle className="w-5 h-5" />
             <span className="font-bold tracking-tight">{successMessage}</span>
             {lastSale && (
-              <button 
-                onClick={printReceipt}
-                className="ml-4 bg-white text-green-600 px-4 py-1 rounded-full font-bold hover:bg-white/90 transition-colors"
-              >
-                Print Receipt
-              </button>
+              <div className="ml-4 flex gap-2">
+                <button 
+                  onClick={printReceipt}
+                  className="bg-white text-green-600 px-4 py-1 rounded-full font-bold hover:bg-white/90 transition-colors"
+                >
+                  Print Receipt
+                </button>
+                {(lastSale.customerType === 'WHOLESALE' || pricingMode === 'WHOLESALE') && (
+                  <button 
+                    onClick={generateInvoice}
+                    className="bg-green-800 text-white px-4 py-1 rounded-full font-bold hover:bg-green-900 transition-colors"
+                  >
+                    Generate Invoice
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
