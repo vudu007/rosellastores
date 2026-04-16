@@ -38,8 +38,10 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentDate, setCurrentDate] = useState('');
 
   useEffect(() => {
+    setCurrentDate(new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }));
     const fetchStats = async () => {
       try {
         const response = await fetch('/api/dashboard/stats');
@@ -85,7 +87,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-2 bg-background border rounded-lg px-4 py-2 text-sm font-medium shadow-sm">
           <Calendar className="w-4 h-4 text-muted-foreground" />
-          {new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })}
+          {currentDate}
         </div>
       </div>
 

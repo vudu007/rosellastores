@@ -174,7 +174,7 @@ export default function WholesalePage() {
       </div>
 
       <footer className="max-w-7xl mx-auto pt-20 pb-10 text-center border-t text-muted-foreground">
-        <p className="text-sm">RetailPro Wholesale Portal &copy; {new Date().getFullYear()}</p>
+        <p suppressHydrationWarning className="text-sm">RetailPro Wholesale Portal &copy; {new Date().getFullYear()}</p>
         <div className="flex justify-center gap-6 mt-4 text-xs font-semibold uppercase tracking-widest">
           <a href="#" className="hover:text-primary transition-colors">Bulk Policy</a>
           <a href="#" className="hover:text-primary transition-colors">Pricing Slab</a>
