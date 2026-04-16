@@ -44,6 +44,8 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
+  const [pricingMode, setPricingMode] = useState<'RETAIL' | 'WHOLESALE'>('RETAIL');
+  const [splitAmounts, setSplitAmounts] = useState({ cash: 0, card: 0, transfer: 0, mobile: 0 });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -121,11 +123,17 @@ export default function POSPage() {
   }, [products, searchQuery, selectedCategory]);
 
   const getProductPrice = (product: Product) => {
-    if (!selectedCustomer) return product.retailPrice;
-    return selectedCustomer.type === 'WHOLESALE'
-      ? product.wholesalePrice
-      : product.retailPrice;
+    return pricingMode === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
   };
+
+  useEffect(() => {
+    setCart(prev => prev.map(item => {
+      const product = products.find(p => p.id === item.productId);
+      if (!product) return item;
+      const newPrice = pricingMode === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
+      return { ...item, unitPrice: newPrice, total: newPrice * item.quantity - item.discount };
+    }));
+  }, [pricingMode, products]);
 
   const addToCart = (product: Product) => {
     const price = getProductPrice(product);
@@ -220,6 +228,7 @@ export default function POSPage() {
         body: JSON.stringify({
           customerId: selectedCustomer.id,
           paymentMethod,
+          notes: paymentMethod === 'SPLIT' ? `Cash: ${splitAmounts.cash}, Card: ${splitAmounts.card}, Transfer: ${splitAmounts.transfer}, Mobile: ${splitAmounts.mobile}` : undefined,
           items: cart.map((item) => ({
             productId: item.productId,
             quantity: item.quantity,
@@ -439,6 +448,11 @@ export default function POSPage() {
               onChange={(e) => {
                 const customer = customers.find((c) => c.id === e.target.value);
                 setSelectedCustomer(customer || null);
+                if (customer && customer.type === 'WHOLESALE') {
+                  setPricingMode('WHOLESALE');
+                } else {
+                  setPricingMode('RETAIL');
+                }
               }}
               className="input-base pl-10 appearance-none bg-muted/50 border-none cursor-pointer"
             >
@@ -537,7 +551,13 @@ export default function POSPage() {
                 <option value="CARD">Card / POS Terminal</option>
                 <option value="BANK_TRANSFER">Bank Transfer</option>
                 <option value="MOBILE_MONEY">Mobile Money</option>
+                <option value="SPLIT">Split Payment</option>
               </select>
+            </div>
+            
+            <div className="col-span-2 flex items-center bg-muted/30 p-1.5 rounded-lg">
+               <button onClick={() => setPricingMode('RETAIL')} className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${pricingMode === 'RETAIL' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground'}`}>Retail Mode</button>
+               <button onClick={() => setPricingMode('WHOLESALE')} className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${pricingMode === 'WHOLESALE' ? 'bg-blue-600 text-white shadow-sm' : 'text-muted-foreground'}`}>Wholesale Mode</button>
             </div>
 
             <button
@@ -605,6 +625,34 @@ export default function POSPage() {
                   {formatCurrency(total)}
                 </p>
               </div>
+
+              {paymentMethod === 'SPLIT' && (
+                <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-3">
+                  <p className="col-span-2 text-xs text-muted-foreground uppercase font-bold">Split Amounts Breakdown</p>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold">Cash</label>
+                    <input type="number" min="0" value={splitAmounts.cash || ''} onChange={(e) => setSplitAmounts({...splitAmounts, cash: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold">Card</label>
+                    <input type="number" min="0" value={splitAmounts.card || ''} onChange={(e) => setSplitAmounts({...splitAmounts, card: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold">Transfer</label>
+                    <input type="number" min="0" value={splitAmounts.transfer || ''} onChange={(e) => setSplitAmounts({...splitAmounts, transfer: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold">Mobile</label>
+                    <input type="number" min="0" value={splitAmounts.mobile || ''} onChange={(e) => setSplitAmounts({...splitAmounts, mobile: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" />
+                  </div>
+                  <div className="col-span-2 text-center text-xs font-bold mt-2">
+                    Sum: {formatCurrency(splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile)}
+                    {Math.abs((splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile) - total) > 0.01 && (
+                       <span className="text-red-500 ml-2">Mismatch! Needs {formatCurrency(Math.abs(total - (splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile)))}</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-4 mt-8">
@@ -616,7 +664,8 @@ export default function POSPage() {
               </button>
               <button 
                 onClick={handleCheckout} 
-                className="flex-1 bg-primary text-primary-foreground h-12 rounded-xl font-bold shadow-lg shadow-primary/20"
+                disabled={paymentMethod === 'SPLIT' && Math.abs((splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile) - total) > 0.01}
+                className="flex-1 bg-primary text-primary-foreground h-12 rounded-xl font-bold shadow-lg shadow-primary/20 disabled:opacity-50"
               >
                 Confirm Payment
               </button>

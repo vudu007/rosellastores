@@ -27,6 +27,7 @@ enum PaymentMethod {
   CARD
   BANK_TRANSFER
   MOBILE_MONEY
+  SPLIT
 }
 
 enum SaleStatus {
