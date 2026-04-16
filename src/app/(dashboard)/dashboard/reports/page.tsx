@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Card, Title, Text, Button, Badge } from '@tremor/react'; // Assuming tremor or standard Tailwind logic
 import { Mail, FileText, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function ReportsPage() {
@@ -35,7 +34,7 @@ export default function ReportsPage() {
     <div className="p-8 space-y-8 animate-entrance">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Reports & Analytics</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Reports & Analytics</h1>
           <p className="text-muted-foreground mt-2">Manage your end-of-day reports and business performance summaries.</p>
         </div>
       </div>
@@ -46,10 +45,10 @@ export default function ReportsPage() {
             <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
               <Mail className="w-6 h-6 text-blue-600" />
             </div>
-            <Badge className="bg-green-100 text-green-700">Scheduled: 9:00 PM</Badge>
+            <span className="bg-green-100 text-green-700 text-xs px-2.5 py-0.5 rounded-full font-bold">Scheduled: 9:00 PM</span>
           </div>
           <div className="mt-4">
-            <h3 className="text-lg font-bold">End of Day Report</h3>
+            <h3 className="text-lg font-bold text-foreground">End of Day Report</h3>
             <p className="text-sm text-muted-foreground mt-1">Sends a detailed PDF summary of today's sales, expenses, and top products to your email.</p>
           </div>
           <button
@@ -78,7 +77,7 @@ export default function ReportsPage() {
             </div>
           </div>
           <div className="mt-4">
-            <h3 className="text-lg font-bold">Monthly Tax Summary</h3>
+            <h3 className="text-lg font-bold text-foreground">Monthly Tax Summary</h3>
             <p className="text-sm text-muted-foreground mt-1">Generate a comprehensive tax-ready report for the current month.</p>
           </div>
           <button disabled className="btn-secondary w-full mt-6 cursor-not-allowed">
@@ -93,7 +92,7 @@ export default function ReportsPage() {
             </div>
           </div>
           <div className="mt-4">
-            <h3 className="text-lg font-bold">Inventory Audit</h3>
+            <h3 className="text-lg font-bold text-foreground">Inventory Audit</h3>
             <p className="text-sm text-muted-foreground mt-1">Export a full inventory snapshot for physical count reconciliation.</p>
           </div>
           <button disabled className="btn-secondary w-full mt-6 cursor-not-allowed">
@@ -113,9 +112,9 @@ export default function ReportsPage() {
 
       <div className="card-premium overflow-hidden">
         <div className="p-6 border-b">
-          <h3 className="font-bold">Recent Report Logs</h3>
+          <h3 className="font-bold text-foreground text-lg">Recent Report Logs</h3>
         </div>
-        <div className="p-0">
+        <div className="p-0 overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/50 text-muted-foreground uppercase text-xs font-semibold">
               <tr>
@@ -125,27 +124,27 @@ export default function ReportsPage() {
                 <th className="px-6 py-4">Method</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y border-white/5">
               <tr>
                 <td className="px-6 py-4">
-                  <Badge className="bg-green-100 text-green-700">Delivered</Badge>
+                  <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Delivered</span>
                 </td>
-                <td className="px-6 py-4 font-medium text-gray-900">{session?.user?.email}</td>
-                <td className="px-6 py-4 text-gray-500">Yesterday, 9:00 PM</td>
-                <td className="px-6 py-4 text-gray-500 italic">Scheduled Cron</td>
+                <td className="px-6 py-4 font-medium text-foreground">{session?.user?.email}</td>
+                <td className="px-6 py-4 text-muted-foreground">Yesterday, 9:00 PM</td>
+                <td className="px-6 py-4 text-muted-foreground italic">Scheduled Cron</td>
               </tr>
               <tr>
                 <td className="px-6 py-4">
-                  <Badge className="bg-green-100 text-green-700">Delivered</Badge>
+                  <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Delivered</span>
                 </td>
-                <td className="px-6 py-4 font-medium text-gray-900">{session?.user?.email}</td>
-                <td className="px-6 py-4 text-gray-500">2 days ago, 9:00 PM</td>
-                <td className="px-6 py-4 text-gray-500 italic">Scheduled Cron</td>
+                <td className="px-6 py-4 font-medium text-foreground">{session?.user?.email}</td>
+                <td className="px-6 py-4 text-muted-foreground">2 days ago, 9:00 PM</td>
+                <td className="px-6 py-4 text-muted-foreground italic">Scheduled Cron</td>
               </tr>
             </tbody>
           </table>
           <div className="p-4 bg-muted/20 text-center">
-            <Text className="text-xs text-muted-foreground">Historical logs are stored for 30 days.</Text>
+            <p className="text-xs text-muted-foreground">Historical logs are stored for 30 days.</p>
           </div>
         </div>
       </div>
