@@ -50,9 +50,9 @@ export default function Navbar() {
                 className="flex items-center space-x-2 text-gray-700 hover:text-blue-600"
               >
                 <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
-                  {session.user.name.charAt(0)}
+                  {session.user.name ? session.user.name.charAt(0) : 'U'}
                 </div>
-                <span className="text-sm font-medium hidden sm:inline">{session.user.name}</span>
+                <span className="text-sm font-medium hidden sm:inline">{session.user.name || 'User'}</span>
               </button>
 
               {dropdownOpen && (

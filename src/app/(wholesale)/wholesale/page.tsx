@@ -23,7 +23,7 @@ export default function WholesalePage() {
       try {
         const response = await fetch('/api/products?limit=200');
         const data = await response.json();
-        setProducts(data.products);
+        setProducts(data.products || []);
       } catch (error) {
         console.error('Error fetching products:', error);
       } finally {
@@ -91,7 +91,7 @@ export default function WholesalePage() {
                 <Package className="w-16 h-16 text-muted-foreground/20 group-hover:scale-110 transition-transform duration-500" />
                 <div className="absolute top-4 left-4">
                   <span className="bg-background/80 backdrop-blur px-3 py-1 rounded-full text-[10px] font-bold uppercase">
-                    {product.category.name}
+                    {product.category?.name || 'Uncategorized'}
                   </span>
                 </div>
               </div>

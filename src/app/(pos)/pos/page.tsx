@@ -71,14 +71,14 @@ export default function POSPage() {
         const customersData = await customersRes.json();
         const settingsData = await settingsRes.json();
 
-        setProducts(productsData.products);
-        setCustomers(customersData.customers);
+        setProducts(productsData.products || []);
+        setCustomers(customersData.customers || []);
         if (settingsRes.ok) {
           setStoreSettings(settingsData);
         }
 
         const uniqueCategories = [
-          ...new Set(productsData.products.map((p: Product) => p.category.name)),
+          ...new Set((productsData.products || []).map((p: Product) => p.category?.name).filter(Boolean)),
         ];
         setCategories(uniqueCategories as string[]);
       } catch (error) {
