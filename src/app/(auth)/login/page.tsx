@@ -88,23 +88,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-8 pt-8 border-t border-gray-200">
-            <p className="text-xs text-gray-600 text-center mb-4 font-semibold">DEMO CREDENTIALS</p>
-            <div className="space-y-3">
-              <div className="bg-blue-50 p-3 rounded text-xs">
-                <p className="font-semibold text-blue-900">Owner</p>
-                <p className="text-blue-700">owner@store.com / owner123</p>
-              </div>
-              <div className="bg-green-50 p-3 rounded text-xs">
-                <p className="font-semibold text-green-900">Manager</p>
-                <p className="text-green-700">manager@store.com / manager123</p>
-              </div>
-              <div className="bg-purple-50 p-3 rounded text-xs">
-                <p className="font-semibold text-purple-900">Cashier</p>
-                <p className="text-purple-700">cashier1@store.com / cashier123</p>
-              </div>
-            </div>
-          </div>
+          {/* Removed demo credentials */}
         </div>
       </div>
     </div>
