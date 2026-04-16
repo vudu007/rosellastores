@@ -49,6 +49,8 @@ export default function POSPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
+  const [customerForm, setCustomerForm] = useState({ name: '', phone: '', email: '', type: 'RETAIL' as 'RETAIL' | 'WHOLESALE' });
   const [lastSale, setLastSale] = useState<any>(null);
   const [barcodeBuffer, setBarcodeBuffer] = useState('');
   const [lastScanTime, setLastScanTime] = useState(0);
@@ -252,6 +254,38 @@ export default function POSPage() {
     }
   };
 
+  const handleQuickAddCustomer = async () => {
+    if (!customerForm.name) {
+      setSuccessMessage('Customer name is required');
+      setTimeout(() => setSuccessMessage(null), 2000);
+      return;
+    }
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customerForm),
+      });
+      if (res.ok) {
+        const newCustomer = await res.json();
+        setCustomers(prev => [...prev, newCustomer].sort((a, b) => a.name.localeCompare(b.name)));
+        setSelectedCustomer(newCustomer);
+        setPricingMode(newCustomer.type);
+        setShowAddCustomerModal(false);
+        setCustomerForm({ name: '', phone: '', email: '', type: 'RETAIL' });
+        setSuccessMessage(`Customer ${newCustomer.name} added!`);
+        setTimeout(() => setSuccessMessage(null), 2000);
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to add customer');
+      }
+    } catch (e: any) {
+      console.error(e);
+      setSuccessMessage(e.message || 'Error adding customer');
+      setTimeout(() => setSuccessMessage(null), 2000);
+    }
+  };
+
   const printReceipt = () => {
     if (!lastSale) return;
     const printWindow = window.open('', '_blank', 'width=400,height=600');
@@ -441,33 +475,42 @@ export default function POSPage() {
             </button>
           </div>
 
-          <div className="relative group">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <select
-              value={selectedCustomer?.id || ''}
-              onChange={(e) => {
-                const customer = customers.find((c) => c.id === e.target.value);
-                setSelectedCustomer(customer || null);
-                if (customer && customer.type === 'WHOLESALE') {
-                  setPricingMode('WHOLESALE');
-                } else {
-                  setPricingMode('RETAIL');
-                }
-              }}
-              className="input-base pl-10 appearance-none bg-muted/50 border-none cursor-pointer"
+          <div className="relative group flex items-center justify-between gap-2">
+            <div className="relative flex-1">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <select
+                value={selectedCustomer?.id || ''}
+                onChange={(e) => {
+                  const customer = customers.find((c) => c.id === e.target.value);
+                  setSelectedCustomer(customer || null);
+                  if (customer && customer.type === 'WHOLESALE') {
+                    setPricingMode('WHOLESALE');
+                  } else {
+                    setPricingMode('RETAIL');
+                  }
+                }}
+                className="input-base pl-10 appearance-none bg-muted/50 border-none cursor-pointer"
+              >
+                <option value="">Guest Customer (Retail)</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name} — {customer.type}
+                  </option>
+                ))}
+              </select>
+              {selectedCustomer?.type === 'WHOLESALE' && (
+                <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                  <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Wholesale Applied</span>
+                </div>
+              )}
+            </div>
+            <button 
+              onClick={() => setShowAddCustomerModal(true)}
+              className="p-3 bg-muted/30 hover:bg-muted text-primary rounded-xl transition-colors shrink-0"
+              title="Quick Add Customer"
             >
-              <option value="">Guest Customer (Retail)</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name} — {customer.type}
-                </option>
-              ))}
-            </select>
-            {selectedCustomer?.type === 'WHOLESALE' && (
-              <div className="absolute right-8 top-1/2 -translate-y-1/2">
-                <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Wholesale Applied</span>
-              </div>
-            )}
+              <Plus className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -669,6 +712,36 @@ export default function POSPage() {
               >
                 Confirm Payment
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Customer Modal */}
+      {showAddCustomerModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+          <div className="bg-card rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-slide-up border border-white/10">
+            <h2 className="text-xl font-bold tracking-tight mb-4 text-foreground">Quick Add Customer</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Full Name *</label>
+                <input value={customerForm.name} onChange={e => setCustomerForm({...customerForm, name: e.target.value})} className="input-base mt-1" placeholder="Jane Doe" autoFocus />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Phone Number</label>
+                <input type="tel" value={customerForm.phone} onChange={e => setCustomerForm({...customerForm, phone: e.target.value})} className="input-base mt-1" placeholder="080..." />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Customer Type</label>
+                <select value={customerForm.type} onChange={e => setCustomerForm({...customerForm, type: e.target.value as any})} className="input-base mt-1 appearance-none cursor-pointer">
+                  <option value="RETAIL">Retail (Standard Prices)</option>
+                  <option value="WHOLESALE">Wholesale (Discounted Prices)</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setShowAddCustomerModal(false)} className="flex-1 btn-secondary py-2 h-10">Cancel</button>
+              <button onClick={handleQuickAddCustomer} className="flex-1 btn-primary py-2 h-10">Save Customer</button>
             </div>
           </div>
         </div>
