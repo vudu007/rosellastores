@@ -1,6 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
+// Prisma Schema - MongoDB
 generator client {
   provider = "prisma-client-js"
 }
@@ -27,7 +25,6 @@ enum PaymentMethod {
   CARD
   BANK_TRANSFER
   MOBILE_MONEY
-  SPLIT
 }
 
 enum SaleStatus {
@@ -37,64 +34,64 @@ enum SaleStatus {
 }
 
 model User {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  email         String     @unique
-  password      String
-  role          Role
-  branch        Branch?    @relation(fields: [branchId], references: [id])
-  branchId      String?    @db.ObjectId
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String    @unique
+  password  String
+  role      Role
+  branchId  String?   @db.ObjectId
+  branch    Branch?   @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  sales         Sale[]
-  expenses      Expense[]
-  auditLogs     AuditLog[]
+  sales     Sale[]
+  expenses  Expense[]
+  auditLogs AuditLog[]
 
   @@index([branchId])
 }
 
 model Branch {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  address       String
-  phone         String
-  isActive      Boolean    @default(true)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  address   String
+  phone     String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  users         User[]
-  products      Product[]
-  sales         Sale[]
-  customers     Customer[]
-  expenses      Expense[]
+  users     User[]
+  products  Product[]
+  sales     Sale[]
+  customers Customer[]
+  expenses  Expense[]
 
   @@index([isActive])
 }
 
 model Product {
-  id                String     @id @default(auto()) @map("_id") @db.ObjectId
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
   name              String
-  sku               String     @unique
-  barcode           String?    @unique
-  category          Category   @relation(fields: [categoryId], references: [id])
-  categoryId        String     @db.ObjectId
+  sku               String    @unique
+  barcode           String?   @unique
+  categoryId        String    @db.ObjectId
+  category          Category  @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   retailPrice       Float
   wholesalePrice    Float
   stockQty          Int
-  lowStockThreshold Int        @default(10)
-  supplier          Supplier   @relation(fields: [supplierId], references: [id])
-  supplierId        String     @db.ObjectId
-  branch            Branch     @relation(fields: [branchId], references: [id])
-  branchId          String     @db.ObjectId
+  lowStockThreshold Int       @default(10)
+  supplierId        String    @db.ObjectId
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branchId          String    @db.ObjectId
+  branch            Branch    @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   imageUrl          String?
-  unit              String     @default("pcs")
-  minOrderQty       Int        @default(1)
-  isActive          Boolean    @default(true)
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  unit              String    @default("pcs")
+  minOrderQty       Int       @default(1)
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  saleItems        SaleItem[]
+  saleItems SaleItem[]
 
   @@index([categoryId])
   @@index([supplierId])
@@ -103,48 +100,48 @@ model Product {
 }
 
 model Category {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  name          String     @unique
-  parent        Category?  @relation("CategoryToParent", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  parentId      String?    @db.ObjectId
-  children      Category[] @relation("CategoryToParent")
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id        String     @id @default(auto()) @map("_id") @db.ObjectId
+  name      String     @unique
+  parentId  String?    @db.ObjectId
+  parent    Category?  @relation("CategoryToParent", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children  Category[] @relation("CategoryToParent")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
-  products      Product[]
+  products Product[]
 
   @@index([parentId])
 }
 
 model Supplier {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  contact       String
-  email         String?
-  phone         String
-  address       String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  contact   String
+  email     String?
+  phone     String
+  address   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  products      Product[]
+  products Product[]
 
   @@index([email])
 }
 
 model Customer {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  name          String
-  email         String?
-  phone         String?
-  type          CustomerType @default(RETAIL)
-  creditLimit   Float?
-  creditUsed    Float        @default(0)
-  branch        Branch       @relation(fields: [branchId], references: [id])
-  branchId      String       @db.ObjectId
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  email       String?
+  phone       String?
+  type        CustomerType @default(RETAIL)
+  creditLimit Float?
+  creditUsed  Float        @default(0)
+  branchId    String       @db.ObjectId
+  branch      Branch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
-  sales         Sale[]
+  sales Sale[]
 
   @@index([branchId])
   @@index([type])
@@ -152,24 +149,24 @@ model Customer {
 }
 
 model Sale {
-  id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  customer        Customer   @relation(fields: [customerId], references: [id])
-  customerId      String     @db.ObjectId
-  cashier         User       @relation(fields: [cashierId], references: [id])
-  cashierId       String     @db.ObjectId
-  subtotal        Float
-  tax             Float
-  discount        Float      @default(0)
-  total           Float
-  paymentMethod   PaymentMethod
-  status          SaleStatus @default(COMPLETED)
-  notes           String?
-  branch          Branch     @relation(fields: [branchId], references: [id])
-  branchId        String     @db.ObjectId
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  customerId    String        @db.ObjectId
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cashierId     String        @db.ObjectId
+  cashier       User          @relation(fields: [cashierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subtotal      Float
+  tax           Float
+  discount      Float         @default(0)
+  total         Float
+  paymentMethod PaymentMethod
+  status        SaleStatus    @default(COMPLETED)
+  notes         String?
+  branchId      String        @db.ObjectId
+  branch        Branch        @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
-  items           SaleItem[]
+  items SaleItem[]
 
   @@index([customerId])
   @@index([cashierId])
@@ -179,33 +176,33 @@ model Sale {
 }
 
 model SaleItem {
-  id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  sale            Sale       @relation(fields: [saleId], references: [id])
-  saleId          String     @db.ObjectId
-  product         Product    @relation(fields: [productId], references: [id])
-  productId       String     @db.ObjectId
-  qty             Int
-  unitPrice       Float
-  discount        Float      @default(0)
-  total           Float
-  createdAt       DateTime   @default(now())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  saleId    String   @db.ObjectId
+  sale      Sale     @relation(fields: [saleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productId String   @db.ObjectId
+  product   Product  @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  qty       Int
+  unitPrice Float
+  discount  Float    @default(0)
+  total     Float
+  createdAt DateTime @default(now())
 
   @@index([saleId])
   @@index([productId])
 }
 
 model Expense {
-  id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  category        String
-  amount          Float
-  description     String
-  date            DateTime
-  user            User       @relation(fields: [userId], references: [id])
-  userId          String     @db.ObjectId
-  branch          Branch     @relation(fields: [branchId], references: [id])
-  branchId        String     @db.ObjectId
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  category    String
+  amount      Float
+  description String
+  date        DateTime
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branchId    String   @db.ObjectId
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([userId])
   @@index([branchId])
@@ -213,30 +210,30 @@ model Expense {
 }
 
 model DiscountCode {
-  id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  code            String     @unique
-  type            String     // PERCENTAGE or FIXED
-  value           Float
-  expiryDate      DateTime?
-  usageLimit      Int?
-  usageCount      Int        @default(0)
-  isActive        Boolean    @default(true)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  code       String    @unique
+  type       String
+  value      Float
+  expiryDate DateTime?
+  usageLimit Int?
+  usageCount Int       @default(0)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([isActive])
 }
 
 model AuditLog {
-  id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  user            User       @relation(fields: [userId], references: [id])
-  userId          String     @db.ObjectId
-  action          String
-  entity          String
-  entityId        String
-  oldValue        String?
-  newValue        String?
-  timestamp       DateTime   @default(now())
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  action    String
+  entity    String
+  entityId  String
+  oldValue  String?
+  newValue  String?
+  timestamp DateTime @default(now())
 
   @@index([userId])
   @@index([entity])
@@ -244,10 +241,10 @@ model AuditLog {
 }
 
 model Setting {
-  id              String     @id @default(auto()) @map("_id") @db.ObjectId
-  key             String     @unique
-  value           String
-  description     String?
-  updatedAt       DateTime   @updatedAt
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
 
 }
