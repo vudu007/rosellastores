@@ -17,17 +17,12 @@ function getCronExpression(hour: number, minute: number): string {
 async function performLowStockCheck() {
   console.log('[CRON] Running low stock check...');
   try {
-    const lowStockItems = await prisma.product.findMany({
-      where: {
-        stockQty: {
-          lte: prisma.product.fields.lowStockThreshold,
-        },
-        isActive: true,
-      },
-      include: {
-        category: true,
-      },
-    });
+    // FIX: fetch products then filter in JS (Prisma can't do column-to-column WHERE comparisons)
+  const allProducts = await prisma.product.findMany({
+    where: { isActive: true },
+    select: { stockQty: true, lowStockThreshold: true },
+  });
+  const lowStockItems = allProducts.filter((p) => p.stockQty <= p.lowStockThreshold);
 
     console.log(`[CRON] Found ${lowStockItems.length} low stock items`);
   } catch (error) {

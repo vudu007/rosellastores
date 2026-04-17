@@ -43,18 +43,27 @@ export async function generateEODReport(date: Date = new Date()): Promise<EODRep
     },
   });
 
-  const lowStockItems = await prisma.product.findMany({
-    where: {
-      stockQty: {
-        lte: prisma.product.fields.lowStockThreshold,
-      },
-      isActive: true,
-    },
-    orderBy: {
-      stockQty: 'asc',
-    },
-    take: 10,
+  // FIX: fetch all active products then filter in JS (Prisma can't compare two columns in WHERE)
+  const allActiveProducts = await prisma.product.findMany({
+    where: { isActive: true },
+    select: { name: true, stockQty: true, lowStockThreshold: true },
+    orderBy: { stockQty: 'asc' },
   });
+  const lowStockItems = allActiveProducts
+    .filter((p) => p.stockQty <= p.lowStockThreshold)
+    .slice(0, 10);
+
+  // FIX: pre-fetch all products referenced in sales to avoid N+1 queries
+  const productIds = [
+    ...new Set(sales.flatMap((sale) => sale.items.map((item) => item.productId))),
+  ];
+  const productsMap = new Map(
+    (
+      await prisma.product.findMany({
+        where: { id: { in: productIds } },
+      })
+    ).map((p) => [p.id, p])
+  );
 
   let totalRevenue = 0;
   let totalDiscounts = 0;
@@ -79,19 +88,16 @@ export async function generateEODReport(date: Date = new Date()): Promise<EODRep
     paymentMethodBreakdown[method].total += sale.total;
 
     for (const item of sale.items) {
-      const product = await prisma.product.findUnique({
-        where: { id: item.productId },
-      });
+      const product = productsMap.get(item.productId);
       if (product) {
-        const key = product.id;
-        const existing = productSalesMap.get(key) || {
+        const existing = productSalesMap.get(product.id) || {
           name: product.name,
           quantity: 0,
           revenue: 0,
         };
         existing.quantity += item.qty;
         existing.revenue += item.total;
-        productSalesMap.set(key, existing);
+        productSalesMap.set(product.id, existing);
       }
     }
   }

@@ -7,7 +7,7 @@ import { startOfDay, endOfDay } from 'date-fns';
 
 const createSaleSchema = z.object({
   customerId: z.string(),
-  paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT']),
+  paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY']),
   items: z.array(
     z.object({
       productId: z.string(),

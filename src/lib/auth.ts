@@ -2,6 +2,7 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { prisma } from './prisma';
 import bcrypt from 'bcryptjs';
+import type { JWT } from 'next-auth/jwt';
 
 declare module 'next-auth' {
   interface User {
@@ -15,7 +16,9 @@ declare module 'next-auth' {
   interface Session {
     user: User;
   }
+}
 
+declare module 'next-auth/jwt' {
   interface JWT {
     id: string;
     role: string;
@@ -79,11 +82,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const isLoggedIn = !!auth?.user;
       const isAuthPage = request.nextUrl.pathname.startsWith('/login');
 
-      if (isAuthPage) {
-        return !isLoggedIn;
+      // Logged-in user visiting login page → redirect to home (prevents loop)
+      if (isLoggedIn && isAuthPage) {
+        return Response.redirect(new URL('/', request.nextUrl));
       }
 
-      return isLoggedIn;
+      // Not logged in, not on auth page → redirect to login
+      if (!isLoggedIn && !isAuthPage) {
+        return false;
+      }
+
+      return true;
     },
   },
   pages: {

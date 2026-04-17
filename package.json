@@ -11,9 +11,7 @@
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "db:migrate": "prisma migrate dev",
-    "cron:start": "node --loader ts-node/esm src/lib/cron.ts",
-    "postinstall": "prisma generate"
+    "db:migrate": "prisma migrate dev"
   },
   "dependencies": {
     "@prisma/client": "^5.11.0",
@@ -44,7 +42,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.12.12",
     "@types/node-cron": "^3.0.11",
-    "@types/nodemailer": "^6.4.14",
+    "@types/nodemailer": "^8.0.0",
     "@types/papaparse": "^5.5.2",
     "@types/pdfkit": "^0.13.0",
     "@types/react": "^18.3.3",

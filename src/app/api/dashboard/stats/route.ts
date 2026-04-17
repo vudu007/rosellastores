@@ -1,4 +1,3 @@
-export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
@@ -11,7 +10,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const branchId = session.user.branchId ?? undefined;
     const today = new Date();
     const todayStart = startOfDay(today);
     const todayEnd = endOfDay(today);
@@ -21,7 +19,7 @@ export async function GET(req: NextRequest) {
 
     const todaySales = await prisma.sale.findMany({
       where: {
-        branchId,
+        branchId: session.user.branchId || undefined,
         status: 'COMPLETED',
         createdAt: {
           gte: todayStart,
@@ -32,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     const weekSales = await prisma.sale.findMany({
       where: {
-        branchId,
+        branchId: session.user.branchId || undefined,
         status: 'COMPLETED',
         createdAt: {
           gte: weekStart,
@@ -42,7 +40,7 @@ export async function GET(req: NextRequest) {
 
     const monthSales = await prisma.sale.findMany({
       where: {
-        branchId,
+        branchId: session.user.branchId || undefined,
         status: 'COMPLETED',
         createdAt: {
           gte: monthStart,
@@ -54,57 +52,14 @@ export async function GET(req: NextRequest) {
     const weekRevenue = weekSales.reduce((sum, sale) => sum + sale.total, 0);
     const monthRevenue = monthSales.reduce((sum, sale) => sum + sale.total, 0);
 
-    // Count low stock items manually
+    // FIX: fetch products then filter in JS (Prisma can't do column-to-column WHERE comparisons)
     const allProducts = await prisma.product.findMany({
-      where: { branchId, isActive: true },
+      where: { branchId: session.user.branchId || undefined, isActive: true },
       select: { stockQty: true, lowStockThreshold: true },
     });
-    const lowStockItems = allProducts.filter(p => p.stockQty <= p.lowStockThreshold).length;
-
-    // Chart Data: Last 7 days trend
-    const salesTrend = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = subDays(today, i);
-      const dayStart = startOfDay(date);
-      const dayEnd = endOfDay(date);
-      const daySales = weekSales.filter(s => s.createdAt >= dayStart && s.createdAt <= dayEnd);
-      salesTrend.push({
-        date: date.toLocaleDateString('en-US', { weekday: 'short' }),
-        revenue: daySales.reduce((sum, s) => sum + s.total, 0),
-        count: daySales.length,
-      });
-    }
-
-    // Category Distribution (based on this month's sales)
-    const categorySales: Record<string, number> = {};
-    const salesWithItems = await prisma.sale.findMany({
-      where: {
-        branchId,
-        status: 'COMPLETED',
-        createdAt: { gte: monthStart },
-      },
-      include: {
-        items: {
-          include: {
-            product: {
-              include: { category: true }
-            }
-          }
-        }
-      }
-    });
-
-    for (const sale of salesWithItems) {
-      for (const item of sale.items) {
-        const catName = item.product.category?.name ?? 'Uncategorized';
-        categorySales[catName] = (categorySales[catName] || 0) + item.total;
-      }
-    }
-
-    const categoryDistribution = Object.entries(categorySales).map(([name, value]) => ({
-      name,
-      value,
-    }));
+    const lowStockItems = allProducts.filter(
+      (p) => p.stockQty <= p.lowStockThreshold
+    ).length;
 
     return NextResponse.json({
       todaySales: todaySales.length,
@@ -112,12 +67,9 @@ export async function GET(req: NextRequest) {
       weekRevenue,
       monthRevenue,
       lowStockCount: lowStockItems,
-      salesTrend,
-      categoryDistribution,
     });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
