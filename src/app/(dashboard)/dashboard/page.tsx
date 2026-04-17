@@ -82,7 +82,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Business Overview</h1>
           <p className="text-muted-foreground mt-1">
-            Welcome back, <span className="text-foreground font-semibold">{session?.user.name}</span>. Here's what's happening today.
+            Welcome back, <span className="text-foreground font-semibold">{session?.user.name}</span>. Here&apos;s what&apos;s happening today.
           </p>
         </div>
         <div className="flex items-center gap-2 bg-background border rounded-lg px-4 py-2 text-sm font-medium shadow-sm">

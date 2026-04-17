@@ -107,7 +107,7 @@ export default function ReportsPage() {
           </div>
           <div className="mt-4">
             <h3 className="text-lg font-bold text-foreground">End of Day Report</h3>
-            <p className="text-sm text-muted-foreground mt-1">Sends a detailed PDF summary of today's sales, expenses, and top products to your email.</p>
+            <p className="text-sm text-muted-foreground mt-1">Sends a detailed PDF summary of today&apos;s sales, expenses, and top products to your email.</p>
           </div>
           <button
             onClick={sendEOD}

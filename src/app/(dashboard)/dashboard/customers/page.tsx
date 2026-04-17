@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 interface Customer {
   id: string;
@@ -26,11 +26,7 @@ export default function CustomersPage() {
     creditLimit: '',
   });
 
-  useEffect(() => {
-    fetchCustomers();
-  }, [type]);
-
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (type) params.append('type', type);
@@ -44,7 +40,11 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [type]);
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();

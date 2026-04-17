@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { 
   Search, ShoppingCart, User, CreditCard, Banknote, 
@@ -91,36 +91,7 @@ export default function POSPage() {
     fetchData();
   }, []);
 
-  // Barcode Scanning Logic
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const currentTime = Date.now();
-      
-      // If the time between key presses is more than 50ms, it's likely manual typing, not a scanner
-      if (currentTime - lastScanTime > 50) {
-        setBarcodeBuffer('');
-      }
-
-      if (e.key === 'Enter') {
-        if (barcodeBuffer.length > 2) {
-          const product = products.find(p => p.sku === barcodeBuffer || (p as any).barcode === barcodeBuffer);
-          if (product) {
-            addToCart(product);
-            setSuccessMessage(`Scanned: ${product.name}`);
-            setTimeout(() => setSuccessMessage(null), 1500);
-          }
-          setBarcodeBuffer('');
-        }
-      } else if (e.key.length === 1) {
-        setBarcodeBuffer(prev => prev + e.key);
-      }
-      
-      setLastScanTime(currentTime);
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [barcodeBuffer, lastScanTime, products]);
+  // Barcode Scanning Logic - moved to handleKeyDown callback below
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -145,16 +116,16 @@ export default function POSPage() {
     }));
   }, [pricingMode, products]);
 
-  const addToCart = (product: Product) => {
-    const price = getProductPrice(product);
+  const addToCart = useCallback((product: Product) => {
+    const price = pricingMode === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
     const existingItem = cart.find((item) => item.productId === product.id);
 
     if (existingItem) {
       if (existingItem.quantity + 1 > product.stockQty) {
         return; // Prevent overstock adding
       }
-      setCart(
-        cart.map((item) =>
+      setCart((prevCart) =>
+        prevCart.map((item) =>
           item.productId === product.id
             ? {
                 ...item,
@@ -165,8 +136,8 @@ export default function POSPage() {
         )
       );
     } else {
-      setCart([
-        ...cart,
+      setCart((prevCart) => [
+        ...prevCart,
         {
           productId: product.id,
           name: product.name,
@@ -177,18 +148,51 @@ export default function POSPage() {
         },
       ]);
     }
-  };
+  }, [cart, pricingMode]);
 
-  const updateCartItem = (productId: string, quantity: number, discount: number) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    const currentTime = Date.now();
+
+    if (currentTime - lastScanTime > 50) {
+      setBarcodeBuffer('');
+    }
+
+    if (e.key === 'Enter') {
+      if (barcodeBuffer.length > 2) {
+        const product = products.find(p => p.sku === barcodeBuffer || (p as any).barcode === barcodeBuffer);
+        if (product) {
+          addToCart(product);
+          setSuccessMessage(`Scanned: ${product.name}`);
+          setTimeout(() => setSuccessMessage(null), 1500);
+        }
+        setBarcodeBuffer('');
+      }
+    } else if (e.key.length === 1) {
+      setBarcodeBuffer(prev => prev + e.key);
+    }
+
+    setLastScanTime(currentTime);
+  }, [barcodeBuffer, lastScanTime, products, addToCart]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  const removeFromCart = useCallback((productId: string) => {
+    setCart((prevCart) => prevCart.filter((item) => item.productId !== productId));
+  }, []);
+
+  const updateCartItem = useCallback((productId: string, quantity: number, discount: number) => {
     const product = products.find(p => p.id === productId);
     if (product && quantity > product.stockQty) return;
-    
+
     if (quantity <= 0) {
       removeFromCart(productId);
       return;
     }
-    setCart(
-      cart.map((item) =>
+    setCart((prevCart) =>
+      prevCart.map((item) =>
         item.productId === productId
           ? {
               ...item,
@@ -199,11 +203,7 @@ export default function POSPage() {
           : item
       )
     );
-  };
-
-  const removeFromCart = (productId: string) => {
-    setCart(cart.filter((item) => item.productId !== productId));
-  };
+  }, [products, removeFromCart]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
   const taxRate = 0.075;

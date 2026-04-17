@@ -191,9 +191,9 @@ export default function SettingsPage() {
                   Business Logo
                 </label>
                 <div className="flex items-center gap-4">
-                  {settings.businessLogo && (
-                    <img src={settings.businessLogo} alt="Logo Preview" className="w-16 h-16 object-contain border rounded bg-white" />
-                  )}
+                {settings.businessLogo && (
+                  <img src={settings.businessLogo} alt="Logo Preview" className="w-16 h-16 object-contain border rounded bg-white" /> // eslint-disable-line @next/next/no-img-element
+                )}
                   <input
                     type="file"
                     accept="image/png, image/jpeg"

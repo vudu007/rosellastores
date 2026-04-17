@@ -187,7 +187,7 @@ export default function StaffPage() {
         <div className="card-premium p-12 text-center">
           <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="font-semibold text-lg text-foreground">No staff found</h3>
-          <p className="text-muted-foreground mt-1">You haven't added any staff members yet.</p>
+          <p className="text-muted-foreground mt-1">You haven&apos;t added any staff members yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

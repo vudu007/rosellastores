@@ -161,7 +161,7 @@ export default function WholesalePage() {
             <Info className="w-12 h-12 mx-auto text-muted-foreground/30" />
             <div className="space-y-1">
               <p className="text-xl font-bold text-muted-foreground">No Wholesale Match</p>
-              <p className="text-muted-foreground/60 max-w-xs mx-auto">We couldn't find any products matching your search query in our wholesale catalog.</p>
+              <p className="text-muted-foreground/60 max-w-xs mx-auto">We couldn&apos;t find any products matching your search query in our wholesale catalog.</p>
             </div>
             <button 
               onClick={() => setSearchQuery('')}
