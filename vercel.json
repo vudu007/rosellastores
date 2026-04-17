@@ -1,8 +1,20 @@
 {
   "crons": [
     {
-      "path": "/api/reports/eod/send",
+      "path": "/api/cron/eod",
       "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/cron/low-stock",
+      "schedule": "0 7 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "src/app/api/reports/eod/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/cron/eod/route.ts": {
+      "maxDuration": 60
+    }
+  }
 }

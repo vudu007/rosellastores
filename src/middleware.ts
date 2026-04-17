@@ -1,9 +1,13 @@
 /**
- * NextAuth v5 Middleware
- * Runs the `authorized` callback from auth.ts on every matched request,
- * redirecting unauthenticated users to /login before the page renders.
+ * NextAuth v5 Middleware — Edge Runtime compatible
+ *
+ * Uses the Edge-safe authConfig (no Prisma, no bcryptjs).
+ * The full auth.ts with Credentials provider runs in Node.js only.
  */
-export { auth as middleware } from '@/lib/auth';
+import NextAuth from 'next-auth';
+import { authConfig } from '@/auth.config';
+
+export const { auth: middleware } = NextAuth(authConfig);
 
 export const config = {
   matcher: [
@@ -13,7 +17,8 @@ export const config = {
      * - _next/image  (image optimisation)
      * - favicon.ico
      * - api/auth     (NextAuth endpoints must always be public)
+     * - api/cron     (Vercel Cron endpoints, secured by CRON_SECRET)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/auth).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/auth|api/cron).*)',
   ],
 };

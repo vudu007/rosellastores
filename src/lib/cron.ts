@@ -20,7 +20,7 @@ async function performLowStockCheck() {
     // FIX: fetch products then filter in JS (Prisma can't do column-to-column WHERE comparisons)
   const allProducts = await prisma.product.findMany({
     where: { isActive: true },
-    select: { stockQty: true, lowStockThreshold: true },
+    include: { category: true },
   });
   const lowStockItems = allProducts.filter((p) => p.stockQty <= p.lowStockThreshold);
 

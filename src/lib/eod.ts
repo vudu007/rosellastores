@@ -46,7 +46,6 @@ export async function generateEODReport(date: Date = new Date()): Promise<EODRep
   // FIX: fetch all active products then filter in JS (Prisma can't compare two columns in WHERE)
   const allActiveProducts = await prisma.product.findMany({
     where: { isActive: true },
-    select: { name: true, stockQty: true, lowStockThreshold: true },
     orderBy: { stockQty: 'asc' },
   });
   const lowStockItems = allActiveProducts

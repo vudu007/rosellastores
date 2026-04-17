@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 
     const todaySales = await prisma.sale.findMany({
       where: {
-        branchId: session.user.branchId || undefined,
+        branchId: session.user.branchId,
         status: 'COMPLETED',
         createdAt: {
           gte: todayStart,
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
 
     const weekSales = await prisma.sale.findMany({
       where: {
-        branchId: session.user.branchId || undefined,
+        branchId: session.user.branchId,
         status: 'COMPLETED',
         createdAt: {
           gte: weekStart,
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
 
     const monthSales = await prisma.sale.findMany({
       where: {
-        branchId: session.user.branchId || undefined,
+        branchId: session.user.branchId,
         status: 'COMPLETED',
         createdAt: {
           gte: monthStart,
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
 
     // FIX: fetch products then filter in JS (Prisma can't do column-to-column WHERE comparisons)
     const allProducts = await prisma.product.findMany({
-      where: { branchId: session.user.branchId || undefined, isActive: true },
+      where: { branchId: session.user.branchId, isActive: true },
       select: { stockQty: true, lowStockThreshold: true },
     });
     const lowStockItems = allProducts.filter(

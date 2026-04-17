@@ -1,8 +1,8 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import { authConfig } from '@/auth.config';
 import { prisma } from './prisma';
 import bcrypt from 'bcryptjs';
-import type { JWT } from 'next-auth/jwt';
 
 declare module 'next-auth' {
   interface User {
@@ -27,6 +27,7 @@ declare module 'next-auth/jwt' {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
   providers: [
     Credentials({
       async authorize(credentials) {
@@ -61,42 +62,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.branchId = user.branchId;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as any;
-        session.user.branchId = token.branchId as string;
-      }
-      return session;
-    },
-    authorized({ auth, request }) {
-      const isLoggedIn = !!auth?.user;
-      const isAuthPage = request.nextUrl.pathname.startsWith('/login');
-
-      // Logged-in user visiting login page → redirect to home (prevents loop)
-      if (isLoggedIn && isAuthPage) {
-        return Response.redirect(new URL('/', request.nextUrl));
-      }
-
-      // Not logged in, not on auth page → redirect to login
-      if (!isLoggedIn && !isAuthPage) {
-        return false;
-      }
-
-      return true;
-    },
-  },
-  pages: {
-    signIn: '/login',
-  },
   trustHost: true,
 });
