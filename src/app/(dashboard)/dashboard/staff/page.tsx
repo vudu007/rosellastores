@@ -289,14 +289,16 @@ export default function StaffPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-foreground">Role *</label>
-                  <select 
-                    value={form.role} 
-                    onChange={(e) => setForm({ ...form, role: e.target.value })} 
+                  <select
+                    value={form.role}
+                    onChange={(e) => setForm({ ...form, role: e.target.value })}
                     className="input-base mt-1"
                   >
                     <option value="CASHIER">Cashier (POS Only)</option>
                     <option value="MANAGER">Manager (Full Access)</option>
-                    <option value="OWNER">Owner (Admin)</option>
+                    {session?.user.role === 'OWNER' && (
+                      <option value="OWNER">Owner (Admin)</option>
+                    )}
                   </select>
                 </div>
                 <div>

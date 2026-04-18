@@ -65,8 +65,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Filter restock logs to only products in the session user's branch
+    const branchProducts = await prisma.product.findMany({
+      where: { branchId: session.user.branchId ?? undefined },
+      select: { id: true },
+    });
+    const branchProductIds = branchProducts.map((p) => p.id);
+
     const restockLogs = await prisma.auditLog.findMany({
-      where: { action: 'RESTOCK', entity: 'Product' },
+      where: { action: 'RESTOCK', entity: 'Product', entityId: { in: branchProductIds } },
       include: { user: { select: { name: true } } },
       orderBy: { timestamp: 'desc' },
       take: 50,

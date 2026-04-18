@@ -1,11 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
 import { Mail, FileText, Send, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function ReportsPage() {
-  const { data: session } = useSession();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({
     type: null,
@@ -171,39 +169,12 @@ export default function ReportsPage() {
       <div className="card-premium overflow-hidden">
         <div className="p-6 border-b">
           <h3 className="font-bold text-foreground text-lg">Recent Report Logs</h3>
+          <p className="text-sm text-muted-foreground mt-1">Email delivery history for scheduled and manual EOD reports.</p>
         </div>
-        <div className="p-0 overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-muted/50 text-muted-foreground uppercase text-xs font-semibold">
-              <tr>
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Recipient</th>
-                <th className="px-6 py-4">Sent At</th>
-                <th className="px-6 py-4">Method</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y border-white/5">
-              <tr>
-                <td className="px-6 py-4">
-                  <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Delivered</span>
-                </td>
-                <td className="px-6 py-4 font-medium text-foreground">{session?.user?.email}</td>
-                <td className="px-6 py-4 text-muted-foreground">Yesterday, 9:00 PM</td>
-                <td className="px-6 py-4 text-muted-foreground italic">Scheduled Cron</td>
-              </tr>
-              <tr>
-                <td className="px-6 py-4">
-                  <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Delivered</span>
-                </td>
-                <td className="px-6 py-4 font-medium text-foreground">{session?.user?.email}</td>
-                <td className="px-6 py-4 text-muted-foreground">2 days ago, 9:00 PM</td>
-                <td className="px-6 py-4 text-muted-foreground italic">Scheduled Cron</td>
-              </tr>
-            </tbody>
-          </table>
-          <div className="p-4 bg-muted/20 text-center">
-            <p className="text-xs text-muted-foreground">Historical logs are stored for 30 days.</p>
-          </div>
+        <div className="p-12 text-center space-y-3">
+          <Mail className="w-10 h-10 text-muted-foreground/20 mx-auto" />
+          <p className="text-sm font-medium text-muted-foreground">No reports sent yet.</p>
+          <p className="text-xs text-muted-foreground/60">Reports are automatically sent at your configured end-of-day time.<br />Use &ldquo;Send Manual Report Now&rdquo; to trigger one immediately.</p>
         </div>
       </div>
     </div>

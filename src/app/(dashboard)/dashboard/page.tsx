@@ -47,6 +47,7 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [currentDate, setCurrentDate] = useState('');
 
   useEffect(() => {
@@ -54,10 +55,12 @@ export default function DashboardPage() {
     const fetchStats = async () => {
       try {
         const response = await fetch('/api/dashboard/stats');
+        if (!response.ok) throw new Error('Failed to load stats');
         const data = await response.json();
         setStats(data);
       } catch (error) {
         console.error('Error fetching stats:', error);
+        setFetchError(true);
       } finally {
         setLoading(false);
       }
@@ -80,6 +83,18 @@ export default function DashboardPage() {
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <p className="mt-4 text-muted-foreground font-medium">Analyzing business data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-64px)]">
+        <div className="text-center space-y-3">
+          <p className="text-lg font-bold text-foreground">Could not load dashboard data</p>
+          <p className="text-sm text-muted-foreground">Check your connection or try refreshing the page.</p>
+          <button onClick={() => window.location.reload()} className="btn-primary mt-2">Retry</button>
         </div>
       </div>
     );

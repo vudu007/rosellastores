@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(req.url);
-    const branchId = searchParams.get('branchId') || session.user.branchId;
+    // Always use the session's branchId — never allow caller to override
+    const branchId = session.user.branchId;
 
     const today = new Date();
     const startDate = startOfMonth(today);

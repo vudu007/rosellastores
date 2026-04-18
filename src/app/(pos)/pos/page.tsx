@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { 
-  Search, ShoppingCart, User, CreditCard, Banknote, 
-  Smartphone, Trash2, Plus, Minus, CheckCircle, 
-  ChevronRight, Filter, Package, AlertCircle
+import {
+  Search, ShoppingCart, User, CreditCard, Banknote,
+  Smartphone, Trash2, Plus, Minus, CheckCircle,
+  ChevronRight, Package, AlertCircle
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -214,25 +214,6 @@ export default function POSPage() {
     if (!selectedCustomer || cart.length === 0) return;
 
     try {
-      const saleData = {
-        customerId: selectedCustomer.id,
-        paymentMethod,
-        items: cart.map((item) => ({
-          productId: item.productId,
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          total: item.total
-        })),
-        total,
-        tax,
-        subtotal,
-        customerName: selectedCustomer.name,
-        customerType: selectedCustomer.type,
-        date: new Date().toISOString()
-      };
-
       const response = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -251,15 +232,39 @@ export default function POSPage() {
       });
 
       if (response.ok) {
-        setLastSale(saleData);
+        // Use actual API response so receipt has real sale ID and server-computed totals
+        const savedSale = await response.json();
+        setLastSale({
+          id: savedSale.id,
+          customerId: selectedCustomer.id,
+          customerName: selectedCustomer.name,
+          customerType: selectedCustomer.type,
+          paymentMethod,
+          items: cart.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discount: item.discount,
+            total: item.total,
+          })),
+          subtotal,
+          tax,
+          total,
+          date: savedSale.createdAt || new Date().toISOString(),
+        });
         setSuccessMessage('Transaction Completed Successfully');
         setCart([]);
         setSelectedCustomer(null);
         setShowPaymentModal(false);
-        // We don't clear success message immediately if we want them to print receipt
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        setSuccessMessage(`Payment failed: ${errData.error || 'Server error. Please try again.'}`);
+        setTimeout(() => setSuccessMessage(null), 4000);
       }
     } catch (error) {
       console.error('Error completing sale:', error);
+      setSuccessMessage('Network error. Check your connection and try again.');
+      setTimeout(() => setSuccessMessage(null), 4000);
     }
   };
 
@@ -696,22 +701,22 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* Success Success Overlay */}
+      {/* Transaction status overlay */}
       {successMessage && (
         <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-bounce">
-          <div className="bg-green-600 text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl">
+          <div className={`px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl ${lastSale ? 'bg-green-600' : 'bg-red-500'} text-white`}>
             <CheckCircle className="w-5 h-5" />
             <span className="font-bold tracking-tight">{successMessage}</span>
             {lastSale && (
               <div className="ml-4 flex gap-2">
-                <button 
+                <button
                   onClick={printReceipt}
                   className="bg-white text-green-600 px-4 py-1 rounded-full font-bold hover:bg-white/90 transition-colors"
                 >
                   Print Receipt
                 </button>
                 {(lastSale.customerType === 'WHOLESALE' || pricingMode === 'WHOLESALE') && (
-                  <button 
+                  <button
                     onClick={generateInvoice}
                     className="bg-green-800 text-white px-4 py-1 rounded-full font-bold hover:bg-green-900 transition-colors"
                   >

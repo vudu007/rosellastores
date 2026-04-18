@@ -12,10 +12,14 @@ interface Product {
   id: string;
   name: string;
   sku: string;
+  barcode?: string;
   stockQty: number;
   lowStockThreshold: number;
   retailPrice: number;
   wholesalePrice: number;
+  unit?: string;
+  categoryId?: string;
+  supplierId?: string;
   category: { name: string };
 }
 
@@ -221,20 +225,35 @@ export default function InventoryPage() {
     }
   };
 
-  const openEditProduct = (product: Product) => {
+  const openEditProduct = async (product: Product) => {
     setEditingProduct(product);
+    // Pre-fill with what we know from the list
     setEditProductForm({
       name: product.name,
       sku: product.sku,
-      barcode: '',
-      categoryId: '',
-      supplierId: '',
+      barcode: product.barcode || '',
+      categoryId: product.categoryId || '',
+      supplierId: product.supplierId || '',
       retailPrice: product.retailPrice.toString(),
       wholesalePrice: product.wholesalePrice.toString(),
       stockQty: product.stockQty.toString(),
       lowStockThreshold: product.lowStockThreshold.toString(),
-      unit: 'pcs',
+      unit: product.unit || 'pcs',
     });
+    // Fetch full product to get categoryId and supplierId
+    try {
+      const res = await fetch(`/api/products/${product.id}`);
+      if (res.ok) {
+        const full = await res.json();
+        setEditProductForm((prev) => ({
+          ...prev,
+          barcode: full.barcode || '',
+          categoryId: full.categoryId || '',
+          supplierId: full.supplierId || '',
+          unit: full.unit || 'pcs',
+        }));
+      }
+    } catch { /* keep pre-filled values if fetch fails */ }
   };
 
   const handleEditProduct = async () => {
