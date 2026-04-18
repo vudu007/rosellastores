@@ -155,7 +155,7 @@ export default function DashboardPage() {
         <div className="card-premium p-6">
           <h3 className="font-bold text-lg mb-6">Sales by Category</h3>
           <div className="h-[300px] w-full flex items-center justify-center">
-            {stats?.categoryDistribution.length ? (
+            {stats?.categoryDistribution?.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -185,7 +185,7 @@ export default function DashboardPage() {
             )}
           </div>
           <div className="mt-4 space-y-2">
-            {stats?.categoryDistribution.slice(0, 3).map((cat, i) => (
+            {stats?.categoryDistribution?.slice(0, 3).map((cat, i) => (
               <div key={cat.name} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
