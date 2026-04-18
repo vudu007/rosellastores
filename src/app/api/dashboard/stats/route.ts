@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
       const dayStart = startOfDay(day);
       const dayEnd = endOfDay(day);
       const daySales = weekSales.filter(
-        (s) => s.createdAt >= dayStart && s.createdAt <= dayEnd
+        (s) => s.createdAt.getTime() >= dayStart.getTime() && s.createdAt.getTime() <= dayEnd.getTime()
       );
       salesTrend.push({
         date: format(day, 'EEE'),
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
       const catMap: Record<string, number> = {};
       for (const item of saleItems) {
         const catName = item.product?.category?.name ?? 'Uncategorized';
-        catMap[catName] = (catMap[catName] ?? 0) + item.subtotal;
+        catMap[catName] = (catMap[catName] ?? 0) + item.total;
       }
       for (const [name, value] of Object.entries(catMap)) {
         categoryDistribution.push({ name, value });
