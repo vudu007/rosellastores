@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
 
     const where: any = {
-      branchId: session.user.branchId,
+      branchId: session.user.branchId ?? undefined,
     };
 
     if (startDate || endDate) {

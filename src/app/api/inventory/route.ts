@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const lowStockOnly = searchParams.get('lowStockOnly') === 'true';
 
     const where: any = {
-      branchId: session.user.branchId,
+      branchId: session.user.branchId ?? undefined,
       isActive: true,
     };
 

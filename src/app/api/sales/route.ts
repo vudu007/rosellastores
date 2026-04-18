@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const endDate = searchParams.get('endDate');
 
     const where: any = {
-      branchId: session.user.branchId,
+      branchId: session.user.branchId ?? undefined,
     };
 
     if (status) {
