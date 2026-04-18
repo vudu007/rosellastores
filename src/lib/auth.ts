@@ -16,9 +16,8 @@ declare module 'next-auth' {
   interface Session {
     user: User;
   }
-}
 
-declare module 'next-auth/jwt' {
+  // next-auth v5 beta: JWT augmentation lives here, not in 'next-auth/jwt'
   interface JWT {
     id: string;
     role: string;
