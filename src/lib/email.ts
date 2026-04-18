@@ -1,22 +1,13 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { EODReport } from '@/types';
 
-let transporter: nodemailer.Transporter | null = null;
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-export function getEmailTransporter() {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT || '587'),
-      secure: process.env.EMAIL_PORT === '465',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-  }
-  return transporter;
-}
+// The "from" address must be from a domain you've verified in Resend.
+// Set RESEND_FROM_EMAIL in your Vercel env vars, e.g. "RetailPro <reports@yourdomain.com>"
+// Until you verify a domain, use Resend's test address (only delivers to your Resend account email):
+//   RESEND_FROM_EMAIL=onboarding@resend.dev
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
 export function generateEODEmailHTML(report: EODReport, businessName: string): string {
   const formatCurrency = (value: number) => {
@@ -63,10 +54,8 @@ export function generateEODEmailHTML(report: EODReport, businessName: string): s
         td { padding: 12px; border-bottom: 1px solid #F3F4F6; font-size: 14px; }
         tr:last-child td { border-bottom: none; }
         .text-right { text-align: right; }
-        .text-muted { color: #6B7280; }
         .text-success { color: #10B981; font-weight: 500; }
         .text-warning { color: #F59E0B; font-weight: 500; }
-        .payment-method { display: inline-block; background: #EBF5FF; color: #1E40AF; padding: 4px 12px; border-radius: 4px; font-size: 12px; margin-right: 8px; margin-bottom: 4px; }
         .alert-box { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 15px; margin-bottom: 20px; border-radius: 4px; font-size: 13px; color: #92400E; }
         .comparison { background: #F0FDF4; padding: 15px; border-radius: 8px; margin-top: 15px; }
         .comparison-stat { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; }
@@ -104,15 +93,11 @@ export function generateEODEmailHTML(report: EODReport, businessName: string): s
               </div>
             </div>
 
-            ${
-              report.lowStockItems.length > 0
-                ? `
+            ${report.lowStockItems.length > 0 ? `
               <div class="alert-box">
                 <strong>⚠️ Stock Alert:</strong> ${report.lowStockItems.length} product(s) below minimum threshold
               </div>
-            `
-                : ''
-            }
+            ` : ''}
 
             <div class="section">
               <div class="section-title">Payment Method Breakdown</div>
@@ -125,26 +110,20 @@ export function generateEODEmailHTML(report: EODReport, businessName: string): s
                   </tr>
                 </thead>
                 <tbody>
-                  ${Object.entries(report.paymentMethodBreakdown)
-                    .map(
-                      ([method, data]) => `
+                  ${Object.entries(report.paymentMethodBreakdown).map(([method, data]) => `
                     <tr>
                       <td>${method.replace(/_/g, ' ')}</td>
                       <td class="text-right">${data.count}</td>
                       <td class="text-right text-success">${formatCurrency(data.total)}</td>
                     </tr>
-                  `
-                    )
-                    .join('')}
+                  `).join('')}
                 </tbody>
               </table>
             </div>
 
             <div class="section">
               <div class="section-title">Top 5 Products</div>
-              ${
-                report.topProducts.length > 0
-                  ? `
+              ${report.topProducts.length > 0 ? `
                 <table>
                   <thead>
                     <tr>
@@ -154,27 +133,19 @@ export function generateEODEmailHTML(report: EODReport, businessName: string): s
                     </tr>
                   </thead>
                   <tbody>
-                    ${report.topProducts
-                      .map(
-                        (product) => `
+                    ${report.topProducts.map(product => `
                       <tr>
                         <td>${product.name}</td>
                         <td class="text-right">${product.quantity}</td>
                         <td class="text-right">${formatCurrency(product.revenue)}</td>
                       </tr>
-                    `
-                      )
-                      .join('')}
+                    `).join('')}
                   </tbody>
                 </table>
-              `
-                  : '<div class="empty-state">No products sold</div>'
-              }
+              ` : '<div class="empty-state">No products sold today</div>'}
             </div>
 
-            ${
-              report.lowStockItems.length > 0
-                ? `
+            ${report.lowStockItems.length > 0 ? `
               <div class="section">
                 <div class="section-title">Low Stock Items</div>
                 <table>
@@ -186,23 +157,17 @@ export function generateEODEmailHTML(report: EODReport, businessName: string): s
                     </tr>
                   </thead>
                   <tbody>
-                    ${report.lowStockItems
-                      .map(
-                        (item) => `
+                    ${report.lowStockItems.map(item => `
                       <tr>
                         <td>${item.name}</td>
                         <td class="text-right text-warning">${item.stockQty}</td>
                         <td class="text-right">${item.lowStockThreshold}</td>
                       </tr>
-                    `
-                      )
-                      .join('')}
+                    `).join('')}
                   </tbody>
                 </table>
               </div>
-            `
-                : ''
-            }
+            ` : ''}
 
             <div class="section">
               <div class="section-title">Day Comparison</div>
@@ -240,20 +205,33 @@ export async function sendEmail(
   to: string,
   subject: string,
   html: string,
-  attachments?: any[]
+  attachments?: { filename: string; content: Buffer; contentType: string }[]
 ): Promise<boolean> {
   try {
-    const transporter = getEmailTransporter();
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    const payload: Parameters<typeof resend.emails.send>[0] = {
+      from: FROM_EMAIL,
       to,
       subject,
       html,
-      attachments,
-    });
+    };
+
+    if (attachments && attachments.length > 0) {
+      payload.attachments = attachments.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+      }));
+    }
+
+    const { error } = await resend.emails.send(payload);
+
+    if (error) {
+      console.error('Resend error:', error);
+      return false;
+    }
+
     return true;
-  } catch (error) {
-    console.error('Error sending email:', error);
+  } catch (err) {
+    console.error('Error sending email via Resend:', err);
     return false;
   }
 }
