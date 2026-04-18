@@ -39,7 +39,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden">
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-8">
-          <h1 className="text-3xl font-bold text-white text-center">RetailPro</h1>
+          <h1 className="text-3xl font-bold text-white text-center">MekaERP</h1>
           <p className="text-blue-100 text-center mt-2">Management System</p>
         </div>
 

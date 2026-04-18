@@ -323,7 +323,7 @@ export default function POSPage() {
         <body>
           <div class="header">
             ${storeSettings.businessLogo ? `<img src="${storeSettings.businessLogo}" class="logo-img" />` : ''}
-            <div class="logo">${storeSettings.businessName || 'RETAIL PRO'}</div>
+            <div class="logo">${storeSettings.businessName || 'MEKAERP'}</div>
             ${storeSettings.businessAddress ? `<div>${storeSettings.businessAddress}</div>` : ''}
             ${storeSettings.businessPhone ? `<div>${storeSettings.businessPhone}</div>` : ''}
             <div class="divider"></div>
@@ -377,7 +377,7 @@ export default function POSPage() {
     
     // Header
     doc.setFontSize(22);
-    doc.text(storeSettings.businessName || 'RETAIL PRO', 14, 20);
+    doc.text(storeSettings.businessName || 'MEKAERP', 14, 20);
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(storeSettings.businessAddress || '', 14, 26);

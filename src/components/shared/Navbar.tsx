@@ -16,9 +16,9 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           <Link href="/" className="flex items-center space-x-2">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">R</span>
+              <span className="text-white font-bold text-lg">M</span>
             </div>
-            <span className="font-bold text-gray-800 hidden sm:inline">RetailPro</span>
+            <span className="font-bold text-gray-800 hidden sm:inline">MekaERP</span>
           </Link>
 
           <div className="flex items-center space-x-6">

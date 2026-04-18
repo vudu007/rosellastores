@@ -270,7 +270,7 @@ export default function StaffPage() {
                   value={form.email} 
                   onChange={(e) => setForm({ ...form, email: e.target.value })} 
                   className="input-base mt-1" 
-                  placeholder="jane@retailpro.com" 
+                  placeholder="jane@mekaerp.com"
                 />
               </div>
               

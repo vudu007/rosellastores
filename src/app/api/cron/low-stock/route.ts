@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
     if (ownerEmailSetting) {
       const html = `
-        <h2 style="color:#F59E0B">⚠️ Low Stock Alert — ${businessNameSetting?.value ?? 'RetailPro'}</h2>
+        <h2 style="color:#F59E0B">⚠️ Low Stock Alert — ${businessNameSetting?.value ?? 'MekaERP'}</h2>
         <p>${lowStockItems.length} product(s) are below their minimum stock threshold:</p>
         <table style="width:100%;border-collapse:collapse">
           <thead>
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
             `).join('')}
           </tbody>
         </table>
-        <p style="margin-top:20px;color:#6B7280;font-size:12px">This is an automated alert from RetailPro.</p>
+        <p style="margin-top:20px;color:#6B7280;font-size:12px">This is an automated alert from MekaERP.</p>
       `;
 
       await sendEmail(
