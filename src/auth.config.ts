@@ -14,9 +14,13 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const isAuthPage = request.nextUrl.pathname.startsWith('/login');
 
-      // Logged-in user on login page → redirect home (prevents loop)
+      // Logged-in user on login page → redirect to their role-specific page
+      // (Never redirect to '/' — that would loop back here)
       if (isLoggedIn && isAuthPage) {
-        return Response.redirect(new URL('/', request.nextUrl));
+        const role = (auth?.user as any)?.role;
+        if (role === 'CASHIER') return Response.redirect(new URL('/pos', request.nextUrl));
+        if (role === 'WHOLESALE_CUSTOMER') return Response.redirect(new URL('/wholesale', request.nextUrl));
+        return Response.redirect(new URL('/dashboard', request.nextUrl));
       }
 
       // Not logged in, not on auth page → redirect to login
