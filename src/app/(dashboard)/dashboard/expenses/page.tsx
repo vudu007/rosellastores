@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { 
-  CreditCard, Calendar, Plus, X, Search, 
-  TrendingDown, Trash2, Edit3, Tag, FileText, 
-  ArrowDownCircle, UserCircle, PieChart 
+import { useEffect, useState, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
+import {
+  CreditCard, Calendar, Plus, X, Search,
+  TrendingDown, Trash2, Edit3, Tag, FileText,
+  ArrowDownCircle, UserCircle, PieChart
 } from 'lucide-react';
 
 interface Expense {
@@ -16,23 +17,27 @@ interface Expense {
   user: { name: string };
 }
 
+const emptyForm = {
+  category: '',
+  amount: '',
+  description: '',
+  date: new Date().toISOString().split('T')[0],
+};
+
 export default function ExpensesPage() {
+  const { data: session } = useSession();
+  const canEdit = ['OWNER', 'MANAGER'].includes(session?.user.role ?? '');
+
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [formData, setFormData] = useState({
-    category: '',
-    amount: '',
-    description: '',
-    date: new Date().toISOString().split('T')[0],
-  });
+  const [formData, setFormData] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchExpenses();
-  }, []);
-
-  const fetchExpenses = async () => {
+  const fetchExpenses = useCallback(async () => {
     try {
       const response = await fetch('/api/expenses?limit=100');
       const data = await response.json();
@@ -42,33 +47,66 @@ export default function ExpensesPage() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
+
+  const openEdit = (expense: Expense) => {
+    setEditingExpense(expense);
+    setFormData({
+      category: expense.category,
+      amount: expense.amount.toString(),
+      description: expense.description,
+      date: new Date(expense.date).toISOString().split('T')[0],
+    });
+    setShowAddForm(false);
   };
 
-  const handleAddExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const response = await fetch('/api/expenses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          amount: parseFloat(formData.amount),
-          date: new Date(formData.date).toISOString(),
-        }),
-      });
+  const resetForm = () => {
+    setFormData(emptyForm);
+    setShowAddForm(false);
+    setEditingExpense(null);
+  };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const isEdit = !!editingExpense;
+      const payload = {
+        ...formData,
+        amount: parseFloat(formData.amount),
+        date: new Date(formData.date).toISOString(),
+      };
+      const response = await fetch(
+        isEdit ? `/api/expenses/${editingExpense.id}` : '/api/expenses',
+        {
+          method: isEdit ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }
+      );
       if (response.ok) {
-        setFormData({
-          category: '',
-          amount: '',
-          description: '',
-          date: new Date().toISOString().split('T')[0],
-        });
-        setShowAddForm(false);
+        resetForm();
         fetchExpenses();
       }
     } catch (error) {
-      console.error('Error adding expense:', error);
+      console.error('Error saving expense:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string, description: string) => {
+    if (!confirm(`Delete expense "${description}"? This cannot be undone.`)) return;
+    setDeletingId(id);
+    try {
+      await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -96,10 +134,12 @@ export default function ExpensesPage() {
       .reduce((sum, e) => sum + e.amount, 0),
   }));
 
-  const filteredExpenses = expenses.filter(e => 
-    e.description.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredExpenses = expenses.filter(e =>
+    e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const activeForm = showAddForm || !!editingExpense;
 
   return (
     <div className="p-8 space-y-8 animate-entrance">
@@ -108,26 +148,28 @@ export default function ExpensesPage() {
           <h1 className="text-3xl font-bold tracking-tight">Expense Ledger</h1>
           <p className="text-muted-foreground mt-1">Track operational costs and categorize business spending.</p>
         </div>
-        <button 
-          onClick={() => setShowAddForm(!showAddForm)} 
-          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg ${
-            showAddForm 
-              ? 'bg-destructive/10 text-destructive hover:bg-destructive/20 shadow-none' 
-              : 'bg-primary text-primary-foreground hover:shadow-primary/30'
-          }`}
-        >
-          {showAddForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-          {showAddForm ? 'Cancel Transaction' : 'Record New Expense'}
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => { setShowAddForm(!showAddForm); setEditingExpense(null); setFormData(emptyForm); }}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg ${
+              activeForm
+                ? 'bg-destructive/10 text-destructive hover:bg-destructive/20 shadow-none'
+                : 'bg-primary text-primary-foreground hover:shadow-primary/30'
+            }`}
+          >
+            {activeForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+            {activeForm ? 'Cancel' : 'Record New Expense'}
+          </button>
+        )}
       </div>
 
-      {showAddForm && (
+      {activeForm && canEdit && (
         <div className="card-premium p-8 border-none ring-1 ring-primary/20 animate-slide-up">
            <h2 className="text-xl font-black mb-6 flex items-center gap-2">
              <ArrowDownCircle className="w-6 h-6 text-primary" />
-             Log New Expenditure
+             {editingExpense ? 'Edit Expense' : 'Log New Expenditure'}
            </h2>
-           <form onSubmit={handleAddExpense} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
              <div className="space-y-1.5">
                <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Category</label>
                <input
@@ -172,9 +214,12 @@ export default function ExpensesPage() {
                  required
                />
              </div>
-             <button type="submit" className="btn-primary lg:col-span-4 h-12 font-black text-lg mt-2">
-               Save Expense Record
-             </button>
+             <div className="lg:col-span-4 flex gap-3">
+               <button type="submit" disabled={saving} className="btn-primary flex-1 h-12 font-black text-lg mt-2 disabled:opacity-50">
+                 {saving ? 'Saving...' : editingExpense ? 'Update Expense' : 'Save Expense Record'}
+               </button>
+               <button type="button" onClick={resetForm} className="btn-secondary h-12 mt-2 px-6">Cancel</button>
+             </div>
            </form>
         </div>
       )}
@@ -229,10 +274,18 @@ export default function ExpensesPage() {
                   <th className="px-6 py-4">Context / Description</th>
                   <th className="px-6 py-4">Recorded By</th>
                   <th className="px-6 py-4 text-right">Amount</th>
+                  {canEdit && <th className="px-6 py-4 text-center">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filteredExpenses.map((expense) => (
+                {filteredExpenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={canEdit ? 6 : 5} className="p-20 text-center">
+                      <TrendingDown className="w-12 h-12 text-muted-foreground/10 mx-auto mb-3" />
+                      <p className="text-muted-foreground font-medium">No expense records found.</p>
+                    </td>
+                  </tr>
+                ) : filteredExpenses.map((expense) => (
                   <tr key={expense.id} className="group hover:bg-muted/20 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -260,16 +313,31 @@ export default function ExpensesPage() {
                         {formatCurrency(expense.amount)}
                       </span>
                     </td>
+                    {canEdit && (
+                      <td className="px-6 py-4 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => openEdit(expense)}
+                            className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(expense.id, expense.description)}
+                            disabled={deletingId === expense.id}
+                            className="p-1.5 hover:bg-red-100 text-red-600 rounded-lg transition-colors disabled:opacity-40"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
-            {filteredExpenses.length === 0 && (
-              <div className="p-20 text-center space-y-3">
-                <TrendingDown className="w-12 h-12 text-muted-foreground/10 mx-auto" />
-                <p className="text-muted-foreground font-medium">No expense records found.</p>
-              </div>
-            )}
           </div>
         )}
       </div>

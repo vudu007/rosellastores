@@ -41,6 +41,10 @@ export default function InventoryPage() {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [productForm, setProductForm] = useState(emptyProductForm);
   const [productSaving, setProductSaving] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editProductForm, setEditProductForm] = useState(emptyProductForm);
+  const [editSaving, setEditSaving] = useState(false);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [importing, setImporting] = useState(false);
@@ -217,6 +221,79 @@ export default function InventoryPage() {
     }
   };
 
+  const openEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setEditProductForm({
+      name: product.name,
+      sku: product.sku,
+      barcode: '',
+      categoryId: '',
+      supplierId: '',
+      retailPrice: product.retailPrice.toString(),
+      wholesalePrice: product.wholesalePrice.toString(),
+      stockQty: product.stockQty.toString(),
+      lowStockThreshold: product.lowStockThreshold.toString(),
+      unit: 'pcs',
+    });
+  };
+
+  const handleEditProduct = async () => {
+    if (!editingProduct) return;
+    const f = editProductForm;
+    if (!f.name || !f.sku || !f.retailPrice || !f.wholesalePrice) {
+      setToast({ type: 'error', message: 'Please fill in required fields' });
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const body: Record<string, any> = {
+        name: f.name,
+        sku: f.sku,
+        retailPrice: parseFloat(f.retailPrice),
+        wholesalePrice: parseFloat(f.wholesalePrice),
+        lowStockThreshold: parseInt(f.lowStockThreshold) || 10,
+      };
+      if (f.categoryId) body.categoryId = f.categoryId;
+      if (f.supplierId) body.supplierId = f.supplierId;
+      if (f.barcode) body.barcode = f.barcode;
+      if (f.unit) body.unit = f.unit;
+
+      const res = await fetch(`/api/products/${editingProduct.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(Array.isArray(d.error) ? d.error.map((e: any) => e.message).join(', ') : d.error);
+      }
+      setToast({ type: 'success', message: `"${f.name}" updated` });
+      setEditingProduct(null);
+      const prods = await (await fetch(`/api/inventory?${lowStockOnly ? 'lowStockOnly=true' : ''}`)).json();
+      setProducts(prods);
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Failed to update product' });
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+    if (!confirm(`Deactivate "${product.name}"? It will be hidden from inventory.`)) return;
+    setDeletingProductId(product.id);
+    try {
+      const res = await fetch(`/api/products/${product.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to deactivate');
+      setToast({ type: 'success', message: `"${product.name}" deactivated` });
+      const prods = await (await fetch(`/api/inventory?${lowStockOnly ? 'lowStockOnly=true' : ''}`)).json();
+      setProducts(prods);
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Failed to deactivate product' });
+    } finally {
+      setDeletingProductId(null);
+    }
+  };
+
   return (
     <div className="p-8 space-y-8 animate-entrance">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -354,10 +431,10 @@ export default function InventoryPage() {
                             <button className="p-2 hover:bg-primary/10 text-primary rounded-lg" title="View Details">
                               <Eye className="w-4 h-4" />
                             </button>
-                            <button className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors" title="Edit">
+                            <button onClick={() => openEditProduct(product)} className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors" title="Edit">
                               <Edit className="w-4 h-4" />
                             </button>
-                            <button className="p-2 hover:bg-destructive/10 text-destructive rounded-lg" title="Remove">
+                            <button onClick={() => handleDeleteProduct(product)} disabled={deletingProductId === product.id} className="p-2 hover:bg-destructive/10 text-destructive rounded-lg disabled:opacity-40" title="Deactivate">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
@@ -415,8 +492,8 @@ export default function InventoryPage() {
                       </span>
                       <div className="flex gap-1">
                         <button onClick={() => setRestockProduct(product)} className="p-1.5 hover:bg-green-100 text-green-600 rounded-md transition-colors" title="Restock"><PackagePlus className="w-3.5 h-3.5" /></button>
-                        <button className="p-1.5 hover:bg-muted rounded-md transition-colors"><Edit className="w-3.5 h-3.5" /></button>
-                        <button className="p-1.5 hover:bg-destructive/10 text-destructive rounded-md transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => openEditProduct(product)} className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-md transition-colors" title="Edit"><Edit className="w-3.5 h-3.5" /></button>
+                        <button onClick={() => handleDeleteProduct(product)} disabled={deletingProductId === product.id} className="p-1.5 hover:bg-destructive/10 text-destructive rounded-md transition-colors disabled:opacity-40" title="Deactivate"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     </div>
                   </div>
@@ -426,6 +503,87 @@ export default function InventoryPage() {
           )}
         </>
       )}
+      {/* Edit Product Modal */}
+      {editingProduct && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-5 animate-slide-up max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <Edit className="w-5 h-5 text-primary" /> Edit Product
+              </h2>
+              <button onClick={() => setEditingProduct(null)} className="p-2 rounded-lg hover:bg-muted/50"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="text-sm font-medium text-foreground">Product Name *</label>
+                <input value={editProductForm.name} onChange={(e) => setEditProductForm({...editProductForm, name: e.target.value})} className="input-base mt-1" placeholder="Product name" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">SKU *</label>
+                <input value={editProductForm.sku} onChange={(e) => setEditProductForm({...editProductForm, sku: e.target.value})} className="input-base mt-1" placeholder="e.g. FOOD-001" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Barcode</label>
+                <input value={editProductForm.barcode} onChange={(e) => setEditProductForm({...editProductForm, barcode: e.target.value})} className="input-base mt-1" placeholder="Optional" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Category</label>
+                <select value={editProductForm.categoryId} onChange={(e) => setEditProductForm({...editProductForm, categoryId: e.target.value})} className="input-base mt-1">
+                  <option value="">Keep current ({editingProduct.category.name})</option>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Supplier</label>
+                <select value={editProductForm.supplierId} onChange={(e) => setEditProductForm({...editProductForm, supplierId: e.target.value})} className="input-base mt-1">
+                  <option value="">Keep current</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Retail Price (₦) *</label>
+                <input type="number" min="0" step="0.01" value={editProductForm.retailPrice} onChange={(e) => setEditProductForm({...editProductForm, retailPrice: e.target.value})} className="input-base mt-1" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Wholesale Price (₦) *</label>
+                <input type="number" min="0" step="0.01" value={editProductForm.wholesalePrice} onChange={(e) => setEditProductForm({...editProductForm, wholesalePrice: e.target.value})} className="input-base mt-1" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Low Stock Alert At</label>
+                <input type="number" min="0" value={editProductForm.lowStockThreshold} onChange={(e) => setEditProductForm({...editProductForm, lowStockThreshold: e.target.value})} className="input-base mt-1" />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Unit of Measure</label>
+                <select value={editProductForm.unit} onChange={(e) => setEditProductForm({...editProductForm, unit: e.target.value})} className="input-base mt-1">
+                  <option value="pcs">Pieces (pcs)</option>
+                  <option value="kg">Kilograms (kg)</option>
+                  <option value="g">Grams (g)</option>
+                  <option value="L">Litres (L)</option>
+                  <option value="ml">Millilitres (ml)</option>
+                  <option value="bag">Bag</option>
+                  <option value="carton">Carton</option>
+                  <option value="bottle">Bottle</option>
+                  <option value="pack">Pack</option>
+                  <option value="dozen">Dozen</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setEditingProduct(null)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={handleEditProduct} disabled={editSaving} className="btn-primary flex-1 gap-2 flex items-center justify-center">
+                {editSaving ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                ) : (
+                  <><Edit className="w-4 h-4" /> Save Changes</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Product Modal */}
       {showAddProduct && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">

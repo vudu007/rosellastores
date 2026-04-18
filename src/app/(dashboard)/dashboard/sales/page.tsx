@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { Ban } from 'lucide-react';
 
 interface Sale {
   id: string;
@@ -16,33 +18,56 @@ interface Sale {
 }
 
 export default function SalesPage() {
+  const { data: session } = useSession();
+  const canVoid = ['OWNER', 'MANAGER'].includes(session?.user.role ?? '');
+
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState('');
+  const [voidingId, setVoidingId] = useState<string | null>(null);
+
+  const fetchSales = async (currentPage = page, currentStatus = status) => {
+    try {
+      const params = new URLSearchParams();
+      params.append('page', currentPage.toString());
+      params.append('limit', '20');
+      if (currentStatus) params.append('status', currentStatus);
+
+      const response = await fetch(`/api/sales?${params}`);
+      const data = await response.json();
+      setSales(data.sales);
+      setTotal(data.pagination.total);
+    } catch (error) {
+      console.error('Error fetching sales:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchSales = async () => {
-      try {
-        const params = new URLSearchParams();
-        params.append('page', page.toString());
-        params.append('limit', '20');
-        if (status) params.append('status', status);
-
-        const response = await fetch(`/api/sales?${params}`);
-        const data = await response.json();
-        setSales(data.sales);
-        setTotal(data.pagination.total);
-      } catch (error) {
-        console.error('Error fetching sales:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSales();
+    fetchSales(page, status);
   }, [page, status]);
+
+  const handleVoid = async (id: string, total: number) => {
+    if (!confirm(`Void this sale of ₦${total.toLocaleString()}? Stock will be restored.`)) return;
+    setVoidingId(id);
+    try {
+      const res = await fetch(`/api/sales/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'VOIDED' }),
+      });
+      if (res.ok) {
+        fetchSales(page, status);
+      }
+    } catch (error) {
+      console.error('Error voiding sale:', error);
+    } finally {
+      setVoidingId(null);
+    }
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -114,16 +139,27 @@ export default function SalesPage() {
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
                     Status
                   </th>
+                  {canVoid && (
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {sales.map((sale) => (
+                {sales.length === 0 ? (
+                  <tr>
+                    <td colSpan={canVoid ? 7 : 6} className="px-6 py-12 text-center text-gray-500">
+                      No sales found.
+                    </td>
+                  </tr>
+                ) : sales.map((sale) => (
                   <tr key={sale.id}>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {formatDate(sale.createdAt)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{sale.customer.name}</td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{sale.cashier.name}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{sale.customer?.name ?? '-'}</td>
+                    <td className="px-6 py-4 text-sm text-gray-600">{sale.cashier?.name ?? '-'}</td>
                     <td className="px-6 py-4 text-sm text-right font-medium text-gray-900">
                       {formatCurrency(sale.total)}
                     </td>
@@ -143,6 +179,23 @@ export default function SalesPage() {
                         {sale.status}
                       </span>
                     </td>
+                    {canVoid && (
+                      <td className="px-6 py-4 text-center">
+                        {sale.status === 'COMPLETED' ? (
+                          <button
+                            onClick={() => handleVoid(sale.id, sale.total)}
+                            disabled={voidingId === sale.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-40"
+                            title="Void Sale"
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                            {voidingId === sale.id ? 'Voiding...' : 'Void'}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
