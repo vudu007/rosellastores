@@ -14,42 +14,36 @@ export async function GET(req: NextRequest) {
     const todayStart = startOfDay(today);
     const todayEnd = endOfDay(today);
 
+    const yesterdayStart = startOfDay(subDays(today, 1));
+    const yesterdayEnd = endOfDay(subDays(today, 1));
+
     const weekStart = startOfDay(subDays(today, 7));
+    const prevWeekStart = startOfDay(subDays(today, 14));
+    const prevWeekEnd = endOfDay(subDays(today, 8));
     const monthStart = startOfDay(subDays(today, 30));
 
-    const todaySales = await prisma.sale.findMany({
-      where: {
-        branchId: session.user.branchId ?? undefined,
-        status: 'COMPLETED',
-        createdAt: {
-          gte: todayStart,
-          lte: todayEnd,
-        },
-      },
-    });
-
-    const weekSales = await prisma.sale.findMany({
-      where: {
-        branchId: session.user.branchId ?? undefined,
-        status: 'COMPLETED',
-        createdAt: {
-          gte: weekStart,
-        },
-      },
-    });
-
-    const monthSales = await prisma.sale.findMany({
-      where: {
-        branchId: session.user.branchId ?? undefined,
-        status: 'COMPLETED',
-        createdAt: {
-          gte: monthStart,
-        },
-      },
-    });
+    const [todaySales, yesterdaySales, weekSales, prevWeekSales, monthSales] = await Promise.all([
+      prisma.sale.findMany({
+        where: { branchId: session.user.branchId ?? undefined, status: 'COMPLETED', createdAt: { gte: todayStart, lte: todayEnd } },
+      }),
+      prisma.sale.findMany({
+        where: { branchId: session.user.branchId ?? undefined, status: 'COMPLETED', createdAt: { gte: yesterdayStart, lte: yesterdayEnd } },
+      }),
+      prisma.sale.findMany({
+        where: { branchId: session.user.branchId ?? undefined, status: 'COMPLETED', createdAt: { gte: weekStart } },
+      }),
+      prisma.sale.findMany({
+        where: { branchId: session.user.branchId ?? undefined, status: 'COMPLETED', createdAt: { gte: prevWeekStart, lte: prevWeekEnd } },
+      }),
+      prisma.sale.findMany({
+        where: { branchId: session.user.branchId ?? undefined, status: 'COMPLETED', createdAt: { gte: monthStart } },
+      }),
+    ]);
 
     const todayRevenue = todaySales.reduce((sum, sale) => sum + sale.total, 0);
+    const yesterdayRevenue = yesterdaySales.reduce((sum, sale) => sum + sale.total, 0);
     const weekRevenue = weekSales.reduce((sum, sale) => sum + sale.total, 0);
+    const prevWeekRevenue = prevWeekSales.reduce((sum, sale) => sum + sale.total, 0);
     const monthRevenue = monthSales.reduce((sum, sale) => sum + sale.total, 0);
 
     // FIX: fetch products then filter in JS (Prisma can't do column-to-column WHERE comparisons)
@@ -98,8 +92,11 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       todaySales: todaySales.length,
+      yesterdaySales: yesterdaySales.length,
       todayRevenue,
+      yesterdayRevenue,
       weekRevenue,
+      prevWeekRevenue,
       monthRevenue,
       lowStockCount: lowStockItems,
       salesTrend,

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Ban } from 'lucide-react';
+import { Ban, Download } from 'lucide-react';
 
 interface Sale {
   id: string;
@@ -50,6 +50,26 @@ export default function SalesPage() {
     fetchSales(page, status);
   }, [page, status]);
 
+  const exportCSV = () => {
+    const headers = ['Date', 'Customer', 'Cashier', 'Amount (₦)', 'Payment', 'Status'];
+    const rows = sales.map((s) => [
+      formatDate(s.createdAt),
+      s.customer?.name ?? '-',
+      s.cashier?.name ?? '-',
+      s.total.toFixed(2),
+      s.paymentMethod.replace(/_/g, ' '),
+      s.status,
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sales-page${page}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleVoid = async (id: string, total: number) => {
     if (!confirm(`Void this sale of ₦${total.toLocaleString()}? Stock will be restored.`)) return;
     setVoidingId(id);
@@ -94,7 +114,7 @@ export default function SalesPage() {
         <p className="text-gray-600 mt-2">View all completed sales transactions</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6 flex items-center gap-4">
         <select
           value={status}
           onChange={(e) => {
@@ -108,6 +128,15 @@ export default function SalesPage() {
           <option value="VOIDED">Voided</option>
           <option value="HELD">Held</option>
         </select>
+        {sales.length > 0 && (
+          <button
+            onClick={exportCSV}
+            className="ml-auto flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Export CSV
+          </button>
+        )}
       </div>
 
       {loading ? (

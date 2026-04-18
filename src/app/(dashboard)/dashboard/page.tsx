@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, LineChart, Line 
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell
 } from 'recharts';
-import { 
-  ShoppingBag, DollarSign, TrendingUp, Calendar, AlertTriangle, 
-  ArrowUpRight, ArrowDownRight, Package, Users
+import {
+  ShoppingBag, DollarSign, TrendingUp, Calendar,
+  ArrowUpRight, ArrowDownRight, Package
 } from 'lucide-react';
 
 interface ChartData {
@@ -24,8 +24,11 @@ interface CategoryData {
 
 interface DashboardStats {
   todaySales: number;
+  yesterdaySales: number;
   todayRevenue: number;
+  yesterdayRevenue: number;
   weekRevenue: number;
+  prevWeekRevenue: number;
   monthRevenue: number;
   lowStockCount: number;
   salesTrend: ChartData[];
@@ -33,6 +36,12 @@ interface DashboardStats {
 }
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+
+function trendPct(current: number, previous: number): string | null {
+  if (previous === 0) return null;
+  const pct = ((current - previous) / previous) * 100;
+  return (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+}
 
 export default function DashboardPage() {
   const { data: session } = useSession();
@@ -76,6 +85,10 @@ export default function DashboardPage() {
     );
   }
 
+  const dailyRevenueTrend = trendPct(stats?.todayRevenue ?? 0, stats?.yesterdayRevenue ?? 0);
+  const dailySalesTrend   = trendPct(stats?.todaySales ?? 0,   stats?.yesterdaySales ?? 0);
+  const weeklyTrend       = trendPct(stats?.weekRevenue ?? 0,  stats?.prevWeekRevenue ?? 0);
+
   return (
     <div className="p-8 space-y-8 animate-entrance">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -96,16 +109,16 @@ export default function DashboardPage() {
           title="Daily Revenue"
           value={formatCurrency(stats?.todayRevenue ?? 0)}
           icon={<DollarSign className="w-5 h-5" />}
-          trend="+null%" // Placeholder
-          description="from yesterday"
+          trend={dailyRevenueTrend}
+          description="vs yesterday"
           color="blue"
         />
         <StatCard
-          title="Total Sales"
+          title="Today's Sales"
           value={stats?.todaySales ?? 0}
           icon={<ShoppingBag className="w-5 h-5" />}
-          trend="+null%"
-          description="transactions today"
+          trend={dailySalesTrend}
+          description="vs yesterday"
           color="green"
         />
         <StatCard
@@ -117,11 +130,11 @@ export default function DashboardPage() {
           isAlert={!!stats?.lowStockCount && stats.lowStockCount > 0}
         />
         <StatCard
-          title="Monthly Growth"
-          value={formatCurrency(stats?.monthRevenue ?? 0)}
+          title="Weekly Revenue"
+          value={formatCurrency(stats?.weekRevenue ?? 0)}
           icon={<TrendingUp className="w-5 h-5" />}
-          trend="+null%"
-          description="30 day performance"
+          trend={weeklyTrend}
+          description="vs prior 7 days"
           color="purple"
         />
       </div>
@@ -130,10 +143,7 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 card-premium p-6">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-lg">Sales Revenue Trend</h3>
-            <select className="text-xs bg-muted/50 border-none rounded-md px-2 py-1 outline-none">
-              <option>Last 7 Days</option>
-              <option>Last 30 Days</option>
-            </select>
+            <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded-md">Last 7 Days</span>
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -141,7 +151,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} tickFormatter={(val) => `₦${val/1000}k`} />
-                <Tooltip 
+                <Tooltip
                   cursor={{ fill: '#F1F5F9' }}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   formatter={(value: number) => [formatCurrency(value), 'Revenue']}
@@ -171,7 +181,7 @@ export default function DashboardPage() {
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                     formatter={(value: number) => [formatCurrency(value), 'Sales']}
                   />
@@ -197,22 +207,22 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <QuickActionCard 
-          title="New POS Sale" 
+        <QuickActionCard
+          title="New POS Sale"
           description="Start a new retail or wholesale transaction."
           href="/pos"
           icon={<ShoppingBag className="text-blue-600" />}
         />
-        <QuickActionCard 
-          title="Inventory Check" 
+        <QuickActionCard
+          title="Inventory Check"
           description="Audit stock levels and manage product pricing."
           href="/dashboard/inventory"
           icon={<Package className="text-green-600" />}
         />
-        <QuickActionCard 
-          title="Operational Reports" 
+        <QuickActionCard
+          title="Operational Reports"
           description="View EOD summaries and business performance."
           href="/dashboard/reports"
           icon={<FileTextIcon className="text-orange-600" />}
@@ -228,21 +238,34 @@ function FileTextIcon({ className }: { className?: string }) {
   );
 }
 
-function StatCard({ title, value, icon, trend, description, color, isAlert }: any) {
-  const colorMap: any = {
+function StatCard({ title, value, icon, trend, description, color, isAlert }: {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  trend?: string | null;
+  description?: string;
+  color: string;
+  isAlert?: boolean;
+}) {
+  const colorMap: Record<string, string> = {
     blue: 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800/30',
     green: 'bg-green-50 text-green-600 border-green-100 dark:bg-green-900/20 dark:border-green-800/30',
     purple: 'bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-900/20 dark:border-purple-800/30',
     orange: 'bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-900/20 dark:border-orange-800/30',
   };
 
+  const isPositive = trend ? !trend.startsWith('-') : true;
+
   return (
     <div className={`card-premium p-6 border ${isAlert ? 'border-destructive/50 ring-1 ring-destructive/20' : ''}`}>
       <div className="flex items-center justify-between mb-4">
         <div className={`p-2 rounded-lg ${colorMap[color]}`}>{icon}</div>
-        {trend && (
-          <div className="flex items-center gap-1 text-xs font-medium text-green-600">
-            <ArrowUpRight className="w-3 h-3" />
+        {trend != null && (
+          <div className={`flex items-center gap-1 text-xs font-semibold ${isPositive ? 'text-green-600' : 'text-red-500'}`}>
+            {isPositive
+              ? <ArrowUpRight className="w-3 h-3" />
+              : <ArrowDownRight className="w-3 h-3" />
+            }
             {trend}
           </div>
         )}
@@ -250,15 +273,15 @@ function StatCard({ title, value, icon, trend, description, color, isAlert }: an
       <div>
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
         <p className="text-2xl font-bold mt-1 tracking-tight">{value}</p>
-        <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-          {description}
-        </p>
+        {description && (
+          <p className="text-xs text-muted-foreground mt-2">{description}</p>
+        )}
       </div>
     </div>
   );
 }
 
-function QuickActionCard({ title, description, href, icon }: any) {
+function QuickActionCard({ title, description, href, icon }: { title: string; description: string; href: string; icon: React.ReactNode }) {
   return (
     <a href={href} className="card-premium p-6 group">
       <div className="flex items-center gap-4">

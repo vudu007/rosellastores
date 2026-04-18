@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import {
   CreditCard, Calendar, Plus, X, Search,
   TrendingDown, Trash2, Edit3, Tag, FileText,
-  ArrowDownCircle, UserCircle, PieChart
+  ArrowDownCircle, UserCircle, PieChart, Download
 } from 'lucide-react';
 
 interface Expense {
@@ -134,6 +134,25 @@ export default function ExpensesPage() {
       .reduce((sum, e) => sum + e.amount, 0),
   }));
 
+  const exportCSV = () => {
+    const headers = ['Date', 'Category', 'Description', 'Recorded By', 'Amount (₦)'];
+    const rows = filteredExpenses.map((e) => [
+      formatDate(e.date),
+      e.category,
+      e.description,
+      e.user.name,
+      e.amount.toFixed(2),
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map((c) => `"${c}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'expenses.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const filteredExpenses = expenses.filter(e =>
     e.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
     e.category.toLowerCase().includes(searchQuery.toLowerCase())
@@ -247,6 +266,16 @@ export default function ExpensesPage() {
              <FileText className="w-5 h-5 text-primary" />
              Transaction History
            </h3>
+           <div className="flex items-center gap-3">
+           {filteredExpenses.length > 0 && (
+             <button
+               onClick={exportCSV}
+               className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground bg-muted/50 hover:bg-muted rounded-lg transition-colors"
+             >
+               <Download className="w-4 h-4" />
+               Export CSV
+             </button>
+           )}
            <div className="relative w-72">
              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
              <input
@@ -256,6 +285,7 @@ export default function ExpensesPage() {
                onChange={(e) => setSearchQuery(e.target.value)}
                className="input-base pl-10 bg-muted/30 border-none h-10 text-sm"
              />
+           </div>
            </div>
         </div>
 
