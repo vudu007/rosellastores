@@ -19,6 +19,8 @@ interface Product {
   stockQty: number;
   category: { name: string };
   imageUrl?: string;
+  isTaxable: boolean;
+  taxInclusive: boolean;
 }
 
 interface Customer {
@@ -34,6 +36,8 @@ interface CartItem {
   unitPrice: number;
   discount: number;
   total: number;
+  isTaxable: boolean;
+  taxInclusive: boolean;
 }
 
 export default function POSPage() {
@@ -146,6 +150,8 @@ export default function POSPage() {
           unitPrice: price,
           discount: 0,
           total: price,
+          isTaxable: product.isTaxable ?? true,
+          taxInclusive: product.taxInclusive ?? false,
         },
       ]);
     }
@@ -206,9 +212,30 @@ export default function POSPage() {
     );
   }, [products, removeFromCart]);
 
+  const TAX_RATE = 0.075; // 7.5% VAT
+
+  // Subtotal = sum of item totals as-stated (inclusive or exclusive)
   const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
-  const taxRate = 0.075;
-  const tax = subtotal * taxRate;
+
+  // Tax breakdown per item:
+  // - Not taxable            → taxAmount = 0
+  // - Taxable, exclusive     → taxAmount = item.total * TAX_RATE   (added on top)
+  // - Taxable, tax-inclusive → taxAmount = item.total * TAX_RATE / (1 + TAX_RATE)  (already in price)
+  const taxBreakdown = cart.reduce(
+    (acc, item) => {
+      if (!item.isTaxable) return acc;
+      if (item.taxInclusive) {
+        const embedded = item.total * TAX_RATE / (1 + TAX_RATE);
+        return { ...acc, inclusive: acc.inclusive + embedded };
+      }
+      const added = item.total * TAX_RATE;
+      return { ...acc, exclusive: acc.exclusive + added };
+    },
+    { exclusive: 0, inclusive: 0 }
+  );
+
+  // Only tax-exclusive items add to what customer pays on top of subtotal
+  const tax = taxBreakdown.exclusive;
   const total = subtotal + tax;
 
   const handleCheckout = async () => {
@@ -664,11 +691,32 @@ export default function POSPage() {
               <span>Subtotal</span>
               <span className="font-medium text-foreground">{formatCurrency(subtotal)}</span>
             </div>
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>VAT (7.5%)</span>
-              <span className="font-medium text-foreground">{formatCurrency(tax)}</span>
-            </div>
-            <div className="flex justify-between items-end pt-2">
+
+            {/* Tax-exclusive line — added on top */}
+            {taxBreakdown.exclusive > 0 && (
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>VAT 7.5% <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded ml-1">+tax</span></span>
+                <span className="font-medium text-foreground">{formatCurrency(taxBreakdown.exclusive)}</span>
+              </div>
+            )}
+
+            {/* Tax-inclusive line — informational, already in the price */}
+            {taxBreakdown.inclusive > 0 && (
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>VAT incl. <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded ml-1">in price</span></span>
+                <span className="font-medium text-foreground">{formatCurrency(taxBreakdown.inclusive)}</span>
+              </div>
+            )}
+
+            {/* No-tax line — only if ALL items are exempt */}
+            {taxBreakdown.exclusive === 0 && taxBreakdown.inclusive === 0 && cart.length > 0 && (
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>VAT <span className="text-[10px] font-bold uppercase tracking-wider bg-muted text-muted-foreground px-1.5 py-0.5 rounded ml-1">exempt</span></span>
+                <span className="font-medium text-foreground">₦0</span>
+              </div>
+            )}
+
+            <div className="flex justify-between items-end pt-2 border-t">
               <span className="text-base font-bold text-muted-foreground">Total Payable</span>
               <span className="text-3xl font-black text-primary tracking-tighter">
                 {formatCurrency(total)}

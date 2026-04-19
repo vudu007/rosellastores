@@ -21,6 +21,8 @@ interface Product {
   categoryId?: string;
   supplierId?: string;
   category: { name: string };
+  isTaxable: boolean;
+  taxInclusive: boolean;
 }
 
 interface CategoryOption { id: string; name: string; }
@@ -29,6 +31,7 @@ interface SupplierOption { id: string; name: string; }
 const emptyProductForm = {
   name: '', sku: '', barcode: '', categoryId: '', supplierId: '',
   retailPrice: '', wholesalePrice: '', stockQty: '', lowStockThreshold: '10', unit: 'pcs',
+  isTaxable: true, taxInclusive: false,
 };
 
 export default function InventoryPage() {
@@ -206,6 +209,8 @@ export default function InventoryPage() {
           stockQty: parseInt(f.stockQty) || 0,
           lowStockThreshold: parseInt(f.lowStockThreshold) || 10,
           unit: f.unit || 'pcs',
+          isTaxable: f.isTaxable,
+          taxInclusive: f.taxInclusive,
         }),
       });
       if (!res.ok) {
@@ -239,8 +244,10 @@ export default function InventoryPage() {
       stockQty: product.stockQty.toString(),
       lowStockThreshold: product.lowStockThreshold.toString(),
       unit: product.unit || 'pcs',
+      isTaxable: product.isTaxable ?? true,
+      taxInclusive: product.taxInclusive ?? false,
     });
-    // Fetch full product to get categoryId and supplierId
+    // Fetch full product to get categoryId, supplierId, and tax settings
     try {
       const res = await fetch(`/api/products/${product.id}`);
       if (res.ok) {
@@ -251,6 +258,8 @@ export default function InventoryPage() {
           categoryId: full.categoryId || '',
           supplierId: full.supplierId || '',
           unit: full.unit || 'pcs',
+          isTaxable: full.isTaxable ?? true,
+          taxInclusive: full.taxInclusive ?? false,
         }));
       }
     } catch { /* keep pre-filled values if fetch fails */ }
@@ -276,6 +285,8 @@ export default function InventoryPage() {
       if (f.supplierId) body.supplierId = f.supplierId;
       if (f.barcode) body.barcode = f.barcode;
       if (f.unit) body.unit = f.unit;
+      body.isTaxable = f.isTaxable;
+      body.taxInclusive = f.taxInclusive;
 
       const res = await fetch(`/api/products/${editingProduct.id}`, {
         method: 'PUT',
@@ -412,7 +423,15 @@ export default function InventoryPage() {
                             </div>
                             <div>
                               <p className="text-sm font-bold text-foreground">{product.name}</p>
-                              <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
+                                {!product.isTaxable && (
+                                  <span className="text-[9px] font-black uppercase tracking-wider bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Tax Exempt</span>
+                                )}
+                                {product.isTaxable && product.taxInclusive && (
+                                  <span className="text-[9px] font-black uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Incl. VAT</span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -587,6 +606,38 @@ export default function InventoryPage() {
                   <option value="dozen">Dozen</option>
                 </select>
               </div>
+
+              {/* Tax Settings */}
+              <div className="col-span-2">
+                <label className="text-sm font-medium text-foreground">Tax Settings</label>
+                <div className="mt-2 flex flex-col sm:flex-row gap-3">
+                  <label className="flex items-center gap-3 cursor-pointer bg-muted/40 hover:bg-muted/60 px-4 py-3 rounded-xl border border-transparent hover:border-border transition-all flex-1">
+                    <input
+                      type="checkbox"
+                      checked={editProductForm.isTaxable}
+                      onChange={(e) => setEditProductForm({...editProductForm, isTaxable: e.target.checked, taxInclusive: e.target.checked ? editProductForm.taxInclusive : false})}
+                      className="w-4 h-4 rounded text-primary"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Taxable (VAT 7.5%)</p>
+                      <p className="text-xs text-muted-foreground">Subject to VAT charge</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-center gap-3 cursor-pointer px-4 py-3 rounded-xl border transition-all flex-1 ${!editProductForm.isTaxable ? 'opacity-40 pointer-events-none bg-muted/20' : 'bg-muted/40 hover:bg-muted/60 hover:border-border'}`}>
+                    <input
+                      type="checkbox"
+                      checked={editProductForm.taxInclusive}
+                      disabled={!editProductForm.isTaxable}
+                      onChange={(e) => setEditProductForm({...editProductForm, taxInclusive: e.target.checked})}
+                      className="w-4 h-4 rounded text-primary"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Tax Inclusive</p>
+                      <p className="text-xs text-muted-foreground">Price already includes VAT</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div className="flex gap-3 pt-2">
@@ -673,6 +724,38 @@ export default function InventoryPage() {
                   <option value="pack">Pack</option>
                   <option value="dozen">Dozen</option>
                 </select>
+              </div>
+
+              {/* Tax Settings */}
+              <div className="col-span-2">
+                <label className="text-sm font-medium text-foreground">Tax Settings</label>
+                <div className="mt-2 flex flex-col sm:flex-row gap-3">
+                  <label className="flex items-center gap-3 cursor-pointer bg-muted/40 hover:bg-muted/60 px-4 py-3 rounded-xl border border-transparent hover:border-border transition-all flex-1">
+                    <input
+                      type="checkbox"
+                      checked={productForm.isTaxable}
+                      onChange={(e) => setProductForm({...productForm, isTaxable: e.target.checked, taxInclusive: e.target.checked ? productForm.taxInclusive : false})}
+                      className="w-4 h-4 rounded text-primary"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Taxable (VAT 7.5%)</p>
+                      <p className="text-xs text-muted-foreground">Subject to VAT charge</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-center gap-3 cursor-pointer px-4 py-3 rounded-xl border transition-all flex-1 ${!productForm.isTaxable ? 'opacity-40 pointer-events-none bg-muted/20' : 'bg-muted/40 hover:bg-muted/60 hover:border-border'}`}>
+                    <input
+                      type="checkbox"
+                      checked={productForm.taxInclusive}
+                      disabled={!productForm.isTaxable}
+                      onChange={(e) => setProductForm({...productForm, taxInclusive: e.target.checked})}
+                      className="w-4 h-4 rounded text-primary"
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Tax Inclusive</p>
+                      <p className="text-xs text-muted-foreground">Price already includes VAT</p>
+                    </div>
+                  </label>
+                </div>
               </div>
             </div>
 
