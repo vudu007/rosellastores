@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import {
   Search, ShoppingCart, User, CreditCard, Banknote,
   Smartphone, Trash2, Plus, Minus, CheckCircle,
-  ChevronRight, Package, AlertCircle
+  ChevronRight, Package, AlertCircle, ArrowLeft
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -57,6 +57,7 @@ export default function POSPage() {
   const [barcodeBuffer, setBarcodeBuffer] = useState('');
   const [lastScanTime, setLastScanTime] = useState(0);
   const [storeSettings, setStoreSettings] = useState<any>({});
+  const [showMobileCart, setShowMobileCart] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -457,9 +458,9 @@ export default function POSPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-background text-foreground transition-all duration-300">
+    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-background text-foreground transition-all duration-300 relative">
       {/* Product Catalog Section */}
-      <div className="flex-1 flex flex-col p-6 space-y-6 overflow-hidden">
+      <div className={`flex-col p-4 md:p-6 space-y-4 md:space-y-6 overflow-hidden flex-1 ${showMobileCart ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -545,15 +546,22 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* Cart Section */}
-      <div className="w-[420px] bg-card border-l flex flex-col shadow-2xl z-10 animate-entrance">
+      {/* Cart Section — full-screen on mobile when active, fixed panel on desktop */}
+      <div className={`bg-card border-l flex-col shadow-2xl z-10 animate-entrance w-full md:w-[420px] ${showMobileCart ? 'flex' : 'hidden md:flex'}`}>
         <div className="p-6 border-b space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-xl flex items-center gap-2">
+              {/* Back button — mobile only */}
+              <button
+                onClick={() => setShowMobileCart(false)}
+                className="md:hidden p-1 -ml-1 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
               <ShoppingCart className="w-5 h-5 text-primary" />
               Current Order
             </h3>
-            <button 
+            <button
               onClick={() => setCart([])}
               className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
             >
@@ -700,6 +708,22 @@ export default function POSPage() {
           </div>
         </div>
       </div>
+
+      {/* Mobile floating cart button */}
+      {!showMobileCart && (
+        <button
+          onClick={() => setShowMobileCart(true)}
+          className="fixed bottom-6 right-6 md:hidden z-50 flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3.5 rounded-full shadow-2xl shadow-primary/40 font-bold text-sm active:scale-95 transition-all"
+        >
+          <ShoppingCart className="w-5 h-5" />
+          Cart
+          {cart.length > 0 && (
+            <span className="bg-white text-primary text-xs font-black w-5 h-5 rounded-full flex items-center justify-center ml-1">
+              {cart.length}
+            </span>
+          )}
+        </button>
+      )}
 
       {/* Transaction status overlay */}
       {successMessage && (

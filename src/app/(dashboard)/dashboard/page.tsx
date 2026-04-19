@@ -105,7 +105,7 @@ export default function DashboardPage() {
   const weeklyTrend       = trendPct(stats?.weekRevenue ?? 0,  stats?.prevWeekRevenue ?? 0);
 
   return (
-    <div className="p-8 space-y-8 animate-entrance">
+    <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-entrance">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Business Overview</h1>

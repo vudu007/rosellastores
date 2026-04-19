@@ -87,7 +87,7 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="p-8 space-y-8 animate-entrance">
+    <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-entrance">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Reports & Analytics</h1>

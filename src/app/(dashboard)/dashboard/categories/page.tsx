@@ -98,7 +98,7 @@ export default function CategoriesPage() {
   const getChildren = (parentId: string) => filtered.filter(c => c.parentId === parentId);
 
   return (
-    <div className="p-8 space-y-6 animate-entrance">
+    <div className="p-4 md:p-8 space-y-6 animate-entrance">
       {/* Toast */}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-up ${toast.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>

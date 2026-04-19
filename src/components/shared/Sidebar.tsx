@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { X } from 'lucide-react';
 import {
   LayoutDashboard, ShoppingBag, Package, Tag,
   Users, Truck, BarChart2, Users2, CreditCard,
@@ -22,7 +23,12 @@ const menuItems = [
   { href: '/dashboard/settings',   label: 'Settings',    icon: Settings,        roles: ['OWNER'] },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
 
@@ -32,11 +38,32 @@ export default function Sidebar() {
   if (visibleItems.length === 0) return null;
 
   return (
-    <aside className="w-64 bg-card border-r min-h-[calc(100vh-64px)] flex flex-col">
+    <aside
+      className={[
+        // Base: fixed drawer on mobile, static on desktop
+        'bg-card border-r flex flex-col z-40 transition-transform duration-300 ease-in-out',
+        // Mobile: full-height fixed drawer, translate off-screen when closed
+        'fixed inset-y-0 left-0 w-72 md:w-64',
+        'md:static md:translate-x-0 md:min-h-[calc(100vh-64px)]',
+        isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0',
+      ].join(' ')}
+    >
+      {/* Mobile close button */}
+      <div className="flex items-center justify-between px-4 pt-4 pb-2 md:hidden">
+        <span className="font-black text-foreground text-base tracking-tight">Menu</span>
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
       {/* POS shortcut */}
       <div className="p-4 border-b">
         <Link
           href="/pos"
+          onClick={onClose}
           className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] transition-all"
         >
           <ShoppingCart className="w-4 h-4 shrink-0" />
@@ -55,6 +82,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 isActive
                   ? 'bg-primary/10 text-primary font-semibold'

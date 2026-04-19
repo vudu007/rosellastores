@@ -3,9 +3,13 @@
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
-import { LogOut, ChevronDown, Bell, User } from 'lucide-react';
+import { LogOut, ChevronDown, Bell, User, Menu } from 'lucide-react';
 
-export default function Navbar() {
+interface NavbarProps {
+  onMenuToggle?: () => void;
+}
+
+export default function Navbar({ onMenuToggle }: NavbarProps) {
   const { data: session } = useSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -36,6 +40,17 @@ export default function Navbar() {
 
   return (
     <nav className="bg-card border-b border-border h-16 flex items-center px-6 gap-4 sticky top-0 z-40 shadow-sm">
+      {/* Hamburger — mobile only */}
+      {onMenuToggle && (
+        <button
+          onClick={onMenuToggle}
+          className="md:hidden w-9 h-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+          aria-label="Toggle menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+      )}
+
       {/* Brand */}
       <Link href="/" className="flex items-center gap-2.5 shrink-0">
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-sm shadow-primary/30">

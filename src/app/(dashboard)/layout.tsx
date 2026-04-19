@@ -1,5 +1,4 @@
-import Navbar from '@/components/shared/Navbar';
-import Sidebar from '@/components/shared/Sidebar';
+import DashboardShell from '@/components/shared/DashboardShell';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 
@@ -12,13 +11,5 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect('/login');
   }
 
-  return (
-    <>
-      <Navbar />
-      <div className="flex">
-        <Sidebar />
-        <main className="flex-1">{children}</main>
-      </div>
-    </>
-  );
+  return <DashboardShell>{children}</DashboardShell>;
 }
