@@ -68,19 +68,88 @@ body {
 
 /* Base Components Overrides */
 .input-base {
-  @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200;
+  @apply flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-200;
+}
+
+/* Search input wrapper — use this around an <input> + <Search icon> */
+.search-wrapper {
+  @apply relative flex items-center;
+}
+.search-wrapper .search-icon {
+  @apply absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none z-10;
+}
+.search-wrapper .input-base {
+  @apply pl-10;
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] active:scale-[0.98] h-10 px-4 py-2;
+  @apply inline-flex items-center justify-center rounded-lg text-sm font-semibold ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.01] active:scale-[0.99] h-10 px-4 py-2 shadow-sm;
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2;
+  @apply inline-flex items-center justify-center rounded-lg text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2;
+}
+
+/* Card classes */
+.card {
+  @apply rounded-xl border bg-card text-card-foreground shadow-sm overflow-hidden;
 }
 
 .card-premium {
-  @apply rounded-xl border bg-card text-card-foreground shadow-sm transition-all hover:shadow-lg hover:border-primary/20;
+  @apply rounded-xl border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md hover:border-primary/20;
+}
+
+/* Badge classes */
+.badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+}
+.badge-primary {
+  @apply badge bg-primary/10 text-primary;
+}
+.badge-success {
+  @apply badge bg-emerald-100 text-emerald-700;
+}
+.badge-warning {
+  @apply badge bg-amber-100 text-amber-700;
+}
+.badge-danger {
+  @apply badge bg-red-100 text-red-700;
+}
+.badge-muted {
+  @apply badge bg-muted text-muted-foreground;
+}
+
+/* Page header pattern */
+.page-header {
+  @apply flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8;
+}
+.page-title {
+  @apply text-3xl font-bold tracking-tight text-foreground;
+}
+.page-subtitle {
+  @apply text-sm text-muted-foreground mt-1;
+}
+
+/* Toolbar (search + filters row) */
+.toolbar {
+  @apply card-premium p-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6;
+}
+
+/* Table styling */
+.data-table {
+  @apply w-full text-left;
+}
+.data-table thead {
+  @apply bg-muted/50;
+}
+.data-table thead th {
+  @apply px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground;
+}
+.data-table tbody tr {
+  @apply border-t border-border transition-colors hover:bg-muted/20;
+}
+.data-table tbody td {
+  @apply px-6 py-4 text-sm;
 }
 
 /* Custom Scrollbar */
@@ -115,4 +184,19 @@ body {
 
 .animate-entrance {
   animation: entrance 0.4s ease-out forwards;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out forwards;
 }

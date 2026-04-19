@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Edit3, Trash2, X, Plus } from 'lucide-react';
+import { Edit3, Trash2, X, Plus, Search, Users } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
 interface Customer {
@@ -93,108 +93,202 @@ export default function CustomersPage() {
   const filteredCustomers = customers.filter(
     (c) =>
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      (c.email?.toLowerCase().includes(search.toLowerCase()) ?? false)
+      (c.email?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
+      (c.phone?.includes(search) ?? false)
   );
 
   const activeForm = showAddForm || !!editingCustomer;
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Customers</h1>
-        <p className="text-gray-600 mt-2">Manage retail and wholesale customers</p>
-      </div>
-
-      <div className="flex gap-4 mb-6">
-        <div className="flex-1">
-          <input type="text" placeholder="Search customers..." value={search} onChange={(e) => setSearch(e.target.value)} className="input-base w-full" />
+    <div className="p-6 md:p-8 space-y-6 animate-entrance">
+      {/* Page Header */}
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Customers</h1>
+          <p className="page-subtitle">Manage retail and wholesale customer accounts</p>
         </div>
-        <select value={type} onChange={(e) => setType(e.target.value as any)} className="input-base max-w-xs">
-          <option value="">All Types</option>
-          <option value="RETAIL">Retail</option>
-          <option value="WHOLESALE">Wholesale</option>
-        </select>
-        <button
-          onClick={() => { setShowAddForm(!showAddForm); setEditingCustomer(null); setFormData(emptyForm); }}
-          className="btn-primary flex items-center gap-2"
-        >
-          {showAddForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {showAddForm ? 'Cancel' : 'Add Customer'}
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => { setShowAddForm(!showAddForm); setEditingCustomer(null); setFormData(emptyForm); }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-sm ${
+              activeForm
+                ? 'bg-destructive/10 text-destructive hover:bg-destructive/20 shadow-none'
+                : 'btn-primary'
+            }`}
+          >
+            {activeForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {activeForm ? 'Cancel' : 'Add Customer'}
+          </button>
+        )}
       </div>
 
-      {activeForm && (
-        <div className="card p-6 mb-6">
-          <h2 className="text-lg font-semibold mb-4">{editingCustomer ? 'Edit Customer' : 'Add New Customer'}</h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-            <input type="text" placeholder="Customer Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="input-base" required />
-            <input type="email" placeholder="Email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="input-base" />
-            <input type="tel" placeholder="Phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="input-base" />
-            <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value as any })} className="input-base">
-              <option value="RETAIL">Retail</option>
-              <option value="WHOLESALE">Wholesale</option>
-            </select>
+      {/* Add / Edit Form */}
+      {activeForm && canEdit && (
+        <div className="card-premium p-6 border-none ring-1 ring-primary/20 animate-slide-up">
+          <h2 className="text-base font-bold mb-5 flex items-center gap-2">
+            <Users className="w-5 h-5 text-primary" />
+            {editingCustomer ? 'Edit Customer' : 'New Customer'}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Full Name *</label>
+              <input type="text" placeholder="e.g. Amina Okafor" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="input-base bg-muted/30 border-none" required />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Email</label>
+              <input type="email" placeholder="email@example.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="input-base bg-muted/30 border-none" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Phone</label>
+              <input type="tel" placeholder="+234 800 000 0000" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="input-base bg-muted/30 border-none" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Customer Type</label>
+              <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value as any })} className="input-base bg-muted/30 border-none">
+                <option value="RETAIL">Retail</option>
+                <option value="WHOLESALE">Wholesale</option>
+              </select>
+            </div>
             {formData.type === 'WHOLESALE' && (
-              <input type="number" placeholder="Credit Limit" value={formData.creditLimit} onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })} className="input-base" />
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Credit Limit (₦)</label>
+                <input type="number" placeholder="0.00" value={formData.creditLimit} onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })} className="input-base bg-muted/30 border-none" />
+              </div>
             )}
-            <div className="col-span-2 flex gap-3">
-              <button type="submit" disabled={saving} className="btn-primary flex-1 disabled:opacity-50">
-                {saving ? 'Saving...' : editingCustomer ? 'Update Customer' : 'Add Customer'}
+            <div className="col-span-full flex gap-3 pt-2">
+              <button type="submit" disabled={saving} className="btn-primary flex-1">
+                {saving ? 'Saving…' : editingCustomer ? 'Update Customer' : 'Add Customer'}
               </button>
-              <button type="button" onClick={() => { setShowAddForm(false); setEditingCustomer(null); setFormData(emptyForm); }} className="btn-secondary">Cancel</button>
+              <button type="button" onClick={() => { setShowAddForm(false); setEditingCustomer(null); setFormData(emptyForm); }} className="btn-secondary px-6">
+                Cancel
+              </button>
             </div>
           </form>
         </div>
       )}
 
+      {/* Toolbar */}
+      <div className="toolbar">
+        {/* Search with icon */}
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search by name, email or phone…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="input-base pl-10 w-full bg-muted/30 border-none"
+          />
+        </div>
+
+        {/* Type filter */}
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as any)}
+          className="input-base w-full sm:w-44 bg-muted/30 border-none"
+        >
+          <option value="">All Types</option>
+          <option value="RETAIL">Retail</option>
+          <option value="WHOLESALE">Wholesale</option>
+        </select>
+
+        {/* Count badge */}
+        <span className="text-sm text-muted-foreground whitespace-nowrap shrink-0">
+          {filteredCustomers.length} of {customers.length}
+        </span>
+      </div>
+
+      {/* Table */}
       {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Loading customers...</p>
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent mb-4" />
+          <p className="text-muted-foreground font-medium">Loading customers…</p>
         </div>
       ) : (
-        <div className="overflow-x-auto card">
-          <table className="w-full table-striped">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Phone</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase">Credit</th>
-                {canEdit && <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase">Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredCustomers.length === 0 ? (
-                <tr><td colSpan={canEdit ? 6 : 5} className="px-6 py-12 text-center text-gray-500">No customers found.</td></tr>
-              ) : filteredCustomers.map((customer) => (
-                <tr key={customer.id}>
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">{customer.name}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{customer.email || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{customer.phone || '-'}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`badge ${customer.type === 'RETAIL' ? 'badge-primary' : 'badge-success'}`}>{customer.type}</span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {customer.type === 'WHOLESALE' ? `₦${(customer.creditUsed ?? 0).toLocaleString()} / ₦${(customer.creditLimit ?? 0).toLocaleString()}` : '-'}
-                  </td>
-                  {canEdit && (
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button onClick={() => openEdit(customer)} className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors" title="Edit">
-                          <Edit3 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDelete(customer.id, customer.name)} disabled={deletingId === customer.id} className="p-1.5 hover:bg-red-100 text-red-600 rounded-lg transition-colors disabled:opacity-40" title="Delete">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+        <div className="card-premium overflow-hidden border-none shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Contact</th>
+                  <th>Type</th>
+                  <th>Credit Usage</th>
+                  {canEdit && <th className="text-center">Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCustomers.length === 0 ? (
+                  <tr>
+                    <td colSpan={canEdit ? 5 : 4} className="py-16 text-center text-muted-foreground">
+                      <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p className="font-medium">{search ? 'No customers match your search.' : 'No customers yet.'}</p>
+                    </td>
+                  </tr>
+                ) : filteredCustomers.map((customer) => (
+                  <tr key={customer.id} className="group">
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-black shrink-0">
+                          {customer.name.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-semibold text-foreground">{customer.name}</span>
                       </div>
                     </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <td>
+                      <p className="text-foreground">{customer.email || '—'}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{customer.phone || '—'}</p>
+                    </td>
+                    <td>
+                      <span className={customer.type === 'RETAIL' ? 'badge-primary' : 'badge-success'}>
+                        {customer.type}
+                      </span>
+                    </td>
+                    <td>
+                      {customer.type === 'WHOLESALE' ? (
+                        <div>
+                          <p className="text-foreground font-medium">
+                            ₦{(customer.creditUsed ?? 0).toLocaleString()} <span className="text-muted-foreground font-normal">/ ₦{(customer.creditLimit ?? 0).toLocaleString()}</span>
+                          </p>
+                          {customer.creditLimit ? (
+                            <div className="mt-1.5 h-1.5 w-24 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-primary rounded-full transition-all"
+                                style={{ width: `${Math.min(100, ((customer.creditUsed ?? 0) / customer.creditLimit) * 100)}%` }}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    {canEdit && (
+                      <td>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => openEdit(customer)}
+                            className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(customer.id, customer.name)}
+                            disabled={deletingId === customer.id}
+                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-40"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
