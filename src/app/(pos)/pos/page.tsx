@@ -563,7 +563,7 @@ ${dDash}
     const drawTotalRow = (label: string, value: string, yy: number, bold = false, big = false) => {
       doc.setFont('helvetica', bold ? 'bold' : 'normal');
       doc.setFontSize(big ? 11 : 9);
-      doc.setTextColor(bold ? ...(DARK as [number,number,number]) : ...(MUTED as [number,number,number]));
+      doc.setTextColor(...(bold ? DARK : MUTED) as [number, number, number]);
       doc.text(label, totX, yy);
       doc.setTextColor(...DARK);
       doc.text(value, PW - M, yy, { align: 'right' });
