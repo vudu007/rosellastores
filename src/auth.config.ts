@@ -14,19 +14,13 @@ export const authConfig = {
       const isLoggedIn = !!auth?.user;
       const isAuthPage = request.nextUrl.pathname.startsWith('/login');
 
-      // Logged-in user on login page → redirect to their role-specific page
-      // (Never redirect to '/' — that would loop back here)
-      if (isLoggedIn && isAuthPage) {
-        const role = (auth?.user as any)?.role;
-        if (role === 'CASHIER') return Response.redirect(new URL('/pos', request.nextUrl));
-        if (role === 'WHOLESALE_CUSTOMER') return Response.redirect(new URL('/wholesale', request.nextUrl));
-        return Response.redirect(new URL('/dashboard', request.nextUrl));
-      }
+      // Always let users see the login page — even if a session exists.
+      // The login form handles role-based routing after credentials are entered.
+      // This ensures the site always shows the login screen on fresh open.
+      if (isAuthPage) return true;
 
-      // Not logged in, not on auth page → redirect to login
-      if (!isLoggedIn && !isAuthPage) {
-        return false;
-      }
+      // Not logged in on a protected page → send to login
+      if (!isLoggedIn) return false;
 
       return true;
     },

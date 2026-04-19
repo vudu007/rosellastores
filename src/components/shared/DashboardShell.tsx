@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
+import IdleTimer from './IdleTimer';
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -23,6 +24,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
   return (
     <div className="flex flex-col min-h-screen">
+      <IdleTimer />
       <Navbar onMenuToggle={() => setSidebarOpen((o) => !o)} />
 
       <div className="flex flex-1 relative">

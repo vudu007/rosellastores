@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
+import { signIn, getSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -26,7 +26,12 @@ export default function LoginPage() {
       if (result?.error) {
         setError('Invalid email or password');
       } else if (result?.ok) {
-        router.push('/');
+        // Fetch the fresh session to get the user's role, then route directly
+        const session = await getSession();
+        const role = (session?.user as any)?.role;
+        if (role === 'CASHIER')            router.push('/pos');
+        else if (role === 'WHOLESALE_CUSTOMER') router.push('/wholesale');
+        else                               router.push('/dashboard');
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
