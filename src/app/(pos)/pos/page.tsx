@@ -274,9 +274,12 @@ export default function POSPage() {
             unitPrice: item.unitPrice,
             discount: item.discount,
             total: item.total,
+            isTaxable: item.isTaxable,
+            taxInclusive: item.taxInclusive,
           })),
           subtotal,
           tax,
+          taxInclusive: taxBreakdown.inclusive,
           total,
           date: savedSale.createdAt || new Date().toISOString(),
         });
@@ -330,137 +333,293 @@ export default function POSPage() {
 
   const printReceipt = () => {
     if (!lastSale) return;
-    const printWindow = window.open('', '_blank', 'width=400,height=600');
-    if (!printWindow) return;
 
-    const receiptHtml = `
-      <html>
-        <head>
-          <title>Receipt - ${lastSale.customerName}</title>
-          <style>
-            body { font-family: 'Courier New', Courier, monospace; width: 300px; padding: 20px; font-size: 14px; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .logo { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
-            .logo-img { max-width: 150px; max-height: 80px; margin: 0 auto 10px auto; display: block; }
-            .divider { border-top: 1px dashed #000; margin: 10px 0; }
-            .item { display: flex; justify-content: space-between; margin: 5px 0; }
-            .total { font-weight: bold; margin-top: 10px; }
-            .footer { text-align: center; margin-top: 30px; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            ${storeSettings.businessLogo ? `<img src="${storeSettings.businessLogo}" class="logo-img" />` : ''}
-            <div class="logo">${storeSettings.businessName || 'MEKAERP'}</div>
-            ${storeSettings.businessAddress ? `<div>${storeSettings.businessAddress}</div>` : ''}
-            ${storeSettings.businessPhone ? `<div>${storeSettings.businessPhone}</div>` : ''}
-            <div class="divider"></div>
-            <div>Order: ${lastSale.date.slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 1000)}</div>
-            <div>Date: ${new Date(lastSale.date).toLocaleString()}</div>
-          </div>
-          <div class="divider"></div>
-          <div>Customer: ${lastSale.customerName}</div>
-          <div class="divider"></div>
-          ${lastSale.items.map((item: any) => `
-            <div class="item">
-              <span>${item.name} x${item.quantity}</span>
-              <span>${formatCurrency(item.total)}</span>
-            </div>
-          `).join('')}
-          <div class="divider"></div>
-          <div class="item">
-            <span>Subtotal:</span>
-            <span>${formatCurrency(lastSale.subtotal)}</span>
-          </div>
-          <div class="item">
-            <span>Tax:</span>
-            <span>${formatCurrency(lastSale.tax)}</span>
-          </div>
-          <div class="item total">
-            <span>TOTAL:</span>
-            <span>${formatCurrency(lastSale.total)}</span>
-          </div>
-          <div class="divider"></div>
-          <div class="footer">
-            Thank you for shopping with us!<br>
-            Please keep your receipt.
-          </div>
-          <script>
-            window.onload = () => { window.print(); window.close(); }
-          </script>
-        </body>
-      </html>
-    `;
+    const receiptNo = `R-${lastSale.id?.slice(-8).toUpperCase() ?? Date.now().toString(36).toUpperCase()}`;
+    const dateStr   = new Date(lastSale.date).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+    const biz       = storeSettings.businessName || 'MEKAERP';
+    const W         = 42; // characters wide — standard 80mm thermal column
 
-    printWindow.document.write(receiptHtml);
-    printWindow.document.close();
+    // Helper: pad a line to W chars, left and right parts
+    const row = (left: string, right: string) => {
+      const gap = W - left.length - right.length;
+      return left + (gap > 0 ? ' '.repeat(gap) : ' ') + right;
+    };
+    const center = (s: string) => {
+      const pad = Math.max(0, Math.floor((W - s.length) / 2));
+      return ' '.repeat(pad) + s;
+    };
+    const dash  = '-'.repeat(W);
+    const dDash = '='.repeat(W);
+
+    const payLabel: Record<string, string> = {
+      CASH: 'Cash', CARD: 'Card / POS', BANK_TRANSFER: 'Bank Transfer',
+      MOBILE_MONEY: 'Mobile Money', SPLIT: 'Split Payment',
+    };
+
+    const itemLines = lastSale.items.map((item: any) => {
+      const desc     = `${item.name}`.slice(0, 28);
+      const qtyPrice = `${item.quantity} x ${formatCurrency(item.unitPrice)}`;
+      const total    = formatCurrency(item.total);
+      const taxTag   = !item.isTaxable ? ' [Exempt]' : item.taxInclusive ? ' [Incl.]' : '';
+      return [
+        `  ${desc}${taxTag}`,
+        row(`  ${qtyPrice}`, total),
+      ].join('\n');
+    }).join('\n');
+
+    const taxAddedLine  = lastSale.tax        > 0 ? `\n${row('  VAT 7.5% (+tax):', formatCurrency(lastSale.tax))}` : '';
+    const taxInclusLine = lastSale.taxInclusive > 0 ? `\n${row('  VAT incl. (in price):', formatCurrency(lastSale.taxInclusive))}` : '';
+
+    const receiptHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Receipt ${receiptNo}</title>
+  <style>
+    @page { size: 80mm auto; margin: 4mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      width: 72mm;
+      color: #000;
+      background: #fff;
+      padding: 4mm 0;
+    }
+    pre { white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: inherit; }
+    .center { text-align: center; }
+    .biz-name { font-size: 18px; font-weight: 900; letter-spacing: 1px; text-align: center; margin-bottom: 2px; }
+    .biz-sub  { font-size: 11px; text-align: center; color: #333; }
+    .receipt-no { font-size: 11px; text-align: center; margin-top: 4px; }
+    .section { margin: 6px 0; }
+    .total-line { font-size: 15px; font-weight: 900; }
+    .footer { text-align: center; font-size: 11px; margin-top: 8px; color: #333; }
+    @media print {
+      html, body { margin: 0; padding: 0; }
+      body { width: 72mm; }
+    }
+  </style>
+</head>
+<body>
+<div class="biz-name">${biz}</div>
+${storeSettings.businessAddress ? `<div class="biz-sub">${storeSettings.businessAddress}</div>` : ''}
+${storeSettings.businessPhone   ? `<div class="biz-sub">Tel: ${storeSettings.businessPhone}</div>` : ''}
+${storeSettings.businessEmail   ? `<div class="biz-sub">${storeSettings.businessEmail}</div>` : ''}
+
+<pre>
+${dash}
+${center('*** SALES RECEIPT ***')}
+${dash}
+${row('Receipt No:', receiptNo)}
+${row('Date:', dateStr)}
+${row('Customer:', lastSale.customerName || 'Walk-in')}
+${row('Payment:', payLabel[lastSale.paymentMethod] || lastSale.paymentMethod)}
+${dash}
+ITEMS
+${dash}
+${itemLines}
+${dash}
+${row('Subtotal:', formatCurrency(lastSale.subtotal))}${taxAddedLine}${taxInclusLine}
+${dDash}
+</pre>
+<pre class="total-line">${row('  TOTAL PAID:', formatCurrency(lastSale.total))}</pre>
+<pre>
+${dDash}
+</pre>
+<div class="footer">
+  ${storeSettings.receiptFooter || 'Thank you for your purchase!'}
+  <br>Please keep this receipt for reference.
+</div>
+<script>
+  window.onload = function() {
+    setTimeout(function() { window.print(); }, 300);
+  };
+</script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=320,height=600,toolbar=0,menubar=0');
+    if (!win) return;
+    win.document.write(receiptHtml);
+    win.document.close();
     setSuccessMessage(null);
     setLastSale(null);
   };
 
   const generateInvoice = () => {
     if (!lastSale) return;
-    const doc = new jsPDF();
-    const invoiceNo = `INV-${lastSale.date.slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 1000)}`;
-    
-    // Header
+
+    const dateObj   = new Date(lastSale.date);
+    const dateStr   = dateObj.toLocaleDateString('en-NG', { day: '2-digit', month: 'long', year: 'numeric' });
+    const invoiceNo = `INV-${dateObj.getFullYear()}${String(dateObj.getMonth()+1).padStart(2,'0')}${String(dateObj.getDate()).padStart(2,'0')}-${lastSale.id?.slice(-5).toUpperCase() ?? Math.floor(Math.random()*99999).toString().padStart(5,'0')}`;
+    const biz       = storeSettings.businessName || 'MekaERP';
+    const PRIMARY   = [37, 99, 235] as [number, number, number];   // blue-600
+    const DARK      = [15, 23, 42]  as [number, number, number];   // slate-900
+    const MUTED     = [100, 116, 139] as [number, number, number]; // slate-500
+    const doc       = new jsPDF({ unit: 'mm', format: 'a4' });
+    const PW        = 210; // page width
+    const M         = 14;  // margin
+
+    // ── Header band ──────────────────────────────────────────────────
+    doc.setFillColor(...PRIMARY);
+    doc.rect(0, 0, PW, 38, 'F');
+
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(22);
-    doc.text(storeSettings.businessName || 'MEKAERP', 14, 20);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(storeSettings.businessAddress || '', 14, 26);
-    doc.text(storeSettings.businessPhone || '', 14, 32);
+    doc.setTextColor(255, 255, 255);
+    doc.text(biz.toUpperCase(), M, 16);
 
-    // Document Title
-    doc.setFontSize(20);
-    doc.setTextColor(0);
-    doc.text('INVOICE', 160, 20);
-    
-    // Details
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Invoice No: ${invoiceNo}`, 160, 28);
-    doc.text(`Date: ${new Date(lastSale.date).toLocaleDateString()}`, 160, 34);
-    doc.text(`Due Date: Upon Receipt`, 160, 40);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(180, 210, 255);
+    if (storeSettings.businessAddress) doc.text(storeSettings.businessAddress, M, 22);
+    if (storeSettings.businessPhone)   doc.text(`Tel: ${storeSettings.businessPhone}`, M, 27);
+    if (storeSettings.businessEmail)   doc.text(storeSettings.businessEmail, M, 32);
 
-    // Bill To
-    doc.setTextColor(0);
-    doc.text('BILL TO:', 14, 50);
-    doc.setFontSize(12);
-    doc.text(lastSale.customerName, 14, 56);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(lastSale.customerType === 'WHOLESALE' ? 'Wholesale Customer' : 'Retail Customer', 14, 62);
+    // "INVOICE" title on right of header
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(28);
+    doc.setTextColor(255, 255, 255);
+    doc.text('INVOICE', PW - M, 22, { align: 'right' });
 
-    // Table
+    // ── Invoice meta box ─────────────────────────────────────────────
+    let y = 48;
+    doc.setFillColor(248, 250, 252); // slate-50
+    doc.roundedRect(PW - M - 72, y - 6, 76, 28, 2, 2, 'F');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text('INVOICE NO',  PW - M - 70, y);
+    doc.text('DATE',        PW - M - 70, y + 8);
+    doc.text('PAYMENT',     PW - M - 70, y + 16);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text(invoiceNo, PW - M, y, { align: 'right' });
+    doc.text(dateStr,   PW - M, y + 8, { align: 'right' });
+    const payLabel: Record<string, string> = {
+      CASH: 'Cash', CARD: 'Card / POS Terminal', BANK_TRANSFER: 'Bank Transfer',
+      MOBILE_MONEY: 'Mobile Money', SPLIT: 'Split Payment',
+    };
+    doc.text(payLabel[lastSale.paymentMethod] || lastSale.paymentMethod, PW - M, y + 16, { align: 'right' });
+
+    // ── Bill To ───────────────────────────────────────────────────────
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text('BILL TO', M, y);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...DARK);
+    doc.text(lastSale.customerName || 'Walk-in Customer', M, y + 8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...MUTED);
+    doc.text(lastSale.customerType === 'WHOLESALE' ? 'Wholesale Account' : 'Retail Customer', M, y + 14);
+
+    // ── Items table ───────────────────────────────────────────────────
+    y = 84;
     autoTable(doc, {
-      startY: 75,
-      head: [['Item Name', 'Quantity', 'Unit Price', 'Total']],
-      body: lastSale.items.map((item: any) => [
+      startY: y,
+      margin: { left: M, right: M },
+      head: [['#', 'Item Description', 'Tax', 'Qty', 'Unit Price', 'Total']],
+      body: lastSale.items.map((item: any, i: number) => [
+        String(i + 1),
         item.name,
+        !item.isTaxable ? 'Exempt' : item.taxInclusive ? 'Incl.' : '7.5%',
         item.quantity.toString(),
         formatCurrency(item.unitPrice),
-        formatCurrency(item.total)
+        formatCurrency(item.total),
       ]),
-      theme: 'striped',
-      headStyles: { fillColor: [41, 128, 185], textColor: 255 },
-      styles: { fontSize: 10 }
+      theme: 'grid',
+      headStyles: {
+        fillColor: PRIMARY,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 9,
+        cellPadding: 4,
+      },
+      columnStyles: {
+        0: { cellWidth: 8,  halign: 'center' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 16, halign: 'center', fontSize: 8 },
+        3: { cellWidth: 12, halign: 'center' },
+        4: { cellWidth: 28, halign: 'right' },
+        5: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
+      },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      styles: { fontSize: 9, cellPadding: 3, textColor: DARK },
     });
 
-    // Summary
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
-    doc.text(`Subtotal: ${formatCurrency(lastSale.subtotal)}`, 140, finalY);
-    doc.text(`Tax: ${formatCurrency(lastSale.tax)}`, 140, finalY + 6);
-    doc.setFontSize(12);
-    doc.setTextColor(0);
-    doc.setFont("helvetica", "bold");
-    doc.text(`TOTAL: ${formatCurrency(lastSale.total)}`, 140, finalY + 14);
+    // ── Totals block ──────────────────────────────────────────────────
+    const afterTable = (doc as any).lastAutoTable.finalY + 6;
+    const totX = PW - M - 68;
 
-    // Footer
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(150);
-    doc.text('Thank you for your business.', 105, 280, { align: 'center' });
+    const drawTotalRow = (label: string, value: string, yy: number, bold = false, big = false) => {
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.setFontSize(big ? 11 : 9);
+      doc.setTextColor(bold ? ...(DARK as [number,number,number]) : ...(MUTED as [number,number,number]));
+      doc.text(label, totX, yy);
+      doc.setTextColor(...DARK);
+      doc.text(value, PW - M, yy, { align: 'right' });
+    };
+
+    let ty = afterTable;
+    doc.setDrawColor(226, 232, 240);
+    doc.line(totX, ty - 2, PW - M, ty - 2);
+
+    drawTotalRow('Subtotal',         formatCurrency(lastSale.subtotal), ty);            ty += 6;
+    if (lastSale.tax > 0) {
+      drawTotalRow('VAT 7.5% (+tax)', formatCurrency(lastSale.tax),     ty);            ty += 6;
+    }
+    if (lastSale.taxInclusive > 0) {
+      drawTotalRow('VAT incl. (in price)', formatCurrency(lastSale.taxInclusive), ty);  ty += 6;
+    }
+
+    // Total box
+    doc.setFillColor(...PRIMARY);
+    doc.roundedRect(totX - 2, ty, PW - M - totX + 4, 12, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOTAL',                  totX + 2,  ty + 8);
+    doc.text(formatCurrency(lastSale.total), PW - M - 2, ty + 8, { align: 'right' });
+    ty += 18;
+
+    // ── PAID stamp ────────────────────────────────────────────────────
+    doc.saveGraphicsState();
+    doc.setGState(new (doc as any).GState({ opacity: 0.12 }));
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(60);
+    doc.setTextColor(34, 197, 94); // green-500
+    doc.text('PAID', PW / 2, 160, { align: 'center', angle: 35 });
+    doc.restoreGraphicsState();
+
+    // ── Notes / Terms ─────────────────────────────────────────────────
+    const notesY = Math.max(ty + 6, afterTable + 30);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text('PAYMENT CONFIRMED', M, notesY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARK);
+    doc.text(`Payment of ${formatCurrency(lastSale.total)} received in full via ${payLabel[lastSale.paymentMethod] || lastSale.paymentMethod}.`, M, notesY + 5);
+    doc.text('No further payment is due. This invoice serves as proof of purchase.', M, notesY + 10);
+
+    // ── Footer band ───────────────────────────────────────────────────
+    doc.setFillColor(248, 250, 252);
+    doc.rect(0, 275, PW, 22, 'F');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text(`${biz} · ${storeSettings.businessAddress || ''} · ${storeSettings.businessPhone || ''}`, PW / 2, 283, { align: 'center' });
+    doc.text(invoiceNo, PW / 2, 289, { align: 'center' });
 
     doc.save(`${invoiceNo}.pdf`);
   };
