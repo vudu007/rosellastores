@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
+    if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
           data: {
             name: p.name,
             sku: p.sku,
-            barcode: p.barcode || null,
+            barcodes: p.barcodes ? (Array.isArray(p.barcodes) ? p.barcodes : [p.barcodes]) : [],
             categoryId: p.categoryId,
             supplierId: p.supplierId,
             branchId: branchId,

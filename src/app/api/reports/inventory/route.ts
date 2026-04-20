@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
     const formattedInventory = products.map(p => ({
       sku: p.sku,
-      barcode: p.barcode || '',
+      barcodes: (p.barcodes || []).join(', '),
       name: p.name,
       category: p.category?.name || '',
       supplier: p.supplier?.name || '',

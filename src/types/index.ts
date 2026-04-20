@@ -44,7 +44,7 @@ export interface CreateSaleInput {
 export interface ProductCreateInput {
   name: string;
   sku: string;
-  barcode?: string;
+  barcodes?: string[];
   categoryId: string;
   retailPrice: number;
   wholesalePrice: number;
