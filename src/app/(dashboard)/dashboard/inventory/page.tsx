@@ -203,7 +203,7 @@ export default function InventoryPage() {
         body: JSON.stringify({
           name: f.name,
           sku: f.sku,
-          barcode: f.barcode || undefined,
+          barcodes: f.barcodes || [],
           categoryId: f.categoryId,
           supplierId: f.supplierId,
           retailPrice: parseFloat(f.retailPrice),
@@ -256,7 +256,7 @@ export default function InventoryPage() {
         const full = await res.json();
         setEditProductForm((prev) => ({
           ...prev,
-          barcode: full.barcode || '',
+          barcodes: full.barcodes || [],
           categoryId: full.categoryId || '',
           supplierId: full.supplierId || '',
           unit: full.unit || 'pcs',
