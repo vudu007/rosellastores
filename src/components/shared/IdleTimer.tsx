@@ -97,7 +97,7 @@ export default function IdleTimer() {
 
         <h2 className="text-xl font-bold mb-2 text-foreground">Session Expiring</h2>
         <p className="text-sm text-muted-foreground mb-5">
-          You'll be logged out due to inactivity in:
+          You will be logged out due to inactivity in:
         </p>
 
         {/* Countdown */}
