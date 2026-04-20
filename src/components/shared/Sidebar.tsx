@@ -11,16 +11,16 @@ import {
 } from 'lucide-react';
 
 const menuItems = [
-  { href: '/dashboard',            label: 'Overview',    icon: LayoutDashboard, roles: ['OWNER', 'MANAGER'] },
-  { href: '/dashboard/sales',      label: 'Sales',       icon: ShoppingBag,     roles: ['OWNER', 'MANAGER'] },
-  { href: '/dashboard/inventory',  label: 'Inventory',   icon: Package,         roles: ['OWNER', 'MANAGER'] },
-  { href: '/dashboard/categories', label: 'Categories',  icon: Tag,             roles: ['OWNER', 'MANAGER'] },
-  { href: '/dashboard/customers',  label: 'Customers',   icon: Users,           roles: ['OWNER', 'MANAGER'] },
-  { href: '/dashboard/suppliers',  label: 'Suppliers',   icon: Truck,           roles: ['OWNER', 'MANAGER'] },
-  { href: '/dashboard/expenses',   label: 'Expenses',    icon: CreditCard,      roles: ['OWNER', 'MANAGER'] },
-  { href: '/dashboard/reports',    label: 'Reports',     icon: BarChart2,       roles: ['OWNER', 'MANAGER'] },
-  { href: '/dashboard/staff',      label: 'Staff',       icon: Users2,          roles: ['OWNER', 'MANAGER'] },
-  { href: '/dashboard/settings',   label: 'Settings',    icon: Settings,        roles: ['OWNER'] },
+  { href: '/dashboard',            label: 'Overview',    icon: LayoutDashboard, roles: ['ADMIN', 'OWNER', 'MANAGER'] },
+  { href: '/dashboard/sales',      label: 'Sales',       icon: ShoppingBag,     roles: ['ADMIN', 'OWNER', 'MANAGER'] },
+  { href: '/dashboard/inventory',  label: 'Inventory',   icon: Package,         roles: ['ADMIN', 'OWNER', 'MANAGER'] },
+  { href: '/dashboard/categories', label: 'Categories',  icon: Tag,             roles: ['ADMIN', 'OWNER', 'MANAGER'] },
+  { href: '/dashboard/customers',  label: 'Customers',   icon: Users,           roles: ['ADMIN', 'OWNER', 'MANAGER'] },
+  { href: '/dashboard/suppliers',  label: 'Suppliers',   icon: Truck,           roles: ['ADMIN', 'OWNER', 'MANAGER'] },
+  { href: '/dashboard/expenses',   label: 'Expenses',    icon: CreditCard,      roles: ['ADMIN', 'OWNER', 'MANAGER'] },
+  { href: '/dashboard/reports',    label: 'Reports',     icon: BarChart2,       roles: ['ADMIN', 'OWNER', 'MANAGER'] },
+  { href: '/dashboard/staff',      label: 'Staff',       icon: Users2,          roles: ['ADMIN', 'OWNER'] },
+  { href: '/dashboard/settings',   label: 'Settings',    icon: Settings,        roles: ['ADMIN'] },
 ];
 
 interface SidebarProps {

@@ -9,7 +9,7 @@ declare module 'next-auth' {
     id: string;
     email: string;
     name: string;
-    role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'WHOLESALE_CUSTOMER';
+    role: 'ADMIN' | 'OWNER' | 'MANAGER' | 'CASHIER' | 'WHOLESALE_CUSTOMER';
     branchId: string | null;
   }
 
@@ -40,6 +40,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user) {
           throw new Error('User not found');
+        }
+
+        // Reject expired temporary accounts
+        if ((user as any).tempExpiresAt && new Date() > new Date((user as any).tempExpiresAt)) {
+          throw new Error('This temporary account has expired. Contact the administrator.');
         }
 
         const passwordMatch = await bcrypt.compare(

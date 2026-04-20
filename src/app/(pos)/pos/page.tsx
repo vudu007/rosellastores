@@ -14,6 +14,7 @@ interface Product {
   id: string;
   name: string;
   sku: string;
+  barcodes: string[];
   retailPrice: number;
   wholesalePrice: number;
   stockQty: number;
@@ -166,7 +167,10 @@ export default function POSPage() {
 
     if (e.key === 'Enter') {
       if (barcodeBuffer.length > 2) {
-        const product = products.find(p => p.sku === barcodeBuffer || (p as any).barcode === barcodeBuffer);
+        const product = products.find(p => 
+  p.sku === barcodeBuffer || 
+  (p.barcodes && p.barcodes.includes(barcodeBuffer))
+);
         if (product) {
           addToCart(product);
           setSuccessMessage(`Scanned: ${product.name}`);

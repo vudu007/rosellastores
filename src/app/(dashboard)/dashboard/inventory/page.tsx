@@ -12,7 +12,7 @@ interface Product {
   id: string;
   name: string;
   sku: string;
-  barcode?: string;
+  barcodes: string[];
   stockQty: number;
   lowStockThreshold: number;
   retailPrice: number;
@@ -29,7 +29,7 @@ interface CategoryOption { id: string; name: string; }
 interface SupplierOption { id: string; name: string; }
 
 const emptyProductForm = {
-  name: '', sku: '', barcode: '', categoryId: '', supplierId: '',
+  name: '', sku: '', barcodes: [] as string[], categoryId: '', supplierId: '',
   retailPrice: '', wholesalePrice: '', stockQty: '', lowStockThreshold: '10', unit: 'pcs',
   isTaxable: true, taxInclusive: false,
 };
@@ -56,9 +56,11 @@ export default function InventoryPage() {
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const [editBarcodeInput, setEditBarcodeInput] = useState('');
 
   const downloadTemplate = () => {
-    const headers = ['name', 'sku', 'barcode', 'categoryId', 'supplierId', 'retailPrice', 'wholesalePrice', 'stockQty', 'lowStockThreshold', 'unit'];
+    const headers = ['name', 'sku', 'barcodes', 'categoryId', 'supplierId', 'retailPrice', 'wholesalePrice', 'stockQty', 'lowStockThreshold', 'unit'];
     const example = ['Sample Product', 'SKU-001', '', categories[0]?.id || 'cat_id', suppliers[0]?.id || 'sup_id', '1500', '1200', '50', '10', 'pcs'];
     const csv = [headers.join(','), example.join(',')].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -236,7 +238,7 @@ export default function InventoryPage() {
     setEditProductForm({
       name: product.name,
       sku: product.sku,
-      barcode: product.barcode || '',
+      barcodes: product.barcodes || [],
       categoryId: product.categoryId || '',
       supplierId: product.supplierId || '',
       retailPrice: product.retailPrice.toString(),
@@ -283,7 +285,7 @@ export default function InventoryPage() {
       };
       if (f.categoryId) body.categoryId = f.categoryId;
       if (f.supplierId) body.supplierId = f.supplierId;
-      if (f.barcode) body.barcode = f.barcode;
+      body.barcodes = f.barcodes || [];
       if (f.unit) body.unit = f.unit;
       body.isTaxable = f.isTaxable;
       body.taxInclusive = f.taxInclusive;
@@ -562,8 +564,41 @@ export default function InventoryPage() {
                 <input value={editProductForm.sku} onChange={(e) => setEditProductForm({...editProductForm, sku: e.target.value})} className="input-base mt-1" placeholder="e.g. FOOD-001" />
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground">Barcode</label>
-                <input value={editProductForm.barcode} onChange={(e) => setEditProductForm({...editProductForm, barcode: e.target.value})} className="input-base mt-1" placeholder="Optional" />
+                <label className="text-sm font-medium text-foreground">Barcodes</label>
+                <div className="flex gap-2 mt-1">
+                  <input
+                    value={editBarcodeInput}
+                    onChange={e => setEditBarcodeInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && editBarcodeInput.trim()) {
+                        e.preventDefault();
+                        if (!editProductForm.barcodes.includes(editBarcodeInput.trim())) {
+                          setEditProductForm({ ...editProductForm, barcodes: [...editProductForm.barcodes, editBarcodeInput.trim()] });
+                        }
+                        setEditBarcodeInput('');
+                      }
+                    }}
+                    className="input-base flex-1"
+                    placeholder="Type barcode and press Enter"
+                  />
+                  <button type="button" onClick={() => {
+                    if (editBarcodeInput.trim() && !editProductForm.barcodes.includes(editBarcodeInput.trim())) {
+                      setEditProductForm({ ...editProductForm, barcodes: [...editProductForm.barcodes, editBarcodeInput.trim()] });
+                      setEditBarcodeInput('');
+                    }
+                  }} className="btn-secondary px-3">Add</button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {editProductForm.barcodes.map((bc: string) => (
+                    <span key={bc} className="flex items-center gap-1 bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full">
+                      {bc}
+                      <button type="button" onClick={() => setEditProductForm({ ...editProductForm, barcodes: editProductForm.barcodes.filter((b: string) => b !== bc) })}
+                        className="hover:text-destructive ml-0.5">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground">Category</label>
@@ -675,8 +710,41 @@ export default function InventoryPage() {
                 <input value={productForm.sku} onChange={(e) => setProductForm({...productForm, sku: e.target.value})} className="input-base mt-1" placeholder="e.g. FOOD-001" />
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground">Barcode</label>
-                <input value={productForm.barcode} onChange={(e) => setProductForm({...productForm, barcode: e.target.value})} className="input-base mt-1" placeholder="Scan or type barcode" />
+                <label className="text-sm font-medium text-foreground">Barcodes</label>
+                <div className="flex gap-2 mt-1">
+                  <input
+                    value={barcodeInput}
+                    onChange={e => setBarcodeInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && barcodeInput.trim()) {
+                        e.preventDefault();
+                        if (!productForm.barcodes.includes(barcodeInput.trim())) {
+                          setProductForm({ ...productForm, barcodes: [...productForm.barcodes, barcodeInput.trim()] });
+                        }
+                        setBarcodeInput('');
+                      }
+                    }}
+                    className="input-base flex-1"
+                    placeholder="Type barcode and press Enter"
+                  />
+                  <button type="button" onClick={() => {
+                    if (barcodeInput.trim() && !productForm.barcodes.includes(barcodeInput.trim())) {
+                      setProductForm({ ...productForm, barcodes: [...productForm.barcodes, barcodeInput.trim()] });
+                      setBarcodeInput('');
+                    }
+                  }} className="btn-secondary px-3">Add</button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {productForm.barcodes.map((bc: string) => (
+                    <span key={bc} className="flex items-center gap-1 bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full">
+                      {bc}
+                      <button type="button" onClick={() => setProductForm({ ...productForm, barcodes: productForm.barcodes.filter((b: string) => b !== bc) })}
+                        className="hover:text-destructive ml-0.5">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground">Category *</label>

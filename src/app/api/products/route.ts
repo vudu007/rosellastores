@@ -7,7 +7,7 @@ import { z } from 'zod';
 const createProductSchema = z.object({
   name: z.string().min(1),
   sku: z.string().min(1),
-  barcode: z.string().optional(),
+  barcodes: z.array(z.string()).optional(),
   categoryId: z.string(),
   retailPrice: z.number().positive(),
   wholesalePrice: z.number().positive(),
@@ -48,7 +48,6 @@ export async function GET(req: NextRequest) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { sku: { contains: search, mode: 'insensitive' } },
-        { barcode: { contains: search, mode: 'insensitive' } },
       ];
     }
 

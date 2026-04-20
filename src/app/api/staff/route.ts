@@ -7,28 +7,22 @@ import bcrypt from 'bcryptjs';
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
+    if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const staffQuery: any = {
-      include: { branch: true },
-      orderBy: { createdAt: 'desc' },
-    };
-
-    // Managers can only see staff in their own branch, unless they are an owner.
+    const where: any = {};
     if (session.user.role === 'MANAGER' && session.user.branchId) {
-       staffQuery.where = { branchId: session.user.branchId };
+      where.branchId = session.user.branchId;
     }
 
-    const staff = await prisma.user.findMany(staffQuery);
-
-    // Filter out password from the response
-    const safeStaff = staff.map((s) => {
-      const { password, ...rest } = s;
-      return rest;
+    const staff = await prisma.user.findMany({
+      where,
+      include: { branch: true },
+      orderBy: { createdAt: 'desc' },
     });
 
+    const safeStaff = staff.map(({ password, ...rest }) => rest);
     return NextResponse.json(safeStaff);
   } catch (error) {
     console.error('Error fetching staff:', error);
@@ -39,34 +33,37 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || session.user.role !== 'OWNER') {
-      return NextResponse.json({ error: 'Unauthorized: Only ONWER can create staff accounts.' }, { status: 401 });
+    if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await req.json();
-    const { name, email, password, role, branchId } = body;
+    const { name, email, password, role, branchId, tempAccount } = body;
 
-    if (!name || !email || !password || !role || !branchId) {
-      return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
+    if (!name || !email || !password || !role) {
+      return NextResponse.json({ error: 'Name, email, password and role are required' }, { status: 400 });
     }
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
+    // OWNER cannot create ADMIN accounts
+    if (session.user.role === 'OWNER' && role === 'ADMIN') {
+      return NextResponse.json({ error: 'Owners cannot create Admin accounts' }, { status: 403 });
+    }
 
-    if (existingUser) {
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
       return NextResponse.json({ error: 'Email already exists' }, { status: 400 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const tempExpiresAt = tempAccount ? new Date(Date.now() + 24 * 60 * 60 * 1000) : null;
 
     const newUser = await prisma.user.create({
       data: {
-        name,
-        email,
+        name, email,
         password: hashedPassword,
         role,
-        branchId,
+        branchId: branchId || null,
+        ...(tempExpiresAt ? { tempExpiresAt } : {}),
       },
     });
 
@@ -78,65 +75,34 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const session = await auth();
-    if (!session || session.user.role !== 'OWNER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json({ error: 'Staff ID is required' }, { status: 400 });
-    }
-
-    // Protect against self-deletion
-    if (id === session.user.id) {
-      return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 });
-    }
-
-    await prisma.user.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({ message: 'Staff member deleted' });
-  } catch (error) {
-    console.error('Error deleting staff:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
 export async function PUT(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || session.user.role !== 'OWNER') {
-      return NextResponse.json({ error: 'Unauthorized: Only OWNER can edit staff.' }, { status: 401 });
+    if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await req.json();
-    const { id, name, password, email, role, branchId } = body;
+    const { id, name, email, password, role, branchId, tempAccount } = body;
 
-    if (!id) {
-      return NextResponse.json({ error: 'Staff ID is required' }, { status: 400 });
+    if (!id || !name || !email || !role) {
+      return NextResponse.json({ error: 'id, name, email and role are required' }, { status: 400 });
     }
 
-    const updateData: any = {};
-    if (name) updateData.name = name;
-    if (email) updateData.email = email;
-    if (role) updateData.role = role;
-    if (branchId) updateData.branchId = branchId;
-    if (password) {
-      updateData.password = await bcrypt.hash(password, 10);
+    if (session.user.role === 'OWNER' && role === 'ADMIN') {
+      return NextResponse.json({ error: 'Owners cannot assign the Admin role' }, { status: 403 });
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id },
-      data: updateData,
-    });
+    const updateData: any = { name, email, role, branchId: branchId || null };
+    if (password) updateData.password = await bcrypt.hash(password, 10);
+    if (tempAccount) {
+      updateData.tempExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    } else {
+      updateData.tempExpiresAt = null;
+    }
 
-    const { password: _, ...safeUser } = updatedUser;
+    const updated = await prisma.user.update({ where: { id }, data: updateData });
+    const { password: _, ...safeUser } = updated;
     return NextResponse.json(safeUser);
   } catch (error) {
     console.error('Error updating staff:', error);
@@ -144,3 +110,25 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+export async function DELETE(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 });
+
+    if (id === session.user.id) {
+      return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });
+    }
+
+    await prisma.user.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting staff:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

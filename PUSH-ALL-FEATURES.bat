@@ -49,8 +49,12 @@ git add "src/app/(dashboard)/dashboard/categories/page.tsx"
 git add "src/components/shared/IdleTimer.tsx"
 git add "src/app/(pos)/layout.tsx"
 git add "src/app/(wholesale)/layout.tsx"
+git add "src/lib/auth.ts"
+git add "src/app/api/staff/route.ts"
+git add "src/app/api/products/route.ts"
+git add "src/app/api/products/[id]/route.ts"
 
-git commit -m "feat: always show login on site open + 15-min idle auto-logout with countdown warning"
+git commit -m "feat: ADMIN role, multi-barcode per product, 24h temporary accounts"
 
 echo Pushing to GitHub...
 git push
