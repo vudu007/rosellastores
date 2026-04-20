@@ -61,6 +61,7 @@ export default function SalesPage() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchSales(page, status); }, [page, status]);
 
   const exportCSV = () => {

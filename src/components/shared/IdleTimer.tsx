@@ -106,7 +106,7 @@ export default function IdleTimer() {
         </div>
 
         <p className="text-xs text-muted-foreground mb-7">
-          Move your mouse or press any key, then click &quot;Stay Logged In&quot;
+          Move your mouse or press any key, then click &#34;Stay Logged In&#34;
         </p>
 
         {/* Actions */}
