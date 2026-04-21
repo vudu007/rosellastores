@@ -1,52 +1,71 @@
 /**
  * QZ Tray utility — silent direct-to-thermal-printer printing
  *
- * QZ Tray is a free desktop middleware that bridges web apps to local printers
- * without browser print dialogs. Download it at https://qz.io/download/
+ * qz-tray is a browser-only global library (it sets window.qz).
+ * It must be loaded via a <script> CDN tag — NOT bundled by webpack.
+ * This module injects the script tag on first use, then uses window.qz.
  *
- * This module uses UNSIGNED mode — QZ Tray will show a one-time "Allow?" dialog
- * the first time it's used. After clicking Allow (and optionally "Always"), it
- * prints silently forever.
+ * Download QZ Tray desktop app at https://qz.io/download/
  */
 
-type QZType = any; // dynamic import — no strict typing needed
+const QZ_CDN = 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js';
 
-let _qz: QZType | null = null;
-let _connectingPromise: Promise<void> | null = null;
+/** Load the qz-tray browser bundle from CDN (injects a <script> tag once) */
+function loadQZFromCDN(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    // Already loaded
+    if (typeof window !== 'undefined' && (window as any).qz) {
+      resolve((window as any).qz);
+      return;
+    }
 
-/** Lazy-load the qz-tray browser bundle (safe to call from any client component) */
-async function loadQZ(): Promise<QZType> {
-  if (_qz) return _qz;
-  const mod = await import('qz-tray');
-  _qz = (mod as any).default ?? mod;
-  return _qz;
+    // Already injected but not yet loaded — wait for it
+    const existing = document.getElementById('qz-tray-script');
+    if (existing) {
+      existing.addEventListener('load', () => resolve((window as any).qz));
+      existing.addEventListener('error', () => reject(new Error('QZ Tray script failed to load')));
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id  = 'qz-tray-script';
+    script.src = QZ_CDN;
+    script.onload = () => {
+      if ((window as any).qz) {
+        resolve((window as any).qz);
+      } else {
+        reject(new Error('QZ Tray script loaded but window.qz is not available'));
+      }
+    };
+    script.onerror = () => reject(new Error('Failed to load QZ Tray from CDN. Check your internet connection.'));
+    document.head.appendChild(script);
+  });
 }
+
+let _connectingPromise: Promise<void> | null = null;
 
 /**
  * Connect to the QZ Tray WebSocket server (wss://localhost:8181).
- * Safe to call multiple times — subsequent calls reuse the existing connection.
+ * Safe to call multiple times — reuses the existing connection.
  */
 export async function connectQZ(): Promise<void> {
-  const qz = await loadQZ();
+  const qz = await loadQZFromCDN();
 
-  // Already connected — nothing to do
+  // Already connected
   if (qz.websocket.isActive()) return;
 
-  // If a connection attempt is already in flight, wait for it
+  // If a connection attempt is in flight, wait for it
   if (_connectingPromise) return _connectingPromise;
 
   _connectingPromise = (async () => {
-    // ── Unsigned mode ────────────────────────────────────────────────────────
-    // Pass empty/null for both certificate and signature.
-    // QZ Tray will show a one-time "Trust this site?" popup on the first use.
+    // Unsigned mode — QZ Tray shows a one-time "Trust this site?" popup on first use
     qz.security.setCertificatePromise((resolve: (v: any) => void) => {
       resolve(undefined);
     });
 
-    qz.security.setSignaturePromise((toSign: string) => {
+    qz.security.setSignaturePromise((_toSign: string) => {
       return (resolve: (v: any) => void) => resolve(null);
     });
-    // ────────────────────────────────────────────────────────────────────────
 
     await qz.websocket.connect();
   })().finally(() => {
@@ -56,10 +75,11 @@ export async function connectQZ(): Promise<void> {
   return _connectingPromise;
 }
 
-/** Returns true if QZ Tray is running and the WebSocket is connected */
+/** Returns true if QZ Tray WebSocket is connected */
 export async function isQZActive(): Promise<boolean> {
   try {
-    const qz = await loadQZ();
+    if (typeof window === 'undefined') return false;
+    const qz = await loadQZFromCDN();
     return qz.websocket.isActive();
   } catch {
     return false;
@@ -67,33 +87,27 @@ export async function isQZActive(): Promise<boolean> {
 }
 
 /**
- * List all printers available on this machine via QZ Tray.
- * Filters to likely thermal printers when `thermalOnly` is true (default: false).
+ * List all printers on this machine via QZ Tray.
  */
 export async function getQZPrinters(thermalOnly = false): Promise<string[]> {
   await connectQZ();
-  const qz = await loadQZ();
+  const qz = (window as any).qz;
 
   const printers: string[] = await qz.printers.find('');
   if (!thermalOnly) return printers;
 
-  // Heuristic filter — thermal printers often contain these keywords
   const keywords = ['thermal', 'pos', 'receipt', 'xprinter', 'epson', 'star', 'citizen', 'bixolon', '58mm', '80mm', 'tm-'];
-  return printers.filter(p =>
+  return printers.filter((p: string) =>
     keywords.some(k => p.toLowerCase().includes(k))
   );
 }
 
 /**
  * Print an HTML receipt string directly to a thermal printer via QZ Tray.
- * The HTML should already be formatted for 72mm / 80mm thermal paper.
- *
- * @param html        Full HTML document string (including <html>, <head>, <body>)
- * @param printerName Exact printer name as returned by getQZPrinters()
  */
 export async function printHTMLWithQZ(html: string, printerName: string): Promise<void> {
   await connectQZ();
-  const qz = await loadQZ();
+  const qz = (window as any).qz;
 
   const config = qz.configs.create(printerName, {
     size: { width: 80, height: null },
