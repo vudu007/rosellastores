@@ -6,8 +6,8 @@ import { z } from 'zod';
 
 const createCustomerSchema = z.object({
   name: z.string().min(1),
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
+  email: z.preprocess(v => (v === '' ? undefined : v), z.string().email().optional()),
+  phone: z.preprocess(v => (v === '' ? undefined : v), z.string().optional()),
   type: z.enum(['RETAIL', 'WHOLESALE']),
   creditLimit: z.number().optional(),
 });
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       prisma.customer.count({ where }),
     ]);
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       customers,
       pagination: {
         page,
@@ -60,6 +60,8 @@ export async function GET(req: NextRequest) {
         pages: Math.ceil(total / limit),
       },
     });
+    res.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+    return res;
   } catch (error) {
     console.error('Error fetching customers:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -86,7 +88,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(customer, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return NextResponse.json({ error: error.errors.map(e => e.message).join(', ') }, { status: 400 });
     }
     console.error('Error creating customer:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
