@@ -243,14 +243,14 @@ export default function POSPage() {
   const total = subtotal + tax;
 
   const handleCheckout = async () => {
-    if (!selectedCustomer || cart.length === 0) return;
+    if (cart.length === 0) return;
 
     try {
       const response = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerId: selectedCustomer.id,
+          customerId: selectedCustomer?.id || undefined,
           paymentMethod,
           notes: paymentMethod === 'SPLIT' ? `Cash: ${splitAmounts.cash}, Card: ${splitAmounts.card}, Transfer: ${splitAmounts.transfer}, Mobile: ${splitAmounts.mobile}` : undefined,
           items: cart.map((item) => ({
@@ -268,9 +268,9 @@ export default function POSPage() {
         const savedSale = await response.json();
         setLastSale({
           id: savedSale.id,
-          customerId: selectedCustomer.id,
-          customerName: selectedCustomer.name,
-          customerType: selectedCustomer.type,
+          customerId: selectedCustomer?.id || '',
+          customerName: selectedCustomer?.name || 'Walk-In Customer',
+          customerType: selectedCustomer?.type || 'RETAIL',
           paymentMethod,
           items: cart.map((item) => ({
             name: item.name,
@@ -797,46 +797,41 @@ ${center('Not valid as retail receipt')}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 flex-1 overflow-y-auto pr-2">
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2 flex-1 overflow-y-auto pr-2 content-start">
           {filteredProducts.map((product) => (
             <button
               key={product.id}
               onClick={() => addToCart(product)}
               disabled={product.stockQty === 0}
-              className="card-premium p-4 flex flex-col text-left group relative disabled:opacity-50 overflow-hidden"
+              className="card-premium p-2.5 flex flex-col text-left group relative disabled:opacity-40 hover:border-primary/60 transition-all min-h-[88px]"
             >
-              <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-                {product.stockQty <= product.retailPrice * 0.1 && product.stockQty > 0 && (
-                  <div className="bg-orange-100 text-orange-600 p-1 rounded-md">
-                    <AlertCircle className="w-3 h-3" />
-                  </div>
-                )}
-              </div>
-              
-              <div className="aspect-square bg-muted/30 rounded-lg mb-4 flex items-center justify-center transition-transform group-hover:scale-105">
-                <Package className="w-8 h-8 text-muted-foreground/40" />
+              {/* Stock status badge — top right */}
+              <div className="absolute top-1.5 right-1.5">
+                {product.stockQty === 0 ? (
+                  <span className="text-[8px] font-black bg-red-100 text-red-500 px-1 py-0.5 rounded leading-none">OUT</span>
+                ) : product.stockQty < 10 ? (
+                  <AlertCircle className="w-2.5 h-2.5 text-orange-400" />
+                ) : null}
               </div>
 
-              <div className="flex-1">
-                <h4 className="font-bold text-sm leading-tight text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                  {product.name}
-                </h4>
-                <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider">{product.sku}</p>
-              </div>
+              {/* Product name */}
+              <h4 className="font-semibold text-[11px] leading-tight text-foreground group-hover:text-primary transition-colors line-clamp-2 pr-4 mb-1">
+                {product.name}
+              </h4>
 
-              <div className="mt-4 pt-4 border-t flex items-end justify-between">
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase">Price</p>
-                  <p className="font-bold text-lg text-primary">
-                    {formatCurrency(getProductPrice(product))}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-muted-foreground uppercase">In Stock</p>
-                  <p className={`text-xs font-bold ${product.stockQty < 10 ? 'text-orange-500' : 'text-foreground'}`}>
-                    {product.stockQty} {product.stockQty === 0 ? 'Out' : 'pcs'}
-                  </p>
-                </div>
+              {/* SKU */}
+              <p className="text-[9px] text-muted-foreground/70 uppercase tracking-wide mb-auto truncate">
+                {product.sku}
+              </p>
+
+              {/* Price + stock row */}
+              <div className="flex items-end justify-between mt-2 pt-1.5 border-t border-border/50">
+                <p className="font-black text-xs text-primary leading-none">
+                  {formatCurrency(getProductPrice(product))}
+                </p>
+                <p className={`text-[9px] font-bold leading-none ${product.stockQty < 10 ? 'text-orange-500' : 'text-muted-foreground'}`}>
+                  {product.stockQty}
+                </p>
               </div>
             </button>
           ))}
@@ -1017,7 +1012,7 @@ ${center('Not valid as retail receipt')}
 
             <button
               onClick={() => setShowPaymentModal(true)}
-              disabled={cart.length === 0 || !selectedCustomer}
+              disabled={cart.length === 0}
               className="col-span-2 bg-primary text-primary-foreground h-14 rounded-xl font-bold text-lg shadow-lg shadow-primary/30 hover:shadow-primary/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:grayscale disabled:shadow-none flex items-center justify-center gap-2"
             >
               <CheckCircle className="w-5 h-5" />
@@ -1090,7 +1085,7 @@ ${center('Not valid as retail receipt')}
             <div className="space-y-4 bg-muted/20 p-6 rounded-2xl border border-white/5">
               <div className="flex justify-between items-center">
                 <span className="text-xs text-muted-foreground uppercase font-bold">Client</span>
-                <span className="font-bold font-mono text-sm">{selectedCustomer?.name}</span>
+                <span className="font-bold font-mono text-sm">{selectedCustomer?.name || 'Walk-In Customer'}</span>
               </div>
 
               <div className="flex justify-between items-center pt-4 border-t border-white/5">

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { startOfDay, endOfDay } from 'date-fns';
 
 const createSaleSchema = z.object({
-  customerId: z.string(),
+  customerId: z.string().optional(),
   paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY']),
   items: z.array(
     z.object({
@@ -97,8 +97,26 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const validatedData = createSaleSchema.parse(body);
 
+    // Resolve customerId — use provided, or find/create Walk-In Customer for guest checkout
+    let customerId = validatedData.customerId;
+    if (!customerId) {
+      let walkIn = await prisma.customer.findFirst({
+        where: { branchId: session.user.branchId!, name: 'Walk-In Customer' },
+      });
+      if (!walkIn) {
+        walkIn = await prisma.customer.create({
+          data: {
+            name: 'Walk-In Customer',
+            type: 'RETAIL',
+            branchId: session.user.branchId!,
+          },
+        });
+      }
+      customerId = walkIn.id;
+    }
+
     const customer = await prisma.customer.findUnique({
-      where: { id: validatedData.customerId },
+      where: { id: customerId },
     });
 
     if (!customer || customer.branchId !== session.user.branchId) {
@@ -142,7 +160,7 @@ export async function POST(req: NextRequest) {
 
     const sale = await prisma.sale.create({
       data: {
-        customerId: validatedData.customerId,
+        customerId,
         cashierId: session.user.id,
         subtotal,
         tax,
@@ -176,7 +194,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(sale, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return NextResponse.json({ error: error.errors.map(e => e.message).join(', ') }, { status: 400 });
     }
     console.error('Error creating sale:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
