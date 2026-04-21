@@ -451,6 +451,113 @@ ${dDash}
     setLastSale(null);
   };
 
+  const printWholesaleReceipt = () => {
+    if (!lastSale) return;
+
+    const invoiceNo = `WS-${new Date(lastSale.date).getFullYear()}${String(new Date(lastSale.date).getMonth()+1).padStart(2,'0')}${String(new Date(lastSale.date).getDate()).padStart(2,'0')}-${lastSale.id?.slice(-5).toUpperCase() ?? Math.floor(Math.random()*99999).toString().padStart(5,'0')}`;
+    const dateStr   = new Date(lastSale.date).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+    const biz       = storeSettings.businessName || 'MEKAERP';
+    const W         = 42; // 80mm thermal column width
+
+    const row = (left: string, right: string) => {
+      const gap = W - left.length - right.length;
+      return left + (gap > 0 ? ' '.repeat(gap) : ' ') + right;
+    };
+    const center = (s: string) => {
+      const pad = Math.max(0, Math.floor((W - s.length) / 2));
+      return ' '.repeat(pad) + s;
+    };
+    const dash  = '-'.repeat(W);
+    const dDash = '='.repeat(W);
+
+    const payLabel: Record<string, string> = {
+      CASH: 'Cash', CARD: 'Card / POS', BANK_TRANSFER: 'Bank Transfer',
+      MOBILE_MONEY: 'Mobile Money', SPLIT: 'Split Payment',
+    };
+
+    const itemLines = lastSale.items.map((item: any) => {
+      const desc     = `${item.name}`.slice(0, 28);
+      const qtyPrice = `${item.quantity} x ${formatCurrency(item.unitPrice)}`;
+      const total    = formatCurrency(item.total);
+      return [
+        `  ${desc}`,
+        row(`  ${qtyPrice}`, total),
+      ].join('\n');
+    }).join('\n');
+
+    const discountLine = lastSale.discount > 0 ? `\n${row('  Discount:', `-${formatCurrency(lastSale.discount)}`)}` : '';
+    const taxAddedLine = lastSale.tax > 0 ? `\n${row('  VAT 7.5%:', formatCurrency(lastSale.tax))}` : '';
+
+    const receiptHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Wholesale Receipt ${invoiceNo}</title>
+  <style>
+    @page { size: 80mm auto; margin: 4mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+      width: 72mm;
+      color: #000;
+      background: #fff;
+      padding: 4mm 0;
+    }
+    pre { white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: inherit; }
+    .biz-name { font-size: 18px; font-weight: 900; letter-spacing: 1px; text-align: center; margin-bottom: 2px; }
+    .biz-sub  { font-size: 11px; text-align: center; color: #333; }
+    .ws-badge { font-size: 10px; font-weight: 900; letter-spacing: 2px; text-align: center; border: 2px solid #000; padding: 2px 0; margin: 5px 0; }
+    .total-line { font-size: 15px; font-weight: 900; }
+    .footer { text-align: center; font-size: 11px; margin-top: 8px; color: #333; }
+    @media print { html, body { margin: 0; padding: 0; } body { width: 72mm; } }
+  </style>
+</head>
+<body>
+<div class="biz-name">${biz}</div>
+${storeSettings.businessAddress ? `<div class="biz-sub">${storeSettings.businessAddress}</div>` : ''}
+${storeSettings.businessPhone   ? `<div class="biz-sub">Tel: ${storeSettings.businessPhone}</div>` : ''}
+${storeSettings.businessEmail   ? `<div class="biz-sub">${storeSettings.businessEmail}</div>` : ''}
+<div class="ws-badge">*** WHOLESALE RECEIPT ***</div>
+<pre>
+${dash}
+${row('Invoice No:', invoiceNo)}
+${row('Date:', dateStr)}
+${row('Customer:', lastSale.customerName || 'Wholesale Customer')}
+${row('Payment:', payLabel[lastSale.paymentMethod] || lastSale.paymentMethod)}
+${dash}
+ITEMS (WHOLESALE PRICING)
+${dash}
+${itemLines}
+${dash}
+${row('Subtotal:', formatCurrency(lastSale.subtotal))}${discountLine}${taxAddedLine}
+${dDash}
+</pre>
+<pre class="total-line">${row('  TOTAL PAID:', formatCurrency(lastSale.total))}</pre>
+<pre>
+${dDash}
+${center('** WHOLESALE COPY **')}
+${center('Not valid as retail receipt')}
+</pre>
+<div class="footer">
+  ${storeSettings.receiptFooter || 'Thank you for your business!'}
+  <br>Please retain for your records.
+</div>
+<script>
+  window.onload = function() {
+    setTimeout(function() { window.print(); }, 300);
+  };
+</script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank', 'width=320,height=650,toolbar=0,menubar=0');
+    if (!win) return;
+    win.document.write(receiptHtml);
+    win.document.close();
+  };
+
   const generateInvoice = () => {
     if (!lastSale) return;
 
@@ -951,12 +1058,21 @@ ${dDash}
                   Print Receipt
                 </button>
                 {(lastSale.customerType === 'WHOLESALE' || pricingMode === 'WHOLESALE') && (
-                  <button
-                    onClick={generateInvoice}
-                    className="bg-green-800 text-white px-4 py-1 rounded-full font-bold hover:bg-green-900 transition-colors"
-                  >
-                    Generate Invoice
-                  </button>
+                  <>
+                    <button
+                      onClick={generateInvoice}
+                      className="bg-green-800 text-white px-4 py-1 rounded-full font-bold hover:bg-green-900 transition-colors"
+                    >
+                      Generate Invoice
+                    </button>
+                    <button
+                      onClick={printWholesaleReceipt}
+                      title="Print on 80mm thermal printer (no A4 needed)"
+                      className="bg-yellow-500 text-white px-4 py-1 rounded-full font-bold hover:bg-yellow-600 transition-colors"
+                    >
+                      🖨 Print 80mm
+                    </button>
+                  </>
                 )}
               </div>
             )}
