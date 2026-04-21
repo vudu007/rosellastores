@@ -54,24 +54,23 @@ export async function GET(req: NextRequest) {
 
     // ?pos=1 fetches only POS-required fields (skips supplier join — faster)
     const isPosMode = searchParams.get('pos') === '1';
+    const pagination = { where, skip: (page - 1) * limit, take: limit, orderBy: { name: 'asc' as const } };
 
     const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        ...(isPosMode
-          ? {
-              select: {
-                id: true, name: true, sku: true, barcodes: true,
-                retailPrice: true, wholesalePrice: true, stockQty: true,
-                imageUrl: true, isTaxable: true, taxInclusive: true,
-                category: { select: { name: true } },
-              },
-            }
-          : { include: { category: true, supplier: true } }),
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { name: 'asc' },
-      }),
+      isPosMode
+        ? prisma.product.findMany({
+            ...pagination,
+            select: {
+              id: true, name: true, sku: true, barcodes: true,
+              retailPrice: true, wholesalePrice: true, stockQty: true,
+              imageUrl: true, isTaxable: true, taxInclusive: true,
+              category: { select: { name: true } },
+            },
+          })
+        : prisma.product.findMany({
+            ...pagination,
+            include: { category: true, supplier: true },
+          }),
       prisma.product.count({ where }),
     ]);
 
