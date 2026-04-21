@@ -53,8 +53,9 @@ export async function connectQZ(): Promise<void> {
   if (_connectingPromise) return _connectingPromise;
 
   _connectingPromise = (async () => {
-    // ── Signed certificate mode ───────────────────────────────────────────────
-    // Fetches the public cert from our API; QZ Tray uses it to verify signatures.
+    // ── QZ Tray Demo Certificate (signed by QZ Industries CA) ────────────────
+    // QZ Tray recognises this certificate as trusted, so "Remember this
+    // decision" works — tick it + Allow once and it never prompts again.
     qz.security.setCertificatePromise((resolve: Function, reject: Function) => {
       fetch('/api/qz/certificate', { cache: 'no-store' })
         .then(r => r.ok ? r.text() : Promise.reject('Certificate endpoint error ' + r.status))
@@ -62,15 +63,13 @@ export async function connectQZ(): Promise<void> {
         .catch(err => reject(err));
     });
 
-    // Server signs the QZ Tray timestamp with our RSA private key.
     qz.security.setSignaturePromise((toSign: string) => {
       return (resolve: Function, reject: Function) => {
         fetch(`/api/qz/sign?request=${encodeURIComponent(toSign)}`, { cache: 'no-store' })
-          .then(r => r.ok ? r.text() : Promise.reject('Sign endpoint returned ' + r.status))
+          .then(r => r.ok ? r.text() : Promise.reject('Sign endpoint error ' + r.status))
           .then(sig => {
-            // Guard: if we got HTML (redirect to login), reject loudly
             if (sig.trimStart().startsWith('<')) {
-              reject(new Error('Sign endpoint returned HTML — middleware may be redirecting to login'));
+              reject(new Error('Sign endpoint returned HTML — check Vercel env vars'));
               return;
             }
             resolve(sig.trim());

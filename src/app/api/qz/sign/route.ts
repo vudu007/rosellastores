@@ -1,9 +1,10 @@
 /**
  * GET /api/qz/sign?request=<timestamp>
- * Signs the QZ Tray timestamp with our RSA-PKCS#1 private key (SHA-512).
- * QZ Tray verifies this against the certificate → "Trusted website" mode.
+ * Signs the QZ Tray timestamp using the QZ Tray Demo private key (RSA-SHA512).
+ * QZ Tray verifies the signature against the official QZ Industries demo cert,
+ * which it recognises as trusted — enabling "Remember this decision".
  *
- * Env var: QZ_PRIVATE_KEY  (full PEM including headers, newlines preserved)
+ * Env var: QZ_PRIVATE_KEY  (full PKCS#8 PEM, newlines preserved)
  */
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
@@ -19,33 +20,28 @@ export async function GET(request: Request) {
   }
 
   let rawKey = process.env.QZ_PRIVATE_KEY ?? '';
-
   if (!rawKey) {
     return new NextResponse('QZ_PRIVATE_KEY env var is not set', { status: 500 });
   }
 
-  // Normalise: Vercel may store newlines as literal \n depending on how the
-  // value was entered. Handle both actual newlines and escaped ones.
-  rawKey = rawKey
-    .replace(/\\n/g, '\n')          // literal \n → real newline
-    .replace(/\r\n/g, '\n')         // CRLF → LF
-    .trim();
+  // Normalise newlines — Vercel may store them as literal \n depending on input method
+  rawKey = rawKey.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim();
 
-  // Ensure the key has proper PEM line breaks (some UIs strip them)
+  // Re-wrap key body if all newlines were stripped (pasted as single line)
   if (!rawKey.includes('\n')) {
-    // Key pasted as one long line — re-wrap at 64 chars between the headers
-    const match = rawKey.match(/^(-----[^-]+-----)(.+)(-----[^-]+-----)$/s);
-    if (match) {
-      const body = match[2].replace(/\s/g, '');
-      const lines = body.match(/.{1,64}/g)?.join('\n') ?? body;
-      rawKey = `${match[1]}\n${lines}\n${match[3]}`;
+    const m = rawKey.match(/^(-----[^-]+-----)(.+)(-----[^-]+-----)$/s);
+    if (m) {
+      const lines = m[2].replace(/\s/g, '').match(/.{1,64}/g)?.join('\n') ?? m[2];
+      rawKey = `${m[1]}\n${lines}\n${m[3]}`;
     }
   }
 
   try {
+    // Use createPrivateKey() to correctly parse PKCS#8 format
+    const privateKey = crypto.createPrivateKey(rawKey);
     const sign = crypto.createSign('RSA-SHA512');
     sign.update(toSign);
-    const signature = sign.sign(rawKey, 'base64');
+    const signature = sign.sign(privateKey, 'base64');
 
     return new NextResponse(signature, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
