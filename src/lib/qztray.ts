@@ -66,8 +66,15 @@ export async function connectQZ(): Promise<void> {
     qz.security.setSignaturePromise((toSign: string) => {
       return (resolve: Function, reject: Function) => {
         fetch(`/api/qz/sign?request=${encodeURIComponent(toSign)}`, { cache: 'no-store' })
-          .then(r => r.ok ? r.text() : Promise.reject('Sign endpoint error ' + r.status))
-          .then(sig => resolve(sig))
+          .then(r => r.ok ? r.text() : Promise.reject('Sign endpoint returned ' + r.status))
+          .then(sig => {
+            // Guard: if we got HTML (redirect to login), reject loudly
+            if (sig.trimStart().startsWith('<')) {
+              reject(new Error('Sign endpoint returned HTML — middleware may be redirecting to login'));
+              return;
+            }
+            resolve(sig.trim());
+          })
           .catch(err => reject(err));
       };
     });
