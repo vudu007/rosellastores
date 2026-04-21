@@ -105,7 +105,7 @@ export default function SettingsPage() {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (session?.user.role !== 'ADMIN') {
+    if (!['ADMIN', 'OWNER'].includes(session?.user.role ?? '')) {
       setToast({ type: 'error', message: 'Only ADMIN can update business settings' });
       return;
     }
@@ -186,7 +186,7 @@ export default function SettingsPage() {
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* Navigation Sidebar */}
         <div className="w-full lg:w-64 shrink-0 flex flex-col gap-2">
-          {session?.user.role === 'ADMIN' && (
+          {['ADMIN', 'OWNER'].includes(session?.user.role ?? '') && (
             <button
               onClick={() => setActiveTab('business')}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
@@ -231,7 +231,7 @@ export default function SettingsPage() {
         {/* Content Area */}
         <div className="w-full max-w-2xl bg-card rounded-2xl shadow-sm border border-border p-8">
           
-          {activeTab === 'business' && session?.user.role === 'ADMIN' && (
+          {activeTab === 'business' && ['ADMIN', 'OWNER'].includes(session?.user.role ?? '') && (
             <form onSubmit={handleSaveSettings} className="space-y-6 animate-fade-in">
               <h2 className="text-xl font-bold mb-6 border-b pb-4">Business Details</h2>
               
