@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const sign = crypto.createSign('SHA512');
+    const sign = crypto.createSign('RSA-SHA512');
     sign.update(toSign);
     const signature = sign.sign(rawKey, 'base64');
 
