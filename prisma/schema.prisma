@@ -78,6 +78,7 @@ model Product {
   barcodes          String[]
   categoryId        String    @db.ObjectId
   category          Category  @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  costPrice         Float     @default(0)
   retailPrice       Float
   wholesalePrice    Float
   stockQty          Int

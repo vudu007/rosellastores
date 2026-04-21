@@ -9,6 +9,7 @@ const createProductSchema = z.object({
   sku: z.string().min(1),
   barcodes: z.array(z.string()).optional(),
   categoryId: z.string(),
+  costPrice: z.number().nonnegative().optional().default(0),
   retailPrice: z.number().positive(),
   wholesalePrice: z.number().positive(),
   stockQty: z.number().int().nonnegative(),
@@ -51,13 +52,22 @@ export async function GET(req: NextRequest) {
       ];
     }
 
+    // ?pos=1 fetches only POS-required fields (skips supplier join — faster)
+    const isPosMode = searchParams.get('pos') === '1';
+
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
-        include: {
-          category: true,
-          supplier: true,
-        },
+        ...(isPosMode
+          ? {
+              select: {
+                id: true, name: true, sku: true, barcodes: true,
+                retailPrice: true, wholesalePrice: true, stockQty: true,
+                imageUrl: true, isTaxable: true, taxInclusive: true,
+                category: { select: { name: true } },
+              },
+            }
+          : { include: { category: true, supplier: true } }),
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { name: 'asc' },
@@ -65,7 +75,7 @@ export async function GET(req: NextRequest) {
       prisma.product.count({ where }),
     ]);
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       products,
       pagination: {
         page,
@@ -74,6 +84,9 @@ export async function GET(req: NextRequest) {
         pages: Math.ceil(total / limit),
       },
     });
+    // Allow browser to cache for 30s; CDN must not cache (auth-gated data)
+    res.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+    return res;
   } catch (error) {
     console.error('Error fetching products:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

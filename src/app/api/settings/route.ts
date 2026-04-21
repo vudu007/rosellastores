@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
+    if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -16,7 +16,10 @@ export async function GET(req: NextRequest) {
       return acc;
     }, {} as Record<string, string>);
 
-    return NextResponse.json(settingsMap);
+    const res = NextResponse.json(settingsMap);
+    // Settings change rarely — cache in browser for 60s
+    res.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=300');
+    return res;
   } catch (error) {
     console.error('Error fetching settings:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

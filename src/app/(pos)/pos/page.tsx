@@ -59,6 +59,7 @@ export default function POSPage() {
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [customerForm, setCustomerForm] = useState({ name: '', phone: '', email: '', type: 'RETAIL' as 'RETAIL' | 'WHOLESALE' });
   const [lastSale, setLastSale] = useState<any>(null);
+  const [lastCompletedSale, setLastCompletedSale] = useState<any>(null);
   const [barcodeBuffer, setBarcodeBuffer] = useState('');
   const [lastScanTime, setLastScanTime] = useState(0);
   const [storeSettings, setStoreSettings] = useState<any>({});
@@ -68,7 +69,7 @@ export default function POSPage() {
     const fetchData = async () => {
       try {
         const [productsRes, customersRes, settingsRes] = await Promise.all([
-          fetch('/api/products?limit=200'),
+          fetch('/api/products?limit=200&pos=1'),
           fetch('/api/customers?limit=200'),
           fetch('/api/settings'),
         ]);
@@ -266,7 +267,7 @@ export default function POSPage() {
       if (response.ok) {
         // Use actual API response so receipt has real sale ID and server-computed totals
         const savedSale = await response.json();
-        setLastSale({
+        const completedSale = {
           id: savedSale.id,
           customerId: selectedCustomer?.id || '',
           customerName: selectedCustomer?.name || 'Walk-In Customer',
@@ -286,7 +287,9 @@ export default function POSPage() {
           taxInclusive: taxBreakdown.inclusive,
           total,
           date: savedSale.createdAt || new Date().toISOString(),
-        });
+        };
+        setLastSale(completedSale);
+        setLastCompletedSale(completedSale);
         setSuccessMessage('Transaction Completed Successfully');
         setCart([]);
         setSelectedCustomer(null);
@@ -313,7 +316,12 @@ export default function POSPage() {
       const res = await fetch('/api/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(customerForm),
+        body: JSON.stringify({
+          name: customerForm.name,
+          type: customerForm.type,
+          ...(customerForm.phone ? { phone: customerForm.phone } : {}),
+          ...(customerForm.email ? { email: customerForm.email } : {}),
+        }),
       });
       if (res.ok) {
         const newCustomer = await res.json();
@@ -335,11 +343,43 @@ export default function POSPage() {
     }
   };
 
-  const printReceipt = () => {
-    if (!lastSale) return;
+  const handleReprint = () => {
+    if (!lastCompletedSale) return;
+    // Restore last sale into the success notification so all print buttons are available
+    setLastSale(lastCompletedSale);
+    setSuccessMessage('🖨 Reprinting Last Receipt');
+  };
 
-    const receiptNo = `R-${lastSale.id?.slice(-8).toUpperCase() ?? Date.now().toString(36).toUpperCase()}`;
-    const dateStr   = new Date(lastSale.date).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+  // Print HTML via a hidden iframe — avoids popup blockers entirely
+  const printHTML = (html: string) => {
+    const iframe = document.createElement('iframe');
+    Object.assign(iframe.style, {
+      position: 'fixed',
+      top: '-10000px',
+      left: '-10000px',
+      width: '320px',
+      height: '600px',
+      border: 'none',
+      visibility: 'hidden',
+    });
+    document.body.appendChild(iframe);
+    const iDoc = iframe.contentDocument!;
+    iDoc.open();
+    iDoc.write(html);
+    iDoc.close();
+    // The inline window.onload script triggers print() inside iframe context
+    // Clean up after enough time for the print dialog to appear and close
+    setTimeout(() => {
+      if (document.body.contains(iframe)) document.body.removeChild(iframe);
+    }, 10000);
+  };
+
+  const printReceipt = (saleData?: any) => {
+    const sale = saleData || lastSale;
+    if (!sale) return;
+
+    const receiptNo = `R-${sale.id?.slice(-8).toUpperCase() ?? Date.now().toString(36).toUpperCase()}`;
+    const dateStr   = new Date(sale.date).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
     const biz       = storeSettings.businessName || 'MEKAERP';
     const W         = 42; // characters wide — standard 80mm thermal column
 
@@ -360,7 +400,7 @@ export default function POSPage() {
       MOBILE_MONEY: 'Mobile Money', SPLIT: 'Split Payment',
     };
 
-    const itemLines = lastSale.items.map((item: any) => {
+    const itemLines = sale.items.map((item: any) => {
       const desc     = `${item.name}`.slice(0, 28);
       const qtyPrice = `${item.quantity} x ${formatCurrency(item.unitPrice)}`;
       const total    = formatCurrency(item.total);
@@ -371,8 +411,8 @@ export default function POSPage() {
       ].join('\n');
     }).join('\n');
 
-    const taxAddedLine  = lastSale.tax        > 0 ? `\n${row('  VAT 7.5% (+tax):', formatCurrency(lastSale.tax))}` : '';
-    const taxInclusLine = lastSale.taxInclusive > 0 ? `\n${row('  VAT incl. (in price):', formatCurrency(lastSale.taxInclusive))}` : '';
+    const taxAddedLine  = sale.tax        > 0 ? `\n${row('  VAT 7.5% (+tax):', formatCurrency(sale.tax))}` : '';
+    const taxInclusLine = sale.taxInclusive > 0 ? `\n${row('  VAT incl. (in price):', formatCurrency(sale.taxInclusive))}` : '';
 
     const receiptHtml = `<!DOCTYPE html>
 <html>
@@ -417,17 +457,17 @@ ${center('*** SALES RECEIPT ***')}
 ${dash}
 ${row('Receipt No:', receiptNo)}
 ${row('Date:', dateStr)}
-${row('Customer:', lastSale.customerName || 'Walk-in')}
-${row('Payment:', payLabel[lastSale.paymentMethod] || lastSale.paymentMethod)}
+${row('Customer:', sale.customerName || 'Walk-in')}
+${row('Payment:', payLabel[sale.paymentMethod] || sale.paymentMethod)}
 ${dash}
 ITEMS
 ${dash}
 ${itemLines}
 ${dash}
-${row('Subtotal:', formatCurrency(lastSale.subtotal))}${taxAddedLine}${taxInclusLine}
+${row('Subtotal:', formatCurrency(sale.subtotal))}${taxAddedLine}${taxInclusLine}
 ${dDash}
 </pre>
-<pre class="total-line">${row('  TOTAL PAID:', formatCurrency(lastSale.total))}</pre>
+<pre class="total-line">${row('  TOTAL PAID:', formatCurrency(sale.total))}</pre>
 <pre>
 ${dDash}
 </pre>
@@ -443,12 +483,12 @@ ${dDash}
 </body>
 </html>`;
 
-    const win = window.open('', '_blank', 'width=320,height=600,toolbar=0,menubar=0');
-    if (!win) return;
-    win.document.write(receiptHtml);
-    win.document.close();
-    setSuccessMessage(null);
-    setLastSale(null);
+    printHTML(receiptHtml);
+    if (!saleData) {
+      // Only clear when printing the current (just-completed) sale, not a reprint
+      setSuccessMessage(null);
+      setLastSale(null);
+    }
   };
 
   const printWholesaleReceipt = () => {
@@ -552,10 +592,7 @@ ${center('Not valid as retail receipt')}
 </body>
 </html>`;
 
-    const win = window.open('', '_blank', 'width=320,height=650,toolbar=0,menubar=0');
-    if (!win) return;
-    win.document.write(receiptHtml);
-    win.document.close();
+    printHTML(receiptHtml);
   };
 
   const generateInvoice = () => {
@@ -1010,6 +1047,15 @@ ${center('Not valid as retail receipt')}
                <button onClick={() => setPricingMode('WHOLESALE')} className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${pricingMode === 'WHOLESALE' ? 'bg-blue-600 text-white shadow-sm' : 'text-muted-foreground'}`}>Wholesale Mode</button>
             </div>
 
+            {lastCompletedSale && (
+              <button
+                onClick={handleReprint}
+                className="col-span-2 text-xs text-muted-foreground hover:text-primary border border-dashed border-border hover:border-primary/50 rounded-xl py-2 transition-all flex items-center justify-center gap-1.5 font-medium"
+              >
+                🖨 Reprint Last Receipt
+                <span className="text-[10px] opacity-60 ml-1">#{lastCompletedSale.id?.slice(-6).toUpperCase()}</span>
+              </button>
+            )}
             <button
               onClick={() => setShowPaymentModal(true)}
               disabled={cart.length === 0}
@@ -1041,36 +1087,44 @@ ${center('Not valid as retail receipt')}
       {/* Transaction status overlay */}
       {successMessage && (
         <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-bounce">
-          <div className={`px-6 py-3 rounded-full flex items-center gap-3 shadow-2xl ${lastSale ? 'bg-green-600' : 'bg-red-500'} text-white`}>
-            <CheckCircle className="w-5 h-5" />
-            <span className="font-bold tracking-tight">{successMessage}</span>
+          <div className={`px-5 py-3 rounded-2xl flex items-center gap-3 shadow-2xl ${lastSale ? 'bg-green-600' : 'bg-red-500'} text-white`}>
+            <CheckCircle className="w-5 h-5 shrink-0" />
+            <span className="font-bold tracking-tight text-sm">{successMessage}</span>
             {lastSale && (
-              <div className="ml-4 flex gap-2">
+              <div className="ml-2 flex gap-2 flex-wrap">
                 <button
-                  onClick={printReceipt}
-                  className="bg-white text-green-600 px-4 py-1 rounded-full font-bold hover:bg-white/90 transition-colors"
+                  onClick={() => printReceipt()}
+                  className="bg-white text-green-600 px-4 py-1 rounded-full font-bold text-sm hover:bg-white/90 transition-colors"
                 >
-                  Print Receipt
+                  🖨 Print Receipt
                 </button>
                 {(lastSale.customerType === 'WHOLESALE' || pricingMode === 'WHOLESALE') && (
                   <>
                     <button
                       onClick={generateInvoice}
-                      className="bg-green-800 text-white px-4 py-1 rounded-full font-bold hover:bg-green-900 transition-colors"
+                      className="bg-green-800 text-white px-4 py-1 rounded-full font-bold text-sm hover:bg-green-900 transition-colors"
                     >
-                      Generate Invoice
+                      Invoice PDF
                     </button>
                     <button
                       onClick={printWholesaleReceipt}
                       title="Print on 80mm thermal printer (no A4 needed)"
-                      className="bg-yellow-500 text-white px-4 py-1 rounded-full font-bold hover:bg-yellow-600 transition-colors"
+                      className="bg-yellow-500 text-white px-4 py-1 rounded-full font-bold text-sm hover:bg-yellow-600 transition-colors"
                     >
-                      🖨 Print 80mm
+                      🖨 80mm
                     </button>
                   </>
                 )}
               </div>
             )}
+            {/* Dismiss button */}
+            <button
+              onClick={() => { setSuccessMessage(null); setLastSale(null); }}
+              className="ml-2 p-1 rounded-full hover:bg-white/20 transition-colors shrink-0"
+              title="Dismiss"
+            >
+              ✕
+            </button>
           </div>
         </div>
       )}

@@ -15,6 +15,7 @@ interface Product {
   barcodes: string[];
   stockQty: number;
   lowStockThreshold: number;
+  costPrice: number;
   retailPrice: number;
   wholesalePrice: number;
   unit?: string;
@@ -30,7 +31,7 @@ interface SupplierOption { id: string; name: string; }
 
 const emptyProductForm = {
   name: '', sku: '', barcodes: [] as string[], categoryId: '', supplierId: '',
-  retailPrice: '', wholesalePrice: '', stockQty: '', lowStockThreshold: '10', unit: 'pcs',
+  costPrice: '', retailPrice: '', wholesalePrice: '', stockQty: '', lowStockThreshold: '10', unit: 'pcs',
   isTaxable: true, taxInclusive: false,
 };
 
@@ -206,6 +207,7 @@ export default function InventoryPage() {
           barcodes: f.barcodes || [],
           categoryId: f.categoryId,
           supplierId: f.supplierId,
+          costPrice: parseFloat(f.costPrice) || 0,
           retailPrice: parseFloat(f.retailPrice),
           wholesalePrice: parseFloat(f.wholesalePrice),
           stockQty: parseInt(f.stockQty) || 0,
@@ -241,6 +243,7 @@ export default function InventoryPage() {
       barcodes: product.barcodes || [],
       categoryId: product.categoryId || '',
       supplierId: product.supplierId || '',
+      costPrice: (product.costPrice || 0).toString(),
       retailPrice: product.retailPrice.toString(),
       wholesalePrice: product.wholesalePrice.toString(),
       stockQty: product.stockQty.toString(),
@@ -279,6 +282,7 @@ export default function InventoryPage() {
       const body: Record<string, any> = {
         name: f.name,
         sku: f.sku,
+        costPrice: parseFloat(f.costPrice) || 0,
         retailPrice: parseFloat(f.retailPrice),
         wholesalePrice: parseFloat(f.wholesalePrice),
         lowStockThreshold: parseInt(f.lowStockThreshold) || 10,
@@ -461,6 +465,9 @@ export default function InventoryPage() {
                           <div className="flex flex-col items-end">
                             <p className="text-sm font-bold text-foreground">{formatCurrency(product.retailPrice)}</p>
                             <p className="text-[10px] text-muted-foreground font-medium">WS: {formatCurrency(product.wholesalePrice)}</p>
+                            {product.costPrice > 0 && (
+                              <p className="text-[10px] text-amber-600 font-medium">Cost: {formatCurrency(product.costPrice)}</p>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -615,6 +622,10 @@ export default function InventoryPage() {
                 </select>
               </div>
               <div>
+                <label className="text-sm font-medium text-foreground">Cost Price (₦)</label>
+                <input type="number" min="0" step="0.01" value={editProductForm.costPrice} onChange={(e) => setEditProductForm({...editProductForm, costPrice: e.target.value})} className="input-base mt-1" placeholder="Purchase / supplier cost" />
+              </div>
+              <div>
                 <label className="text-sm font-medium text-foreground">Retail Price (₦) *</label>
                 <input type="number" min="0" step="0.01" value={editProductForm.retailPrice} onChange={(e) => setEditProductForm({...editProductForm, retailPrice: e.target.value})} className="input-base mt-1" />
               </div>
@@ -761,6 +772,10 @@ export default function InventoryPage() {
                   {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
                 {suppliers.length === 0 && <p className="text-xs text-amber-600 mt-1">No suppliers yet — add one in Dashboard → Suppliers first.</p>}
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground">Cost Price (₦)</label>
+                <input type="number" min="0" step="0.01" value={productForm.costPrice} onChange={(e) => setProductForm({...productForm, costPrice: e.target.value})} className="input-base mt-1" placeholder="Purchase / supplier cost" />
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground">Retail Price (₦) *</label>

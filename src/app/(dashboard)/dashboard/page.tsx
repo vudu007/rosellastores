@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import {
   ShoppingBag, DollarSign, TrendingUp, Calendar,
-  ArrowUpRight, ArrowDownRight, Package
+  ArrowUpRight, ArrowDownRight, Package, Receipt, Wallet, TrendingDown
 } from 'lucide-react';
 
 interface ChartData {
@@ -30,6 +30,11 @@ interface DashboardStats {
   weekRevenue: number;
   prevWeekRevenue: number;
   monthRevenue: number;
+  todayTax: number;
+  monthTax: number;
+  todayExpenses: number;
+  monthExpenses: number;
+  monthNetProfit: number;
   lowStockCount: number;
   salesTrend: ChartData[];
   categoryDistribution: CategoryData[];
@@ -65,17 +70,11 @@ export default function DashboardPage() {
         setLoading(false);
       }
     };
-
     fetchStats();
   }, []);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-      minimumFractionDigits: 0,
-    }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0 }).format(value);
 
   if (loading) {
     return (
@@ -103,9 +102,11 @@ export default function DashboardPage() {
   const dailyRevenueTrend = trendPct(stats?.todayRevenue ?? 0, stats?.yesterdayRevenue ?? 0);
   const dailySalesTrend   = trendPct(stats?.todaySales ?? 0,   stats?.yesterdaySales ?? 0);
   const weeklyTrend       = trendPct(stats?.weekRevenue ?? 0,  stats?.prevWeekRevenue ?? 0);
+  const profitColor       = (stats?.monthNetProfit ?? 0) >= 0 ? 'green' : 'red';
 
   return (
     <div className="p-4 md:p-8 space-y-6 md:space-y-8 animate-entrance">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Business Overview</h1>
@@ -119,13 +120,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Row 1 — Sales & Revenue */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Daily Revenue"
+          title="Today's Revenue"
           value={formatCurrency(stats?.todayRevenue ?? 0)}
           icon={<DollarSign className="w-5 h-5" />}
           trend={dailyRevenueTrend}
-          description="vs yesterday"
+          description="Selling price collected today (excl. VAT)"
           color="blue"
         />
         <StatCard
@@ -137,14 +139,6 @@ export default function DashboardPage() {
           color="green"
         />
         <StatCard
-          title="Stock Alerts"
-          value={stats?.lowStockCount ?? 0}
-          icon={<Package className="w-5 h-5" />}
-          description="items below threshold"
-          color="orange"
-          isAlert={!!stats?.lowStockCount && stats.lowStockCount > 0}
-        />
-        <StatCard
           title="Weekly Revenue"
           value={formatCurrency(stats?.weekRevenue ?? 0)}
           icon={<TrendingUp className="w-5 h-5" />}
@@ -152,8 +146,56 @@ export default function DashboardPage() {
           description="vs prior 7 days"
           color="purple"
         />
+        <StatCard
+          title="Monthly Revenue"
+          value={formatCurrency(stats?.monthRevenue ?? 0)}
+          icon={<TrendingUp className="w-5 h-5" />}
+          description="Selling price — last 30 days"
+          color="blue"
+        />
       </div>
 
+      {/* Row 2 — Financial Health */}
+      <div>
+        <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4">Financial Health — Last 30 Days</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard
+            title="Tax Collected (Today)"
+            value={formatCurrency(stats?.todayTax ?? 0)}
+            icon={<Receipt className="w-5 h-5" />}
+            description={`Month total: ${formatCurrency(stats?.monthTax ?? 0)}`}
+            color="orange"
+          />
+          <StatCard
+            title="Expenses (Today)"
+            value={formatCurrency(stats?.todayExpenses ?? 0)}
+            icon={<Wallet className="w-5 h-5" />}
+            description={`Month total: ${formatCurrency(stats?.monthExpenses ?? 0)}`}
+            color="red"
+          />
+          <StatCard
+            title="Net Profit (Month)"
+            value={formatCurrency(stats?.monthNetProfit ?? 0)}
+            icon={(stats?.monthNetProfit ?? 0) >= 0
+              ? <TrendingUp className="w-5 h-5" />
+              : <TrendingDown className="w-5 h-5" />
+            }
+            description="Monthly Revenue − Expenses"
+            color={profitColor}
+            isAlert={(stats?.monthNetProfit ?? 0) < 0}
+          />
+          <StatCard
+            title="Stock Alerts"
+            value={stats?.lowStockCount ?? 0}
+            icon={<Package className="w-5 h-5" />}
+            description="items below reorder threshold"
+            color="orange"
+            isAlert={!!stats?.lowStockCount && stats.lowStockCount > 0}
+          />
+        </div>
+      </div>
+
+      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 card-premium p-6">
           <div className="flex items-center justify-between mb-6">
@@ -223,6 +265,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <QuickActionCard
           title="New POS Sale"
@@ -263,10 +306,11 @@ function StatCard({ title, value, icon, trend, description, color, isAlert }: {
   isAlert?: boolean;
 }) {
   const colorMap: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800/30',
-    green: 'bg-green-50 text-green-600 border-green-100 dark:bg-green-900/20 dark:border-green-800/30',
+    blue:   'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-800/30',
+    green:  'bg-green-50 text-green-600 border-green-100 dark:bg-green-900/20 dark:border-green-800/30',
     purple: 'bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-900/20 dark:border-purple-800/30',
     orange: 'bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-900/20 dark:border-orange-800/30',
+    red:    'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-800/30',
   };
 
   const isPositive = trend ? !trend.startsWith('-') : true;
@@ -274,13 +318,10 @@ function StatCard({ title, value, icon, trend, description, color, isAlert }: {
   return (
     <div className={`card-premium p-6 border ${isAlert ? 'border-destructive/50 ring-1 ring-destructive/20' : ''}`}>
       <div className="flex items-center justify-between mb-4">
-        <div className={`p-2 rounded-lg ${colorMap[color]}`}>{icon}</div>
+        <div className={`p-2 rounded-lg ${colorMap[color] ?? colorMap.blue}`}>{icon}</div>
         {trend != null && (
           <div className={`flex items-center gap-1 text-xs font-semibold ${isPositive ? 'text-green-600' : 'text-red-500'}`}>
-            {isPositive
-              ? <ArrowUpRight className="w-3 h-3" />
-              : <ArrowDownRight className="w-3 h-3" />
-            }
+            {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
             {trend}
           </div>
         )}
@@ -288,9 +329,7 @@ function StatCard({ title, value, icon, trend, description, color, isAlert }: {
       <div>
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
         <p className="text-2xl font-bold mt-1 tracking-tight">{value}</p>
-        {description && (
-          <p className="text-xs text-muted-foreground mt-2">{description}</p>
-        )}
+        {description && <p className="text-xs text-muted-foreground mt-2">{description}</p>}
       </div>
     </div>
   );

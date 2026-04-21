@@ -9,6 +9,7 @@ const updateProductSchema = z.object({
   sku: z.string().min(1).optional(),
   barcodes: z.array(z.string()).optional(),
   categoryId: z.string().optional(),
+  costPrice: z.number().nonnegative().optional(),
   retailPrice: z.number().positive().optional(),
   wholesalePrice: z.number().positive().optional(),
   stockQty: z.number().int().nonnegative().optional(),
