@@ -2,9 +2,12 @@ import type { NextAuthConfig } from 'next-auth';
 
 export const authConfig = {
   pages: { signIn: '/login' },
+  // Required on Vercel: trust the host header so JWT verification works in Edge Runtime
+  trustHost: true,
   callbacks: {
     authorized({ auth, request }) {
-      const isLoggedIn   = !!auth?.user;
+      // In NextAuth v5 beta + Edge Runtime, check both auth.user and auth directly
+      const isLoggedIn   = !!(auth?.user?.email || (auth as any)?.user?.name);
       const pathname     = request.nextUrl.pathname;
       const isAuthPage   = pathname.startsWith('/login');
       const isSettings   = pathname.startsWith('/dashboard/settings');
