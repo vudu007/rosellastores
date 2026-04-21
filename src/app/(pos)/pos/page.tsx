@@ -5,10 +5,11 @@ import { useSession } from 'next-auth/react';
 import {
   Search, ShoppingCart, User, CreditCard, Banknote,
   Smartphone, Trash2, Plus, Minus, CheckCircle,
-  ChevronRight, Package, AlertCircle, ArrowLeft
+  ChevronRight, Package, AlertCircle, ArrowLeft, Printer
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { printHTMLWithQZ } from '@/lib/qztray';
 
 interface Product {
   id: string;
@@ -64,6 +65,15 @@ export default function POSPage() {
   const [lastScanTime, setLastScanTime] = useState(0);
   const [storeSettings, setStoreSettings] = useState<any>({});
   const [showMobileCart, setShowMobileCart] = useState(false);
+
+  // QZ Tray thermal printer — saved name comes from Settings page via localStorage
+  const [thermalPrinter, setThermalPrinter] = useState<string>('');
+
+  // Restore saved thermal printer from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('meka_thermal_printer');
+    if (saved) setThermalPrinter(saved);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -350,8 +360,9 @@ export default function POSPage() {
     setSuccessMessage('🖨 Reprinting Last Receipt');
   };
 
-  // Print HTML via a hidden iframe — avoids popup blockers entirely
-  const printHTML = (html: string) => {
+
+  // ── Print via hidden iframe (fallback when QZ Tray is not running) ────────
+  const printViaIframe = (html: string) => {
     const iframe = document.createElement('iframe');
     Object.assign(iframe.style, {
       position: 'fixed',
@@ -367,14 +378,30 @@ export default function POSPage() {
     iDoc.open();
     iDoc.write(html);
     iDoc.close();
-    // The inline window.onload script triggers print() inside iframe context
-    // Clean up after enough time for the print dialog to appear and close
     setTimeout(() => {
       if (document.body.contains(iframe)) document.body.removeChild(iframe);
     }, 10000);
   };
 
-  const printReceipt = (saleData?: any) => {
+  /**
+   * Main print dispatcher.
+   * 1. If a thermal printer is configured, tries QZ Tray for silent printing.
+   * 2. Falls back to iframe printing (shows browser print dialog) on any error.
+   */
+  const printDoc = async (html: string) => {
+    if (thermalPrinter) {
+      try {
+        await printHTMLWithQZ(html, thermalPrinter);
+        return; // Silent print succeeded ✓
+      } catch (err) {
+        console.warn('[QZ Tray] Silent print failed, falling back to browser print:', err);
+        // Fall through to iframe print below
+      }
+    }
+    printViaIframe(html);
+  };
+
+  const printReceipt = async (saleData?: any) => {
     const sale = saleData || lastSale;
     if (!sale) return;
 
@@ -483,7 +510,7 @@ ${dDash}
 </body>
 </html>`;
 
-    printHTML(receiptHtml);
+    await printDoc(receiptHtml);
     if (!saleData) {
       // Only clear when printing the current (just-completed) sale, not a reprint
       setSuccessMessage(null);
@@ -491,7 +518,7 @@ ${dDash}
     }
   };
 
-  const printWholesaleReceipt = () => {
+  const printWholesaleReceipt = async () => {
     if (!lastSale) return;
 
     const invoiceNo = `WS-${new Date(lastSale.date).getFullYear()}${String(new Date(lastSale.date).getMonth()+1).padStart(2,'0')}${String(new Date(lastSale.date).getDate()).padStart(2,'0')}-${lastSale.id?.slice(-5).toUpperCase() ?? Math.floor(Math.random()*99999).toString().padStart(5,'0')}`;
@@ -592,7 +619,7 @@ ${center('Not valid as retail receipt')}
 </body>
 </html>`;
 
-    printHTML(receiptHtml);
+    await printDoc(receiptHtml);
   };
 
   const generateInvoice = () => {
@@ -1047,15 +1074,33 @@ ${center('Not valid as retail receipt')}
                <button onClick={() => setPricingMode('WHOLESALE')} className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${pricingMode === 'WHOLESALE' ? 'bg-blue-600 text-white shadow-sm' : 'text-muted-foreground'}`}>Wholesale Mode</button>
             </div>
 
-            {lastCompletedSale && (
-              <button
-                onClick={handleReprint}
-                className="col-span-2 text-xs text-muted-foreground hover:text-primary border border-dashed border-border hover:border-primary/50 rounded-xl py-2 transition-all flex items-center justify-center gap-1.5 font-medium"
+            {/* Printer status indicator + reprint */}
+            <div className="col-span-2 flex items-center gap-2">
+              <div
+                title={thermalPrinter ? `Silent print: ${thermalPrinter}` : 'No thermal printer set — go to Settings → Thermal Printer'}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium shrink-0 ${
+                  thermalPrinter
+                    ? 'border-green-500/60 bg-green-500/10 text-green-600'
+                    : 'border-dashed border-border text-muted-foreground/60'
+                }`}
               >
-                🖨 Reprint Last Receipt
-                <span className="text-[10px] opacity-60 ml-1">#{lastCompletedSale.id?.slice(-6).toUpperCase()}</span>
-              </button>
-            )}
+                <Printer className="w-3.5 h-3.5 shrink-0" />
+                {thermalPrinter ? (
+                  <span className="truncate max-w-[90px]">{thermalPrinter}</span>
+                ) : (
+                  <span>No printer</span>
+                )}
+              </div>
+              {lastCompletedSale && (
+                <button
+                  onClick={handleReprint}
+                  className="flex-1 text-xs text-muted-foreground hover:text-primary border border-dashed border-border hover:border-primary/50 rounded-xl py-2 transition-all flex items-center justify-center gap-1.5 font-medium"
+                >
+                  🖨 Reprint
+                  <span className="text-[10px] opacity-60 ml-1">#{lastCompletedSale.id?.slice(-6).toUpperCase()}</span>
+                </button>
+              )}
+            </div>
             <button
               onClick={() => setShowPaymentModal(true)}
               disabled={cart.length === 0}

@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { Settings, Lock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Settings, Lock, AlertCircle, CheckCircle2, Printer } from 'lucide-react';
+import { connectQZ, getQZPrinters } from '@/lib/qztray';
 
 export default function SettingsPage() {
   const { data: session } = useSession();
-  const [activeTab, setActiveTab] = useState<'business' | 'password'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'password' | 'printer'>('business');
   
   const [settings, setSettings] = useState({
     businessName: '',
@@ -29,8 +30,17 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
+  // Thermal printer state
+  const [thermalPrinter, setThermalPrinter] = useState('');
+  const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
+  const [printerStatus, setPrinterStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [printerMsg, setPrinterMsg] = useState('');
+
   useEffect(() => {
     fetchSettings();
+    // Restore saved thermal printer
+    const saved = localStorage.getItem('meka_thermal_printer');
+    if (saved) setThermalPrinter(saved);
   }, []);
 
   useEffect(() => {
@@ -39,6 +49,42 @@ export default function SettingsPage() {
       return () => clearTimeout(t);
     }
   }, [toast]);
+
+  const handleDetectPrinters = async () => {
+    setAvailablePrinters([]);
+    setPrinterStatus('connecting');
+    setPrinterMsg('Connecting to QZ Tray…');
+    try {
+      await connectQZ();
+      setPrinterMsg('Loading printer list…');
+      const list = await getQZPrinters();
+      setAvailablePrinters(list);
+      setPrinterStatus('connected');
+      setPrinterMsg(`Found ${list.length} printer${list.length !== 1 ? 's' : ''}`);
+    } catch (err: any) {
+      setPrinterStatus('error');
+      const isConnErr = err?.message?.toLowerCase().includes('websocket') ||
+                        err?.message?.toLowerCase().includes('unable to establish') ||
+                        err?.message?.toLowerCase().includes('connect');
+      setPrinterMsg(
+        isConnErr
+          ? 'QZ Tray is not running. Launch it from the system tray or download it at qz.io/download'
+          : `Error: ${err?.message ?? 'Unknown error'}`
+      );
+    }
+  };
+
+  const handleSelectPrinter = (name: string) => {
+    setThermalPrinter(name);
+    localStorage.setItem('meka_thermal_printer', name);
+    setToast({ type: 'success', message: `Thermal printer saved: ${name}` });
+  };
+
+  const handleClearPrinter = () => {
+    setThermalPrinter('');
+    localStorage.removeItem('meka_thermal_printer');
+    setToast({ type: 'success', message: 'Thermal printer cleared — browser dialog will be used.' });
+  };
 
   const fetchSettings = async () => {
     try {
@@ -164,6 +210,21 @@ export default function SettingsPage() {
           >
             <Lock className="w-4 h-4" />
             Change Password
+          </button>
+
+          <button
+            onClick={() => setActiveTab('printer')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'printer'
+                ? 'bg-primary text-primary-foreground'
+                : 'hover:bg-muted text-foreground'
+            }`}
+          >
+            <Printer className="w-4 h-4" />
+            Thermal Printer
+            {thermalPrinter && (
+              <span className="ml-auto w-2 h-2 rounded-full bg-green-500 shrink-0" />
+            )}
           </button>
         </div>
 
@@ -300,6 +361,121 @@ export default function SettingsPage() {
                 </button>
               </div>
             </form>
+          )}
+
+          {activeTab === 'printer' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="border-b pb-4">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Printer className="w-5 h-5 text-primary" />
+                  Thermal Printer Setup
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Configure silent direct-to-printer receipts via{' '}
+                  <a href="https://qz.io/download/" target="_blank" rel="noreferrer" className="text-primary underline font-medium">
+                    QZ Tray
+                  </a>{' '}
+                  — no print dialog, no clicks, just instant thermal printing.
+                </p>
+              </div>
+
+              {/* Current printer badge */}
+              <div className={`flex items-center justify-between px-4 py-3 rounded-xl border ${
+                thermalPrinter ? 'border-green-500/40 bg-green-500/8' : 'border-dashed border-border bg-muted/30'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <Printer className={`w-4 h-4 ${thermalPrinter ? 'text-green-600' : 'text-muted-foreground'}`} />
+                  <span className="text-sm font-medium">
+                    {thermalPrinter ? thermalPrinter : 'No printer selected — browser dialog used as fallback'}
+                  </span>
+                </div>
+                {thermalPrinter && (
+                  <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">ACTIVE</span>
+                )}
+              </div>
+
+              {/* QZ Tray status */}
+              {printerStatus !== 'idle' && (
+                <div className={`flex items-center gap-2 text-sm px-4 py-3 rounded-xl font-medium ${
+                  printerStatus === 'connected' ? 'bg-green-500/10 text-green-700 border border-green-200' :
+                  printerStatus === 'error'     ? 'bg-red-500/10 text-red-600 border border-red-200' :
+                  'bg-muted text-muted-foreground border border-border'
+                }`}>
+                  {printerStatus === 'connecting' && (
+                    <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin shrink-0" />
+                  )}
+                  {printerStatus === 'connected' && <span className="text-green-500 text-base">●</span>}
+                  {printerStatus === 'error'     && <span className="text-red-500 text-base">●</span>}
+                  <span className="leading-relaxed">{printerMsg}</span>
+                </div>
+              )}
+
+              {/* Printer list */}
+              {availablePrinters.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">
+                    Select your thermal printer
+                  </p>
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {availablePrinters.map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => handleSelectPrinter(p)}
+                        className={`w-full text-left px-4 py-3.5 rounded-xl text-sm font-medium transition-all border flex items-center gap-3 ${
+                          thermalPrinter === p
+                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                            : 'bg-muted/40 border-border hover:bg-muted hover:border-primary/40'
+                        }`}
+                      >
+                        <Printer className="w-4 h-4 opacity-70 shrink-0" />
+                        <span className="flex-1">{p}</span>
+                        {thermalPrinter === p && (
+                          <CheckCircle2 className="w-4 h-4 opacity-80 shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex flex-wrap gap-3 pt-2">
+                <button
+                  onClick={handleDetectPrinters}
+                  disabled={printerStatus === 'connecting'}
+                  className="btn-primary flex items-center gap-2 disabled:opacity-50"
+                >
+                  {printerStatus === 'connecting' ? (
+                    <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  ) : (
+                    <Printer className="w-4 h-4" />
+                  )}
+                  {printerStatus === 'connecting' ? 'Detecting…' : 'Detect Printers'}
+                </button>
+                {thermalPrinter && (
+                  <button
+                    onClick={handleClearPrinter}
+                    className="btn-secondary border-destructive/40 text-destructive hover:bg-destructive/10 flex items-center gap-2"
+                  >
+                    Clear Printer Selection
+                  </button>
+                )}
+              </div>
+
+              {/* How it works */}
+              <div className="bg-muted/30 rounded-xl p-4 border border-border mt-2">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">How it works</p>
+                <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
+                  <li>Download and install <a href="https://qz.io/download/" target="_blank" rel="noreferrer" className="text-primary underline">QZ Tray</a> on this computer</li>
+                  <li>Launch QZ Tray — it runs quietly in the system tray</li>
+                  <li>Click "Detect Printers" above and select your thermal printer</li>
+                  <li>Receipts from POS and Sales History will now print silently — no dialog</li>
+                </ol>
+                <p className="text-xs text-muted-foreground/70 mt-3">
+                  On first use, QZ Tray will show a one-time "Allow this site?" popup — click <strong>Allow</strong> (or <strong>Always Allow</strong>).
+                </p>
+              </div>
+            </div>
           )}
 
           {activeTab === 'password' && (

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { Ban, Download, ShoppingBag, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
+import { printHTMLWithQZ } from '@/lib/qztray';
 
 interface SaleItem {
   id: string;
@@ -121,8 +122,8 @@ export default function SalesPage() {
     }
   };
 
-  // Print via hidden iframe — no popup blockers
-  const printHTML = (html: string) => {
+  // Print via hidden iframe — fallback when QZ Tray is not available
+  const printViaIframe = (html: string) => {
     const iframe = document.createElement('iframe');
     Object.assign(iframe.style, {
       position: 'fixed', top: '-10000px', left: '-10000px',
@@ -138,7 +139,21 @@ export default function SalesPage() {
     }, 10000);
   };
 
-  const handleReprint = (sale: Sale) => {
+  /** Try QZ Tray first (silent); fall back to iframe if not running */
+  const printDoc = async (html: string) => {
+    const savedPrinter = typeof window !== 'undefined' ? localStorage.getItem('meka_thermal_printer') : null;
+    if (savedPrinter) {
+      try {
+        await printHTMLWithQZ(html, savedPrinter);
+        return;
+      } catch (err) {
+        console.warn('[QZ Tray] Reprint fallback to browser print:', err);
+      }
+    }
+    printViaIframe(html);
+  };
+
+  const handleReprint = async (sale: Sale) => {
     setPrintingId(sale.id);
     const W = 42;
     const biz = storeSettings.businessName || 'MEKAERP';
@@ -237,7 +252,7 @@ ${dDash}
 </body>
 </html>`;
 
-    printHTML(html);
+    await printDoc(html);
     setTimeout(() => setPrintingId(null), 1000);
   };
 
