@@ -468,11 +468,11 @@ export default function SettingsPage() {
                 <ol className="text-sm text-muted-foreground space-y-1.5 list-decimal list-inside">
                   <li>Download and install <a href="https://qz.io/download/" target="_blank" rel="noreferrer" className="text-primary underline">QZ Tray</a> on this computer</li>
                   <li>Launch QZ Tray — it runs quietly in the system tray</li>
-                  <li>Click "Detect Printers" above and select your thermal printer</li>
+                  <li>Click &ldquo;Detect Printers&rdquo; above and select your thermal printer</li>
                   <li>Receipts from POS and Sales History will now print silently — no dialog</li>
                 </ol>
                 <p className="text-xs text-muted-foreground/70 mt-3">
-                  On first use, QZ Tray will show a one-time "Allow this site?" popup — click <strong>Allow</strong> (or <strong>Always Allow</strong>).
+                  On first use, QZ Tray will show a one-time &ldquo;Allow this site?&rdquo; popup — click <strong>Allow</strong> (or <strong>Always Allow</strong>).
                 </p>
               </div>
             </div>

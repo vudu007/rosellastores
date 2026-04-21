@@ -9,9 +9,7 @@
  * prints silently forever.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-type QZType = any;
+type QZType = any; // dynamic import — no strict typing needed
 
 let _qz: QZType | null = null;
 let _connectingPromise: Promise<void> | null = null;
