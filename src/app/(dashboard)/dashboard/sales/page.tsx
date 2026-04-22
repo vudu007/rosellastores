@@ -123,11 +123,23 @@ export default function SalesPage() {
 
   // ── Print via main-window overlay (same approach as POS) ─────────────────
   // Uses window.print() on the main window so --kiosk-printing works correctly.
-  const printingRef = React.useRef(false);
-
+  // Guard lives on window so it survives React re-renders.
   const printDoc = (html: string) => {
-    if (printingRef.current) return;
-    printingRef.current = true;
+    if ((window as any).__mekaPrinting) {
+      console.log('[MekaERP] Print already in progress — ignoring duplicate.');
+      return;
+    }
+    (window as any).__mekaPrinting = true;
+
+    // Reset guard: afterprint fires when print dialog closes / kiosk job sent
+    const releaseLock = () => {
+      document.getElementById('__meka_receipt__')?.remove();
+      document.getElementById('__meka_receipt_style__')?.remove();
+      (window as any).__mekaPrinting = false;
+    };
+    window.addEventListener('afterprint', releaseLock, { once: true });
+    // Safety fallback — release after 8 s if afterprint never fires
+    setTimeout(() => releaseLock(), 8000);
 
     const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '');
     const parser = new DOMParser();
@@ -164,14 +176,7 @@ export default function SalesPage() {
     `;
     document.head.appendChild(styleTag);
 
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        document.getElementById('__meka_receipt__')?.remove();
-        document.getElementById('__meka_receipt_style__')?.remove();
-        printingRef.current = false;
-      }, 2000);
-    }, 250);
+    setTimeout(() => window.print(), 250);
   };
 
   const handleReprint = async (sale: Sale) => {

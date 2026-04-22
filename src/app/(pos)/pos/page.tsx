@@ -363,20 +363,17 @@ export default function POSPage() {
   };
 
 
-  // ── Guard against accidental double-prints ───────────────────────────────
-  const printingRef = React.useRef(false);
-
   // ── Print via main-window overlay ────────────────────────────────────────
   // window.print() on the main window is what --kiosk-printing was built for.
   // We inject the receipt into a hidden div, use @media print CSS to make only
   // that div visible, call window.print(), then clean up.
   const printViaIframe = (html: string) => {
-    // Prevent double-prints: if a print job is already in flight, skip
-    if (printingRef.current) {
+    // Prevent double-prints — guard lives on window to survive re-renders
+    if ((window as any).__mekaPrinting) {
       console.log('[MekaERP] Print already in progress — skipping duplicate.');
       return;
     }
-    printingRef.current = true;
+    (window as any).__mekaPrinting = true;
 
     // Strip any old auto-print scripts embedded in the HTML
     const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '');
@@ -424,17 +421,20 @@ export default function POSPage() {
     `;
     document.head.appendChild(styleTag);
 
+    // afterprint fires when kiosk job is sent / dialog is closed — most reliable reset
+    const releaseLock = () => {
+      document.getElementById('__meka_receipt__')?.remove();
+      document.getElementById('__meka_receipt_style__')?.remove();
+      (window as any).__mekaPrinting = false;
+      console.log('[MekaERP] Print overlay cleaned up.');
+    };
+    window.addEventListener('afterprint', releaseLock, { once: true });
+    setTimeout(() => releaseLock(), 8000); // safety fallback
+
     // Small delay so React finishes any pending renders before we print
     setTimeout(() => {
       console.log('[MekaERP] Sending receipt to printer…');
       window.print();
-      // Clean up after the print job is dispatched
-      setTimeout(() => {
-        document.getElementById('__meka_receipt__')?.remove();
-        document.getElementById('__meka_receipt_style__')?.remove();
-        printingRef.current = false;
-        console.log('[MekaERP] Print overlay cleaned up.');
-      }, 2000);
     }, 250);
   };
 
