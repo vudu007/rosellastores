@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { printHTMLWithQZ } from '@/lib/qztray';
+// QZ Tray removed — printing handled via browser iframe + Chrome --kiosk-printing
 
 interface Product {
   id: string;
@@ -391,15 +391,7 @@ export default function POSPage() {
    * 2. Falls back to iframe printing (shows browser print dialog) on any error.
    */
   const printDoc = async (html: string) => {
-    if (thermalPrinter) {
-      try {
-        await printHTMLWithQZ(html, thermalPrinter);
-        return; // Silent print succeeded ✓
-      } catch (err) {
-        console.warn('[QZ Tray] Silent print failed, falling back to browser print:', err);
-        // Fall through to iframe print below
-      }
-    }
+    // Uses browser iframe print — silent when Chrome is launched with --kiosk-printing flag
     printViaIframe(html);
   };
 
@@ -1102,19 +1094,11 @@ ${center('Not valid as retail receipt')}
             {/* Printer status indicator + reprint */}
             <div className="col-span-2 flex items-center gap-2">
               <div
-                title={thermalPrinter ? `Silent print: ${thermalPrinter}` : 'No thermal printer set — go to Settings → Thermal Printer'}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium shrink-0 ${
-                  thermalPrinter
-                    ? 'border-green-500/60 bg-green-500/10 text-green-600'
-                    : 'border-dashed border-border text-muted-foreground/60'
-                }`}
+                title="Printing via browser — open POS with the kiosk shortcut for silent auto-print"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-green-500/60 bg-green-500/10 text-green-600 text-xs font-medium shrink-0"
               >
                 <Printer className="w-3.5 h-3.5 shrink-0" />
-                {thermalPrinter ? (
-                  <span className="truncate max-w-[90px]">{thermalPrinter}</span>
-                ) : (
-                  <span>No printer</span>
-                )}
+                <span>Auto Print</span>
               </div>
               {lastCompletedSale && (
                 <button
