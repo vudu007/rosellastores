@@ -363,11 +363,14 @@ export default function POSPage() {
   };
 
 
-  // ── Print via hidden iframe ───────────────────────────────────────────────
-  // Must call iframe.contentWindow.print() from the PARENT — the inner
-  // window.onload script is unreliable for injected content, and
-  // visibility:hidden prevents Chrome from printing the frame at all.
+  // ── Print via blob-URL iframe ─────────────────────────────────────────────
+  // Using a blob URL + iframe.onload is the only approach Chrome's
+  // --kiosk-printing flag reliably supports. document.write() injection
+  // and visibility:hidden both cause "Something went wrong" errors.
   const printViaIframe = (html: string) => {
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+
     const iframe = document.createElement('iframe');
     Object.assign(iframe.style, {
       position: 'fixed',
@@ -376,25 +379,28 @@ export default function POSPage() {
       width: '320px',
       height: '600px',
       border: 'none',
-      // Do NOT set visibility:hidden — Chrome won't print hidden frames
+      // visibility must NOT be hidden — Chrome skips printing hidden frames
     });
-    document.body.appendChild(iframe);
-    const iDoc = iframe.contentDocument!;
-    iDoc.open();
-    iDoc.write(html);
-    iDoc.close();
-    // Trigger print from parent after content is rendered
-    setTimeout(() => {
-      try {
-        iframe.contentWindow?.print();
-      } catch (e) {
-        console.error('iframe print failed:', e);
-      }
-      // Remove iframe after printing finishes (kiosk mode is near-instant)
+
+    iframe.onload = () => {
+      // Small delay so fonts/images inside the receipt finish rendering
       setTimeout(() => {
-        if (document.body.contains(iframe)) document.body.removeChild(iframe);
-      }, 5000);
-    }, 400);
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch (e) {
+          console.error('iframe print failed:', e);
+        }
+        // Clean up after print dialog closes (instant in kiosk mode)
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+          if (document.body.contains(iframe)) document.body.removeChild(iframe);
+        }, 5000);
+      }, 300);
+    };
+
+    iframe.src = url;
+    document.body.appendChild(iframe);
   };
 
   /**
