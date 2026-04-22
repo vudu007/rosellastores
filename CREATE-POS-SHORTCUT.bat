@@ -1,46 +1,78 @@
 @echo off
-:: CREATE-POS-SHORTCUT.bat
-:: Creates a Desktop shortcut that opens the POS in Chrome with silent printing enabled.
-:: Run this ONCE — then always open the POS using that shortcut.
+cd /d "%~dp0"
 
-set "TARGET=%USERPROFILE%\Desktop\MekaERP POS.lnk"
-set "CHROME=C:\Program Files\Google\Chrome\Application\chrome.exe"
-set "URL=https://wholesale-rp.vercel.app/pos"
+echo Looking for Chrome or Edge...
 
-:: Find Chrome (try 32-bit path too)
-if not exist "%CHROME%" set "CHROME=C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-if not exist "%CHROME%" (
-    echo ERROR: Chrome not found. Please install Google Chrome first.
-    pause
-    exit /b 1
+set "CHROME="
+set "BROWSER_NAME="
+
+:: Search common Chrome locations
+for %%P in (
+  "%PROGRAMFILES%\Google\Chrome\Application\chrome.exe"
+  "%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe"
+  "%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
+) do (
+  if exist %%P (
+    set "CHROME=%%~P"
+    set "BROWSER_NAME=Google Chrome"
+  )
 )
 
-:: Use PowerShell to create the shortcut
-powershell -NoProfile -Command ^
-  "$ws = New-Object -ComObject WScript.Shell; ^
-   $s  = $ws.CreateShortcut('%TARGET%'); ^
-   $s.TargetPath = '%CHROME%'; ^
-   $s.Arguments  = '--kiosk-printing --app=https://wholesale-rp.vercel.app/pos'; ^
-   $s.IconLocation = '%CHROME%,0'; ^
-   $s.Description = 'MekaERP POS - Silent Print Mode'; ^
-   $s.Save()"
+:: Fall back to Edge if Chrome not found
+if not defined CHROME (
+  for %%P in (
+    "%PROGRAMFILES%\Microsoft\Edge\Application\msedge.exe"
+    "%PROGRAMFILES(X86)%\Microsoft\Edge\Application\msedge.exe"
+    "%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"
+  ) do (
+    if exist %%P (
+      set "CHROME=%%~P"
+      set "BROWSER_NAME=Microsoft Edge"
+    )
+  )
+)
 
-if exist "%TARGET%" (
-    echo.
-    echo ============================================================
-    echo  SHORTCUT CREATED on your Desktop: "MekaERP POS"
-    echo.
-    echo  IMPORTANT STEPS:
-    echo  1. Go to Windows Settings ^> Printers ^> Set your
-    echo     thermal printer (POS-80C) as the DEFAULT printer
-    echo.
-    echo  2. Always open the POS using the new Desktop shortcut
-    echo     "MekaERP POS" — NOT from a regular browser tab
-    echo.
-    echo  3. Receipts will now print silently with zero dialogs!
-    echo ============================================================
-    echo.
+if not defined CHROME (
+  echo ERROR: Could not find Chrome or Edge. Please install one of them.
+  pause
+  exit /b 1
+)
+
+echo Found: %BROWSER_NAME% at %CHROME%
+
+:: Write a temporary PowerShell script to avoid escaping issues
+set "PS1=%TEMP%\make_pos_shortcut.ps1"
+set "SHORTCUT=%USERPROFILE%\Desktop\MekaERP POS.lnk"
+
+(
+echo $ws = New-Object -ComObject WScript.Shell
+echo $s = $ws.CreateShortcut('%SHORTCUT%'^)
+echo $s.TargetPath = '%CHROME%'
+echo $s.Arguments = '--kiosk-printing --app=https://wholesale-rp.vercel.app/pos'
+echo $s.Description = 'MekaERP POS Silent Print'
+echo $s.Save(^)
+echo Write-Host "Done"
+) > "%PS1%"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%"
+del "%PS1%" 2>nul
+
+if exist "%SHORTCUT%" (
+  echo.
+  echo ============================================================
+  echo  SUCCESS! "MekaERP POS" shortcut created on your Desktop.
+  echo.
+  echo  NEXT STEPS:
+  echo  1. Set your thermal printer as Windows DEFAULT printer
+  echo     (Settings - Printers - click POS-80C - Set as default^)
+  echo  2. Always open the POS using that Desktop shortcut
+  echo  3. Receipts will print silently - no dialogs at all!
+  echo ============================================================
 ) else (
-    echo ERROR: Shortcut creation failed. Try running as Administrator.
+  echo.
+  echo ERROR: Shortcut was not created.
+  echo Try right-clicking this bat file and choosing "Run as Administrator"
 )
+
+echo.
 pause
