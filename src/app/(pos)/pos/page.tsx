@@ -363,26 +363,38 @@ export default function POSPage() {
   };
 
 
-  // ── Print via hidden iframe (fallback when QZ Tray is not running) ────────
+  // ── Print via hidden iframe ───────────────────────────────────────────────
+  // Must call iframe.contentWindow.print() from the PARENT — the inner
+  // window.onload script is unreliable for injected content, and
+  // visibility:hidden prevents Chrome from printing the frame at all.
   const printViaIframe = (html: string) => {
     const iframe = document.createElement('iframe');
     Object.assign(iframe.style, {
       position: 'fixed',
-      top: '-10000px',
-      left: '-10000px',
+      top: '-9999px',
+      left: '-9999px',
       width: '320px',
       height: '600px',
       border: 'none',
-      visibility: 'hidden',
+      // Do NOT set visibility:hidden — Chrome won't print hidden frames
     });
     document.body.appendChild(iframe);
     const iDoc = iframe.contentDocument!;
     iDoc.open();
     iDoc.write(html);
     iDoc.close();
+    // Trigger print from parent after content is rendered
     setTimeout(() => {
-      if (document.body.contains(iframe)) document.body.removeChild(iframe);
-    }, 10000);
+      try {
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.error('iframe print failed:', e);
+      }
+      // Remove iframe after printing finishes (kiosk mode is near-instant)
+      setTimeout(() => {
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+      }, 5000);
+    }, 400);
   };
 
   /**
@@ -526,9 +538,6 @@ export default function POSPage() {
 <hr class="dash">
 <div class="rcpt-id">${receiptNo} &bull; ${dateStr}</div>
 
-<script>
-  window.onload = function() { setTimeout(function() { window.print(); }, 200); };
-</script>
 </body>
 </html>`;
 
@@ -628,11 +637,6 @@ ${center('Not valid as retail receipt')}
   ${storeSettings.receiptFooter || 'Thank you for your business!'}
   <br>Please retain for your records.
 </div>
-<script>
-  window.onload = function() {
-    setTimeout(function() { window.print(); }, 300);
-  };
-</script>
 </body>
 </html>`;
 
