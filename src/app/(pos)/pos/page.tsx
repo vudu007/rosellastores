@@ -363,44 +363,63 @@ export default function POSPage() {
   };
 
 
-  // ── Print via blob-URL iframe ─────────────────────────────────────────────
-  // Using a blob URL + iframe.onload is the only approach Chrome's
-  // --kiosk-printing flag reliably supports. document.write() injection
-  // and visibility:hidden both cause "Something went wrong" errors.
+  // ── Print via main-window overlay ────────────────────────────────────────
+  // Calling window.print() on the MAIN window is the only 100% reliable
+  // method for Chrome --kiosk-printing. No iframes, no popups, no permissions.
+  // We inject the receipt as a fixed overlay and hide everything else via CSS,
+  // then remove it immediately after print() returns.
   const printViaIframe = (html: string) => {
-    const blob = new Blob([html], { type: 'text/html' });
-    const url  = URL.createObjectURL(blob);
+    // Parse the receipt HTML to extract styles and body content separately
+    const parser  = new DOMParser();
+    const parsed  = parser.parseFromString(html, 'text/html');
+    const rcptCSS = parsed.querySelector('style')?.innerHTML ?? '';
+    const rcptBody = parsed.body.innerHTML;
 
-    const iframe = document.createElement('iframe');
-    Object.assign(iframe.style, {
-      position: 'fixed',
-      top: '-9999px',
-      left: '-9999px',
-      width: '320px',
-      height: '600px',
-      border: 'none',
-      // visibility must NOT be hidden — Chrome skips printing hidden frames
+    // Remove any leftover auto-print scripts from old templates (safety)
+    const cleanBody = rcptBody.replace(/<script[\s\S]*?<\/script>/gi, '');
+
+    // Overlay element — covers the screen during print, invisible otherwise
+    const overlay = document.createElement('div');
+    overlay.id = '__meka_receipt__';
+    overlay.innerHTML = cleanBody;
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', background: '#fff',
+      zIndex: '999999', display: 'none', padding: '4mm',
     });
 
-    iframe.onload = () => {
-      // Small delay so fonts/images inside the receipt finish rendering
-      setTimeout(() => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } catch (e) {
-          console.error('iframe print failed:', e);
+    // Print stylesheet: hide everything except our overlay during print
+    const styleTag = document.createElement('style');
+    styleTag.id = '__meka_receipt_style__';
+    styleTag.innerHTML = `
+      ${rcptCSS}
+      @media print {
+        html, body { margin: 0 !important; padding: 0 !important; }
+        body > *:not(#__meka_receipt__) { visibility: hidden !important; }
+        #__meka_receipt__ {
+          display: block !important;
+          visibility: visible !important;
+          position: fixed !important;
+          inset: 0 !important;
+          background: #fff !important;
+          z-index: 999999 !important;
         }
-        // Clean up after print dialog closes (instant in kiosk mode)
-        setTimeout(() => {
-          URL.revokeObjectURL(url);
-          if (document.body.contains(iframe)) document.body.removeChild(iframe);
-        }, 5000);
-      }, 300);
-    };
+      }
+    `;
 
-    iframe.src = url;
-    document.body.appendChild(iframe);
+    document.head.appendChild(styleTag);
+    document.body.appendChild(overlay);
+
+    // Let the browser paint the overlay before printing
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print();
+        // Clean up immediately — kiosk-print returns synchronously
+        setTimeout(() => {
+          document.getElementById('__meka_receipt__')?.remove();
+          document.getElementById('__meka_receipt_style__')?.remove();
+        }, 500);
+      });
+    });
   };
 
   /**
