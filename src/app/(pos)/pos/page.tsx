@@ -304,6 +304,8 @@ export default function POSPage() {
         setCart([]);
         setSelectedCustomer(null);
         setShowPaymentModal(false);
+        // Auto-print receipt immediately — no button click needed
+        printReceipt(completedSale);
       } else {
         const errData = await response.json().catch(() => ({}));
         setSuccessMessage(`Payment failed: ${errData.error || 'Server error. Please try again.'}`);
@@ -405,41 +407,38 @@ export default function POSPage() {
     const sale = saleData || lastSale;
     if (!sale) return;
 
-    const receiptNo = `R-${sale.id?.slice(-8).toUpperCase() ?? Date.now().toString(36).toUpperCase()}`;
-    const dateStr   = new Date(sale.date).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
-    const biz       = storeSettings.businessName || 'MEKAERP';
-    const W         = 42; // characters wide — standard 80mm thermal column
-
-    // Helper: pad a line to W chars, left and right parts
-    const row = (left: string, right: string) => {
-      const gap = W - left.length - right.length;
-      return left + (gap > 0 ? ' '.repeat(gap) : ' ') + right;
-    };
-    const center = (s: string) => {
-      const pad = Math.max(0, Math.floor((W - s.length) / 2));
-      return ' '.repeat(pad) + s;
-    };
-    const dash  = '-'.repeat(W);
-    const dDash = '='.repeat(W);
+    const receiptNo  = `R-${sale.id?.slice(-8).toUpperCase() ?? Date.now().toString(36).toUpperCase()}`;
+    const dateObj    = new Date(sale.date);
+    const dateStr    = dateObj.toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' });
+    const timeStr    = dateObj.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
+    const biz        = storeSettings.businessName || 'MEKAERP';
+    const cashier    = (session?.user as any)?.name || 'Staff';
 
     const payLabel: Record<string, string> = {
       CASH: 'Cash', CARD: 'Card / POS', BANK_TRANSFER: 'Bank Transfer',
       MOBILE_MONEY: 'Mobile Money', SPLIT: 'Split Payment',
     };
 
-    const itemLines = sale.items.map((item: any) => {
-      const desc     = `${item.name}`.slice(0, 28);
-      const qtyPrice = `${item.quantity} x ${formatCurrency(item.unitPrice)}`;
-      const total    = formatCurrency(item.total);
-      const taxTag   = !item.isTaxable ? ' [Exempt]' : item.taxInclusive ? ' [Incl.]' : '';
-      return [
-        `  ${desc}${taxTag}`,
-        row(`  ${qtyPrice}`, total),
-      ].join('\n');
-    }).join('\n');
+    const itemRows = sale.items.map((item: any) => {
+      const name     = String(item.name).slice(0, 24);
+      const taxTag   = !item.isTaxable ? '<span style="font-size:8px;color:#666"> [EX]</span>'
+                     : item.taxInclusive ? '<span style="font-size:8px;color:#666"> [TI]</span>' : '';
+      const unitP    = formatCurrency(item.unitPrice);
+      const tot      = formatCurrency(item.total);
+      return `
+        <tr>
+          <td style="padding:2px 0 1px;vertical-align:top">
+            <div style="font-weight:700;font-size:11px">${name}${taxTag}</div>
+            <div style="font-size:9.5px;color:#444;font-weight:600">${item.quantity} × ${unitP}</div>
+          </td>
+          <td style="text-align:right;vertical-align:top;padding:2px 0 1px;font-size:11px;font-weight:700;white-space:nowrap">${tot}</td>
+        </tr>`;
+    }).join('');
 
-    const taxAddedLine  = sale.tax        > 0 ? `\n${row('  VAT 7.5% (+tax):', formatCurrency(sale.tax))}` : '';
-    const taxInclusLine = sale.taxInclusive > 0 ? `\n${row('  VAT incl. (in price):', formatCurrency(sale.taxInclusive))}` : '';
+    const taxAddedHtml  = sale.tax > 0
+      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">VAT 7.5% (excl.)</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${formatCurrency(sale.tax)}</td></tr>` : '';
+    const taxInclusHtml = sale.taxInclusive > 0
+      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">VAT (incl. in price)</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${formatCurrency(sale.taxInclusive)}</td></tr>` : '';
 
     const receiptHtml = `<!DOCTYPE html>
 <html>
@@ -447,75 +446,101 @@ export default function POSPage() {
   <meta charset="UTF-8">
   <title>Receipt ${receiptNo}</title>
   <style>
-    @page { size: 80mm auto; margin: 4mm; }
+    @page { size: 80mm auto; margin: 2mm 3mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Courier New', Courier, monospace;
-      font-size: 12px;
-      line-height: 1.45;
-      width: 72mm;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.4;
+      width: 74mm;
       color: #000;
       background: #fff;
-      padding: 4mm 0;
     }
-    pre { white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: inherit; }
-    .center { text-align: center; }
-    .biz-name { font-size: 18px; font-weight: 900; letter-spacing: 1px; text-align: center; margin-bottom: 2px; }
-    .biz-sub  { font-size: 11px; text-align: center; color: #333; }
-    .receipt-no { font-size: 11px; text-align: center; margin-top: 4px; }
-    .section { margin: 6px 0; }
-    .total-line { font-size: 15px; font-weight: 900; }
-    .footer { text-align: center; font-size: 11px; margin-top: 8px; color: #333; }
-    @media print {
-      html, body { margin: 0; padding: 0; }
-      body { width: 72mm; }
+    table { width: 100%; border-collapse: collapse; }
+    .biz-name {
+      font-size: 16px; font-weight: 900; letter-spacing: 2px;
+      text-align: center; text-transform: uppercase; margin-bottom: 2px;
     }
+    .biz-info { font-size: 9.5px; font-weight: 600; text-align: center; line-height: 1.6; color: #222; }
+    .dash  { border: none; border-top: 1px dashed #000; margin: 3px 0; }
+    .solid { border: none; border-top: 2px solid  #000; margin: 3px 0; }
+    .badge {
+      font-size: 10px; font-weight: 900; letter-spacing: 3px;
+      text-align: center; padding: 2px 0;
+    }
+    .meta td { font-size: 10px; font-weight: 600; padding: 1px 0; }
+    .meta td:last-child { text-align: right; font-weight: 700; }
+    .col-hdr {
+      font-size: 9px; font-weight: 900; letter-spacing: 1px;
+      border-top: 1px solid #000; border-bottom: 1px solid #000;
+      padding: 2px 0;
+    }
+    .col-hdr td:last-child { text-align: right; }
+    .totals td { padding: 1px 0; font-size: 10.5px; font-weight: 700; }
+    .totals td:last-child { text-align: right; }
+    .grand td { font-size: 14px; font-weight: 900; padding: 2px 0; }
+    .grand td:last-child { text-align: right; }
+    .footer { text-align: center; font-size: 9.5px; font-weight: 600; color: #222; line-height: 1.7; margin-top: 3px; }
+    .rcpt-id { text-align: center; font-size: 9px; font-weight: 600; letter-spacing: 1px; margin-top: 2px; color: #444; }
+    @media print { html, body { margin: 0; width: 74mm; } }
   </style>
 </head>
 <body>
-<div class="biz-name">${biz}</div>
-${storeSettings.businessAddress ? `<div class="biz-sub">${storeSettings.businessAddress}</div>` : ''}
-${storeSettings.businessPhone   ? `<div class="biz-sub">Tel: ${storeSettings.businessPhone}</div>` : ''}
-${storeSettings.businessEmail   ? `<div class="biz-sub">${storeSettings.businessEmail}</div>` : ''}
 
-<pre>
-${dash}
-${center('*** SALES RECEIPT ***')}
-${dash}
-${row('Receipt No:', receiptNo)}
-${row('Date:', dateStr)}
-${row('Customer:', sale.customerName || 'Walk-in')}
-${row('Payment:', payLabel[sale.paymentMethod] || sale.paymentMethod)}
-${dash}
-ITEMS
-${dash}
-${itemLines}
-${dash}
-${row('Subtotal:', formatCurrency(sale.subtotal))}${taxAddedLine}${taxInclusLine}
-${dDash}
-</pre>
-<pre class="total-line">${row('  TOTAL PAID:', formatCurrency(sale.total))}</pre>
-<pre>
-${dDash}
-</pre>
+<div class="biz-name">${biz}</div>
+<div class="biz-info">
+  ${storeSettings.businessAddress ? storeSettings.businessAddress + '<br>' : ''}
+  ${storeSettings.businessPhone   ? 'Tel: ' + storeSettings.businessPhone : ''}
+  ${storeSettings.businessEmail   ? '<br>' + storeSettings.businessEmail : ''}
+</div>
+
+<hr class="solid">
+<div class="badge">&#9733; SALES RECEIPT &#9733;</div>
+<hr class="dash">
+
+<table class="meta">
+  <tr><td>Receipt #</td><td>${receiptNo}</td></tr>
+  <tr><td>Date</td><td>${dateStr} ${timeStr}</td></tr>
+  <tr><td>Customer</td><td>${sale.customerName || 'Walk-In'}</td></tr>
+  <tr><td>Cashier</td><td>${cashier}</td></tr>
+  <tr><td>Payment</td><td>${payLabel[sale.paymentMethod] || sale.paymentMethod}</td></tr>
+</table>
+
+<hr class="dash">
+<table>
+  <tr class="col-hdr">
+    <td>ITEM DESCRIPTION</td>
+    <td style="text-align:right">AMOUNT</td>
+  </tr>
+  ${itemRows}
+</table>
+
+<hr class="dash">
+<table class="totals">
+  <tr><td>Subtotal</td><td>${formatCurrency(sale.subtotal)}</td></tr>
+  ${taxAddedHtml}${taxInclusHtml}
+</table>
+<hr class="solid">
+<table class="grand">
+  <tr><td>TOTAL PAID</td><td>${formatCurrency(sale.total)}</td></tr>
+</table>
+<hr class="dash">
+
 <div class="footer">
   ${storeSettings.receiptFooter || 'Thank you for your purchase!'}
-  <br>Please keep this receipt for reference.
+  <br>Please keep this receipt for your records.
 </div>
+<hr class="dash">
+<div class="rcpt-id">${receiptNo} &bull; ${dateStr}</div>
+
 <script>
-  window.onload = function() {
-    setTimeout(function() { window.print(); }, 300);
-  };
+  window.onload = function() { setTimeout(function() { window.print(); }, 200); };
 </script>
 </body>
 </html>`;
 
     await printDoc(receiptHtml);
-    if (!saleData) {
-      // Only clear when printing the current (just-completed) sale, not a reprint
-      setSuccessMessage(null);
-      setLastSale(null);
-    }
   };
 
   const printWholesaleReceipt = async () => {
