@@ -1166,7 +1166,7 @@ ${center('Not valid as retail receipt')}
                   onClick={() => printReceipt()}
                   className="bg-white text-green-600 px-4 py-1 rounded-full font-bold text-sm hover:bg-white/90 transition-colors"
                 >
-                  🖨 Print Receipt
+                  🖨 Reprint
                 </button>
                 {(lastSale.customerType === 'WHOLESALE' || pricingMode === 'WHOLESALE') && (
                   <>
