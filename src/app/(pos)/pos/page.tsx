@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   Search, ShoppingCart, User, CreditCard, Banknote,
@@ -363,11 +363,21 @@ export default function POSPage() {
   };
 
 
+  // ── Guard against accidental double-prints ───────────────────────────────
+  const printingRef = React.useRef(false);
+
   // ── Print via main-window overlay ────────────────────────────────────────
   // window.print() on the main window is what --kiosk-printing was built for.
   // We inject the receipt into a hidden div, use @media print CSS to make only
   // that div visible, call window.print(), then clean up.
   const printViaIframe = (html: string) => {
+    // Prevent double-prints: if a print job is already in flight, skip
+    if (printingRef.current) {
+      console.log('[MekaERP] Print already in progress — skipping duplicate.');
+      return;
+    }
+    printingRef.current = true;
+
     // Strip any old auto-print scripts embedded in the HTML
     const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '');
 
@@ -377,33 +387,38 @@ export default function POSPage() {
     const rcptCSS  = parsed.querySelector('style')?.innerHTML ?? '';
     const rcptBody = parsed.body.innerHTML;
 
+    // Remove any leftover overlay from a previous (unclean) print
+    document.getElementById('__meka_receipt__')?.remove();
+    document.getElementById('__meka_receipt_style__')?.remove();
+
     // Inject receipt content as a hidden overlay div
     const overlay = document.createElement('div');
     overlay.id = '__meka_receipt__';
     overlay.innerHTML = rcptBody;
-    // Hidden from screen; only shown via @media print below
-    overlay.style.cssText = 'display:none;';
+    // Off-screen but in layout (avoids display:none → display:block flash)
+    overlay.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:74mm;';
     document.body.appendChild(overlay);
 
     // Inject print styles:
     //  - "body * { visibility:hidden }" hides EVERYTHING in the app
     //  - then we make only #__meka_receipt__ and its children visible
     //  - @page sets 80mm thermal paper size
+    //  - print-color-adjust:exact ensures full black — no ink-saving filters
     const styleTag = document.createElement('style');
     styleTag.id = '__meka_receipt_style__';
     styleTag.innerHTML = `
       @media print {
         @page { size: 80mm auto; margin: 2mm 3mm; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         body * { visibility: hidden !important; }
         #__meka_receipt__ {
-          display: block !important;
           visibility: visible !important;
-          position: absolute !important;
+          position: fixed !important;
           top: 0 !important; left: 0 !important;
           width: 74mm !important;
           background: #fff !important;
         }
-        #__meka_receipt__ * { visibility: visible !important; }
+        #__meka_receipt__ * { visibility: visible !important; color: #000 !important; }
         ${rcptCSS}
       }
     `;
@@ -417,8 +432,9 @@ export default function POSPage() {
       setTimeout(() => {
         document.getElementById('__meka_receipt__')?.remove();
         document.getElementById('__meka_receipt_style__')?.remove();
+        printingRef.current = false;
         console.log('[MekaERP] Print overlay cleaned up.');
-      }, 1000);
+      }, 2000);
     }, 250);
   };
 
@@ -480,11 +496,13 @@ export default function POSPage() {
     body {
       font-family: 'Courier New', Courier, monospace;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
       line-height: 1.4;
       width: 74mm;
       color: #000;
       background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
     table { width: 100%; border-collapse: collapse; }
     .biz-name {
@@ -1179,7 +1197,7 @@ ${center('Not valid as retail receipt')}
                   onClick={() => printReceipt()}
                   className="bg-white text-green-600 px-4 py-1 rounded-full font-bold text-sm hover:bg-white/90 transition-colors"
                 >
-                  🖨 Reprint
+                  🖨 Print Again
                 </button>
                 {(lastSale.customerType === 'WHOLESALE' || pricingMode === 'WHOLESALE') && (
                   <>
