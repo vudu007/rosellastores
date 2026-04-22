@@ -364,62 +364,62 @@ export default function POSPage() {
 
 
   // ── Print via main-window overlay ────────────────────────────────────────
-  // Calling window.print() on the MAIN window is the only 100% reliable
-  // method for Chrome --kiosk-printing. No iframes, no popups, no permissions.
-  // We inject the receipt as a fixed overlay and hide everything else via CSS,
-  // then remove it immediately after print() returns.
+  // window.print() on the main window is what --kiosk-printing was built for.
+  // We inject the receipt into a hidden div, use @media print CSS to make only
+  // that div visible, call window.print(), then clean up.
   const printViaIframe = (html: string) => {
-    // Parse the receipt HTML to extract styles and body content separately
-    const parser  = new DOMParser();
-    const parsed  = parser.parseFromString(html, 'text/html');
-    const rcptCSS = parsed.querySelector('style')?.innerHTML ?? '';
+    // Strip any old auto-print scripts embedded in the HTML
+    const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+
+    // Parse out the receipt's <style> and <body> separately
+    const parser   = new DOMParser();
+    const parsed   = parser.parseFromString(cleanHtml, 'text/html');
+    const rcptCSS  = parsed.querySelector('style')?.innerHTML ?? '';
     const rcptBody = parsed.body.innerHTML;
 
-    // Remove any leftover auto-print scripts from old templates (safety)
-    const cleanBody = rcptBody.replace(/<script[\s\S]*?<\/script>/gi, '');
-
-    // Overlay element — covers the screen during print, invisible otherwise
+    // Inject receipt content as a hidden overlay div
     const overlay = document.createElement('div');
     overlay.id = '__meka_receipt__';
-    overlay.innerHTML = cleanBody;
-    Object.assign(overlay.style, {
-      position: 'fixed', inset: '0', background: '#fff',
-      zIndex: '999999', display: 'none', padding: '4mm',
-    });
+    overlay.innerHTML = rcptBody;
+    // Hidden from screen; only shown via @media print below
+    overlay.style.cssText = 'display:none;';
+    document.body.appendChild(overlay);
 
-    // Print stylesheet: hide everything except our overlay during print
+    // Inject print styles:
+    //  - "body * { visibility:hidden }" hides EVERYTHING in the app
+    //  - then we make only #__meka_receipt__ and its children visible
+    //  - @page sets 80mm thermal paper size
     const styleTag = document.createElement('style');
     styleTag.id = '__meka_receipt_style__';
     styleTag.innerHTML = `
-      ${rcptCSS}
       @media print {
-        html, body { margin: 0 !important; padding: 0 !important; }
-        body > *:not(#__meka_receipt__) { visibility: hidden !important; }
+        @page { size: 80mm auto; margin: 2mm 3mm; }
+        body * { visibility: hidden !important; }
         #__meka_receipt__ {
           display: block !important;
           visibility: visible !important;
-          position: fixed !important;
-          inset: 0 !important;
+          position: absolute !important;
+          top: 0 !important; left: 0 !important;
+          width: 74mm !important;
           background: #fff !important;
-          z-index: 999999 !important;
         }
+        #__meka_receipt__ * { visibility: visible !important; }
+        ${rcptCSS}
       }
     `;
-
     document.head.appendChild(styleTag);
-    document.body.appendChild(overlay);
 
-    // Let the browser paint the overlay before printing
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.print();
-        // Clean up immediately — kiosk-print returns synchronously
-        setTimeout(() => {
-          document.getElementById('__meka_receipt__')?.remove();
-          document.getElementById('__meka_receipt_style__')?.remove();
-        }, 500);
-      });
-    });
+    // Small delay so React finishes any pending renders before we print
+    setTimeout(() => {
+      console.log('[MekaERP] Sending receipt to printer…');
+      window.print();
+      // Clean up after the print job is dispatched
+      setTimeout(() => {
+        document.getElementById('__meka_receipt__')?.remove();
+        document.getElementById('__meka_receipt_style__')?.remove();
+        console.log('[MekaERP] Print overlay cleaned up.');
+      }, 1000);
+    }, 250);
   };
 
   /**
