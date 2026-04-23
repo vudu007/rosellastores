@@ -1,23 +1,30 @@
 import nodemailer from 'nodemailer';
 import { EODReport } from '@/types';
 
-// Gmail SMTP configuration
-// Required ENV vars:
-// GMAIL_USER: your-email@gmail.com
-// GMAIL_APP_PASSWORD: your-16-character-app-password (must be set in Gmail)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+function getEmailCredentials() {
+  const user = process.env.GMAIL_USER || process.env.SMTP_USER || process.env.EMAIL_USER || null;
+  const pass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.EMAIL_APP_PASSWORD || null;
+  return { user, pass };
+}
 
-const FROM_EMAIL = process.env.GMAIL_USER || 'MekaERP <noreply@gmail.com>';
+function createTransporter() {
+  const { user, pass } = getEmailCredentials();
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: user ?? undefined, pass: pass ?? undefined },
+  });
+}
+
+function getFromEmail() {
+  return process.env.GMAIL_FROM || getEmailCredentials().user || 'MekaERP <noreply@gmail.com>';
+}
 
 export function getEmailConfigError(): string | null {
-  if (!process.env.GMAIL_USER) return 'Email not configured: missing GMAIL_USER';
-  if (!process.env.GMAIL_APP_PASSWORD) return 'Email not configured: missing GMAIL_APP_PASSWORD';
+  const vercelEnv = process.env.VERCEL_ENV;
+  const prefix = vercelEnv ? `Email not configured (VERCEL_ENV=${vercelEnv}): ` : 'Email not configured: ';
+  const { user, pass } = getEmailCredentials();
+  if (!user) return `${prefix}missing GMAIL_USER`;
+  if (!pass) return `${prefix}missing GMAIL_APP_PASSWORD`;
   return null;
 }
 
@@ -219,7 +226,6 @@ export async function sendEmail(
   html: string,
   attachments?: { filename: string; content: Buffer; contentType: string }[]
 ): Promise<boolean> {
-  // Graceful handling for build time / missing env vars
   const configError = getEmailConfigError();
   if (configError) {
     console.warn(configError, { to, subject });
@@ -228,7 +234,7 @@ export async function sendEmail(
 
   try {
     const mailOptions: any = {
-      from: FROM_EMAIL,
+      from: getFromEmail(),
       to,
       subject,
       html,
@@ -242,6 +248,7 @@ export async function sendEmail(
       }));
     }
 
+    const transporter = createTransporter();
     await transporter.sendMail(mailOptions);
     console.log(`Email sent successfully to ${to}`);
     return true;
