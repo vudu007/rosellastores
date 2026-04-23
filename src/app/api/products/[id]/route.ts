@@ -14,6 +14,8 @@ const updateProductSchema = z.object({
   wholesalePrice: z.number().positive().optional(),
   stockQty: z.number().int().nonnegative().optional(),
   lowStockThreshold: z.number().int().optional(),
+  unitsPerPack: z.number().int().positive().optional(),
+  wholesaleUnit: z.string().optional(),
   supplierId: z.string().optional(),
   imageUrl: z.string().optional(),
   unit: z.string().optional(),
