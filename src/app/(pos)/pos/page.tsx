@@ -167,13 +167,30 @@ export default function POSPage() {
         if (settingsRes.ok) {
           setStoreSettings(settingsData);
         }
+        localStorage.setItem('meka_cache_products_v1', JSON.stringify(productsData.products || []));
+        localStorage.setItem('meka_cache_customers_v1', JSON.stringify(customersData.customers || []));
+        if (settingsRes.ok) {
+          localStorage.setItem('meka_cache_settings_v1', JSON.stringify(settingsData || {}));
+        }
 
         const uniqueCategories = [
           ...new Set((productsData.products || []).map((p: Product) => p.category?.name).filter(Boolean)),
         ];
         setCategories(uniqueCategories as string[]);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        try {
+          const cachedProducts = JSON.parse(localStorage.getItem('meka_cache_products_v1') || '[]');
+          const cachedCustomers = JSON.parse(localStorage.getItem('meka_cache_customers_v1') || '[]');
+          const cachedSettings = JSON.parse(localStorage.getItem('meka_cache_settings_v1') || '{}');
+          if (Array.isArray(cachedProducts)) setProducts(cachedProducts);
+          if (Array.isArray(cachedCustomers)) setCustomers(cachedCustomers);
+          if (cachedSettings && typeof cachedSettings === 'object') setStoreSettings(cachedSettings);
+          const uniqueCategories = [
+            ...new Set((cachedProducts || []).map((p: Product) => (p as any)?.category?.name).filter(Boolean)),
+          ];
+          setCategories(uniqueCategories as string[]);
+        } catch {
+        }
       } finally {
         setLoading(false);
       }
