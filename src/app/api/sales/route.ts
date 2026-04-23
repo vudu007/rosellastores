@@ -6,8 +6,9 @@ import { z } from 'zod';
 import { startOfDay, endOfDay } from 'date-fns';
 
 const createSaleSchema = z.object({
+  clientSaleId: z.string().optional(),
   customerId: z.string().optional(),
-  paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY']),
+  paymentMethod: z.enum(['CASH', 'CARD', 'BANK_TRANSFER', 'MOBILE_MONEY', 'SPLIT']),
   items: z.array(
     z.object({
       productId: z.string(),
@@ -91,12 +92,28 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['CASHIER', 'MANAGER', 'OWNER'].includes(session.user.role)) {
+    if (!session || !['CASHIER', 'MANAGER', 'OWNER', 'ADMIN'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await req.json();
     const validatedData = createSaleSchema.parse(body);
+
+    if (validatedData.clientSaleId) {
+      const existing = await prisma.sale.findFirst({
+        where: {
+          clientSaleId: validatedData.clientSaleId,
+          branchId: session.user.branchId ?? undefined,
+        },
+        include: {
+          items: { include: { product: true } },
+          customer: true,
+        },
+      });
+      if (existing) {
+        return NextResponse.json(existing, { status: 200 });
+      }
+    }
 
     // Resolve customerId — use provided, or find/create Walk-In Customer for guest checkout
     let customerId = validatedData.customerId;
@@ -166,6 +183,7 @@ export async function POST(req: NextRequest) {
 
     const sale = await prisma.sale.create({
       data: {
+        ...(validatedData.clientSaleId ? { clientSaleId: validatedData.clientSaleId } : {}),
         customerId,
         cashierId: session.user.id,
         subtotal,
@@ -210,4 +228,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

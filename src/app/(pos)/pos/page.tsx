@@ -68,6 +68,9 @@ export default function POSPage() {
   const [lastScanTime, setLastScanTime] = useState(0);
   const [storeSettings, setStoreSettings] = useState<any>({});
   const [showMobileCart, setShowMobileCart] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingSalesCount, setPendingSalesCount] = useState(0);
+  const [syncingPendingSales, setSyncingPendingSales] = useState(false);
 
   // QZ Tray thermal printer — saved name comes from Settings page via localStorage
   const [thermalPrinter, setThermalPrinter] = useState<string>('');
@@ -77,6 +80,74 @@ export default function POSPage() {
     const saved = localStorage.getItem('meka_thermal_printer');
     if (saved) setThermalPrinter(saved);
   }, []);
+
+  const OFFLINE_SALES_KEY = 'meka_offline_sales_v1';
+
+  const loadOfflineSales = useCallback(() => {
+    try {
+      const raw = localStorage.getItem(OFFLINE_SALES_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const saveOfflineSales = useCallback((sales: any[]) => {
+    localStorage.setItem(OFFLINE_SALES_KEY, JSON.stringify(sales));
+    setPendingSalesCount(sales.length);
+  }, []);
+
+  const syncOfflineSales = useCallback(async () => {
+    if (syncingPendingSales) return;
+    if (!navigator.onLine) return;
+    setSyncingPendingSales(true);
+    try {
+      let queue = loadOfflineSales();
+      for (const entry of queue) {
+        if (!entry?.payload) continue;
+        const res = await fetch('/api/sales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(entry.payload),
+        });
+
+        if (res.ok) {
+          queue = queue.filter((x: any) => x?.clientSaleId !== entry.clientSaleId);
+          saveOfflineSales(queue);
+          continue;
+        }
+
+        const err = await res.json().catch(() => ({}));
+        queue = queue.map((x: any) =>
+          x?.clientSaleId === entry.clientSaleId
+            ? { ...x, lastError: err?.error || `HTTP ${res.status}` }
+            : x
+        );
+        saveOfflineSales(queue);
+      }
+    } finally {
+      setSyncingPendingSales(false);
+    }
+  }, [loadOfflineSales, saveOfflineSales, syncingPendingSales]);
+
+  useEffect(() => {
+    setIsOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
+    setPendingSalesCount(loadOfflineSales().length);
+
+    const onOnline = () => {
+      setIsOnline(true);
+      syncOfflineSales();
+    };
+    const onOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [loadOfflineSales, syncOfflineSales]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -287,22 +358,33 @@ export default function POSPage() {
     if (cart.length === 0) return;
 
     try {
+      const clientSaleId =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+      const payload = {
+        clientSaleId,
+        customerId: selectedCustomer?.id || undefined,
+        paymentMethod,
+        notes:
+          paymentMethod === 'SPLIT'
+            ? `Cash: ${splitAmounts.cash}, Card: ${splitAmounts.card}, Transfer: ${splitAmounts.transfer}, Mobile: ${splitAmounts.mobile}`
+            : undefined,
+        items: cart.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          saleType: item.saleType,
+        })),
+        discount: 0,
+      };
+
       const response = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: selectedCustomer?.id || undefined,
-          paymentMethod,
-          notes: paymentMethod === 'SPLIT' ? `Cash: ${splitAmounts.cash}, Card: ${splitAmounts.card}, Transfer: ${splitAmounts.transfer}, Mobile: ${splitAmounts.mobile}` : undefined,
-          items: cart.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: item.discount,
-            saleType: item.saleType,
-          })),
-          discount: 0,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
@@ -344,8 +426,66 @@ export default function POSPage() {
       }
     } catch (error) {
       console.error('Error completing sale:', error);
-      setSuccessMessage('Network error. Check your connection and try again.');
-      setTimeout(() => setSuccessMessage(null), 4000);
+      const clientSaleId =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+      const payload = {
+        clientSaleId,
+        customerId: selectedCustomer?.id || undefined,
+        paymentMethod,
+        notes:
+          paymentMethod === 'SPLIT'
+            ? `Cash: ${splitAmounts.cash}, Card: ${splitAmounts.card}, Transfer: ${splitAmounts.transfer}, Mobile: ${splitAmounts.mobile}`
+            : undefined,
+        items: cart.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          saleType: item.saleType,
+        })),
+        discount: 0,
+      };
+
+      const queue = loadOfflineSales();
+      saveOfflineSales([
+        ...queue,
+        { clientSaleId, createdAt: new Date().toISOString(), payload },
+      ]);
+
+      const completedSale = {
+        id: clientSaleId,
+        customerId: selectedCustomer?.id || '',
+        customerName: selectedCustomer?.name || 'Walk-In Customer',
+        customerType: selectedCustomer?.type || 'RETAIL',
+        paymentMethod,
+        items: cart.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          total: item.total,
+          isTaxable: item.isTaxable,
+          taxInclusive: item.taxInclusive,
+        })),
+        subtotal,
+        tax,
+        taxInclusive: taxBreakdown.inclusive,
+        total,
+        date: new Date().toISOString(),
+        offline: true,
+      };
+
+      setLastSale(completedSale);
+      setLastCompletedSale(completedSale);
+      setSuccessMessage('Offline: sale saved and will sync when internet returns');
+      setCart([]);
+      setSelectedCustomer(null);
+      setShowPaymentModal(false);
+      printReceipt(completedSale);
+      setTimeout(() => setSuccessMessage(null), 5000);
     }
   };
 
@@ -489,6 +629,7 @@ export default function POSPage() {
     const timeStr    = dateObj.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
     const biz        = storeSettings.businessName || 'MEKAERP';
     const cashier    = (session?.user as any)?.name || 'Staff';
+    const badgeLabel = sale.offline ? '&#9733; OFFLINE SALE &#9733;' : '&#9733; SALES RECEIPT &#9733;';
 
     const payLabel: Record<string, string> = {
       CASH: 'Cash', CARD: 'Card / POS', BANK_TRANSFER: 'Bank Transfer',
@@ -574,7 +715,7 @@ export default function POSPage() {
 </div>
 
 <hr class="solid">
-<div class="badge">&#9733; SALES RECEIPT &#9733;</div>
+<div class="badge">${badgeLabel}</div>
 <hr class="dash">
 
 <table class="meta">
@@ -1199,6 +1340,25 @@ ${center('Not valid as retail receipt')}
                 <Printer className="w-3.5 h-3.5 shrink-0" />
                 <span>Auto Print</span>
               </div>
+              <div
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium shrink-0 ${
+                  isOnline ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-700' : 'border-red-500/60 bg-red-500/10 text-red-700'
+                }`}
+              >
+                <span className="font-bold">{isOnline ? 'Online' : 'Offline'}</span>
+                {pendingSalesCount > 0 && (
+                  <span className="font-bold">• {pendingSalesCount} pending</span>
+                )}
+              </div>
+              {pendingSalesCount > 0 && (
+                <button
+                  onClick={syncOfflineSales}
+                  disabled={!isOnline || syncingPendingSales}
+                  className="flex-1 text-xs text-muted-foreground hover:text-primary border border-dashed border-border hover:border-primary/50 rounded-xl py-2 transition-all flex items-center justify-center gap-1.5 font-medium disabled:opacity-50"
+                >
+                  {syncingPendingSales ? 'Syncing…' : 'Sync Pending'}
+                </button>
+              )}
               {lastCompletedSale && (
                 <button
                   onClick={handleReprint}

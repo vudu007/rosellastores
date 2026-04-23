@@ -26,6 +26,7 @@ enum PaymentMethod {
   CARD
   BANK_TRANSFER
   MOBILE_MONEY
+  SPLIT
 }
 
 enum SaleStatus {
@@ -162,6 +163,7 @@ model Customer {
 
 model Sale {
   id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  clientSaleId  String?       @unique
   customerId    String        @db.ObjectId
   customer      Customer      @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   cashierId     String        @db.ObjectId

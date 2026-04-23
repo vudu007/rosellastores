@@ -101,7 +101,7 @@ export interface SaleItemInput {
 
 export interface CreateSaleInput {
   customerId?: string;
-  paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'MOBILE_MONEY';
+  paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'MOBILE_MONEY' | 'SPLIT';
   items: SaleItemInput[];
   discount: number;
   notes?: string;
