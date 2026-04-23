@@ -71,6 +71,11 @@ model Branch {
   @@index([isActive])
 }
 
+enum SaleType {
+  RETAIL
+  WHOLESALE
+}
+
 model Product {
   id                String    @id @default(auto()) @map("_id") @db.ObjectId
   name              String
@@ -83,6 +88,8 @@ model Product {
   wholesalePrice    Float
   stockQty          Int
   lowStockThreshold Int       @default(10)
+  unitsPerPack      Int       @default(1)
+  wholesaleUnit     String    @default("pack")
   supplierId        String    @db.ObjectId
   supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   branchId          String    @db.ObjectId
@@ -190,6 +197,7 @@ model SaleItem {
   unitPrice Float
   discount  Float    @default(0)
   total     Float
+  saleType  SaleType @default(RETAIL)
   createdAt DateTime @default(now())
 
   @@index([saleId])
