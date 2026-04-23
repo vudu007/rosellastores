@@ -106,7 +106,7 @@ export default function SettingsPage() {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!['ADMIN', 'OWNER'].includes(session?.user.role ?? '')) {
-      setToast({ type: 'error', message: 'Only ADMIN can update business settings' });
+      setToast({ type: 'error', message: 'Only ADMIN or OWNER can update business settings' });
       return;
     }
 

@@ -3,14 +3,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { sendEODReport } from '@/lib/eod';
+import { getEmailConfigError } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
     
-    // Only Owners and Managers can trigger EOD reports
-    if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
+    if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const emailConfigError = getEmailConfigError();
+    if (emailConfigError) {
+      return NextResponse.json({ error: emailConfigError }, { status: 500 });
     }
 
     const businessNameSetting = await prisma.setting.findUnique({
@@ -51,7 +56,6 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     console.error('Error in manual EOD send:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: (error as Error)?.message || 'Internal server error' }, { status: 500 });
   }
 }
-

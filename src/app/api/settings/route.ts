@@ -29,8 +29,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || session.user.role !== 'OWNER') {
-      return NextResponse.json({ error: 'Unauthorized. Only OWNER can update settings' }, { status: 401 });
+    if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized. Only ADMIN or OWNER can update settings' }, { status: 401 });
     }
 
     const body = await req.json();
@@ -55,4 +55,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

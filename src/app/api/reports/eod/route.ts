@@ -3,11 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { generateEODReport, generateEODPDF, sendEODReport } from '@/lib/eod';
 import { prisma } from '@/lib/prisma';
+import { getEmailConfigError } from '@/lib/email';
 
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
+    if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
+    if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -35,6 +36,11 @@ export async function POST(req: NextRequest) {
     const { action, date } = body;
 
     if (action === 'send-email') {
+      const emailConfigError = getEmailConfigError();
+      if (emailConfigError) {
+        return NextResponse.json({ error: emailConfigError }, { status: 500 });
+      }
+
       const businessNameSetting = await prisma.setting.findUnique({
         where: { key: 'businessName' },
       });
@@ -74,7 +80,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (error) {
     console.error('Error processing EOD report action:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: (error as Error)?.message || 'Internal server error' }, { status: 500 });
   }
 }
 

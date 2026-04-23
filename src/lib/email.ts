@@ -15,6 +15,12 @@ const transporter = nodemailer.createTransport({
 
 const FROM_EMAIL = process.env.GMAIL_USER || 'MekaERP <noreply@gmail.com>';
 
+export function getEmailConfigError(): string | null {
+  if (!process.env.GMAIL_USER) return 'Email not configured: missing GMAIL_USER';
+  if (!process.env.GMAIL_APP_PASSWORD) return 'Email not configured: missing GMAIL_APP_PASSWORD';
+  return null;
+}
+
 export function generateEODEmailHTML(report: EODReport, businessName: string): string {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -214,8 +220,9 @@ export async function sendEmail(
   attachments?: { filename: string; content: Buffer; contentType: string }[]
 ): Promise<boolean> {
   // Graceful handling for build time / missing env vars
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.warn('Gmail credentials missing. Email not sent:', { to, subject });
+  const configError = getEmailConfigError();
+  if (configError) {
+    console.warn(configError, { to, subject });
     return false;
   }
 
