@@ -3,18 +3,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Edit3, Trash2, X, Plus, Search, Users } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-
-interface Customer {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  type: 'RETAIL' | 'WHOLESALE';
-  creditLimit: number | null;
-  creditUsed: number;
-}
-
-const emptyForm = { name: '', email: '', phone: '', type: 'RETAIL' as 'RETAIL' | 'WHOLESALE', creditLimit: '' };
+import { Customer } from '@/types';
+import { CustomerForm } from '@/components/dashboard/CustomerForm';
+import { deleteCustomerAction } from '@/app/actions/customer.actions';
 
 export default function CustomersPage() {
   const { data: session } = useSession();
@@ -26,8 +17,6 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [formData, setFormData] = useState(emptyForm);
-  const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchCustomers = useCallback(async () => {
@@ -45,43 +34,20 @@ export default function CustomersPage() {
     }
   }, [type]);
 
-  useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   const openEdit = (c: Customer) => {
     setEditingCustomer(c);
-    setFormData({ name: c.name, email: c.email ?? '', phone: c.phone ?? '', type: c.type, creditLimit: c.creditLimit?.toString() ?? '' });
     setShowAddForm(false);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const payload = { ...formData, creditLimit: formData.creditLimit ? parseFloat(formData.creditLimit) : null };
-      const isEdit = !!editingCustomer;
-      const response = await fetch(isEdit ? `/api/customers/${editingCustomer.id}` : '/api/customers', {
-        method: isEdit ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      if (response.ok) {
-        setFormData(emptyForm);
-        setShowAddForm(false);
-        setEditingCustomer(null);
-        fetchCustomers();
-      }
-    } catch (error) {
-      console.error('Error saving customer:', error);
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Delete customer "${name}"? This cannot be undone.`)) return;
     setDeletingId(id);
     try {
-      await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+      await deleteCustomerAction(id);
       fetchCustomers();
     } catch (error) {
       console.error('Error deleting customer:', error);
@@ -109,7 +75,10 @@ export default function CustomersPage() {
         </div>
         {canEdit && (
           <button
-            onClick={() => { setShowAddForm(!showAddForm); setEditingCustomer(null); setFormData(emptyForm); }}
+            onClick={() => {
+              setShowAddForm(!showAddForm);
+              setEditingCustomer(null);
+            }}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all shadow-sm ${
               activeForm
                 ? 'bg-destructive/10 text-destructive hover:bg-destructive/20 shadow-none'
@@ -124,47 +93,18 @@ export default function CustomersPage() {
 
       {/* Add / Edit Form */}
       {activeForm && canEdit && (
-        <div className="card-premium p-6 border-none ring-1 ring-primary/20 animate-slide-up">
-          <h2 className="text-base font-bold mb-5 flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary" />
-            {editingCustomer ? 'Edit Customer' : 'New Customer'}
-          </h2>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Full Name *</label>
-              <input type="text" placeholder="e.g. Amina Okafor" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="input-base bg-muted/30 border-none" required />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Email</label>
-              <input type="email" placeholder="email@example.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="input-base bg-muted/30 border-none" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Phone</label>
-              <input type="tel" placeholder="+234 800 000 0000" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="input-base bg-muted/30 border-none" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Customer Type</label>
-              <select value={formData.type} onChange={(e) => setFormData({ ...formData, type: e.target.value as any })} className="input-base bg-muted/30 border-none">
-                <option value="RETAIL">Retail</option>
-                <option value="WHOLESALE">Wholesale</option>
-              </select>
-            </div>
-            {formData.type === 'WHOLESALE' && (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Credit Limit (₦)</label>
-                <input type="number" placeholder="0.00" value={formData.creditLimit} onChange={(e) => setFormData({ ...formData, creditLimit: e.target.value })} className="input-base bg-muted/30 border-none" />
-              </div>
-            )}
-            <div className="col-span-full flex gap-3 pt-2">
-              <button type="submit" disabled={saving} className="btn-primary flex-1">
-                {saving ? 'Saving…' : editingCustomer ? 'Update Customer' : 'Add Customer'}
-              </button>
-              <button type="button" onClick={() => { setShowAddForm(false); setEditingCustomer(null); setFormData(emptyForm); }} className="btn-secondary px-6">
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+        <CustomerForm
+          editingCustomer={editingCustomer}
+          onSuccess={() => {
+            setShowAddForm(false);
+            setEditingCustomer(null);
+            fetchCustomers();
+          }}
+          onCancel={() => {
+            setShowAddForm(false);
+            setEditingCustomer(null);
+          }}
+        />
       )}
 
       {/* Toolbar */}
@@ -225,67 +165,77 @@ export default function CustomersPage() {
                       <p className="font-medium">{search ? 'No customers match your search.' : 'No customers yet.'}</p>
                     </td>
                   </tr>
-                ) : filteredCustomers.map((customer) => (
-                  <tr key={customer.id} className="group">
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-black shrink-0">
-                          {customer.name.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="font-semibold text-foreground">{customer.name}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <p className="text-foreground">{customer.email || '—'}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{customer.phone || '—'}</p>
-                    </td>
-                    <td>
-                      <span className={customer.type === 'RETAIL' ? 'badge-primary' : 'badge-success'}>
-                        {customer.type}
-                      </span>
-                    </td>
-                    <td>
-                      {customer.type === 'WHOLESALE' ? (
-                        <div>
-                          <p className="text-foreground font-medium">
-                            ₦{(customer.creditUsed ?? 0).toLocaleString()} <span className="text-muted-foreground font-normal">/ ₦{(customer.creditLimit ?? 0).toLocaleString()}</span>
-                          </p>
-                          {customer.creditLimit ? (
-                            <div className="mt-1.5 h-1.5 w-24 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-primary rounded-full transition-all"
-                                style={{ width: `${Math.min(100, ((customer.creditUsed ?? 0) / customer.creditLimit) * 100)}%` }}
-                              />
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    {canEdit && (
+                ) : (
+                  filteredCustomers.map((customer) => (
+                    <tr key={customer.id} className="group">
                       <td>
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => openEdit(customer)}
-                            className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                            title="Edit"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(customer.id, customer.name)}
-                            disabled={deletingId === customer.id}
-                            className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-40"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-black shrink-0">
+                            {customer.name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-semibold text-foreground">{customer.name}</span>
                         </div>
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td>
+                        <p className="text-foreground">{customer.email || '—'}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{customer.phone || '—'}</p>
+                      </td>
+                      <td>
+                        <span className={customer.type === 'RETAIL' ? 'badge-primary' : 'badge-success'}>
+                          {customer.type}
+                        </span>
+                      </td>
+                      <td>
+                        {customer.type === 'WHOLESALE' ? (
+                          <div>
+                            <p className="text-foreground font-medium">
+                              ₦{(customer.creditUsed ?? 0).toLocaleString()}{' '}
+                              <span className="text-muted-foreground font-normal">
+                                / ₦{(customer.creditLimit ?? 0).toLocaleString()}
+                              </span>
+                            </p>
+                            {customer.creditLimit ? (
+                              <div className="mt-1.5 h-1.5 w-24 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-primary rounded-full transition-all"
+                                  style={{
+                                    width: `${Math.min(
+                                      100,
+                                      ((customer.creditUsed ?? 0) / customer.creditLimit) * 100
+                                    )}%`,
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      {canEdit && (
+                        <td>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => openEdit(customer)}
+                              className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                              title="Edit"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(customer.id, customer.name)}
+                              disabled={deletingId === customer.id}
+                              className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-40"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

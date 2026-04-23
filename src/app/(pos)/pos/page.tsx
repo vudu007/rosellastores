@@ -19,6 +19,8 @@ interface Product {
   retailPrice: number;
   wholesalePrice: number;
   stockQty: number;
+  unitsPerPack: number;
+  wholesaleUnit: string;
   category: { name: string };
   imageUrl?: string;
   isTaxable: boolean;
@@ -40,6 +42,7 @@ interface CartItem {
   total: number;
   isTaxable: boolean;
   taxInclusive: boolean;
+  saleType: 'RETAIL' | 'WHOLESALE';
 }
 
 export default function POSPage() {
@@ -134,16 +137,27 @@ export default function POSPage() {
   }, [pricingMode, products]);
 
   const addToCart = useCallback((product: Product) => {
-    const price = pricingMode === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
-    const existingItem = cart.find((item) => item.productId === product.id);
+    const saleType = pricingMode;
+    const price = saleType === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
+    const existingItem = cart.find((item) => item.productId === product.id && item.saleType === saleType);
 
     if (existingItem) {
-      if (existingItem.quantity + 1 > product.stockQty) {
+      const decrementQty = saleType === 'WHOLESALE' ? (product.unitsPerPack || 1) : 1;
+      const totalUnitsInCart = cart.reduce((sum, item) => {
+        if (item.productId === product.id) {
+          const productRef = products.find(p => p.id === item.productId);
+          return sum + (item.saleType === 'WHOLESALE' ? item.quantity * (productRef?.unitsPerPack || 1) : item.quantity);
+        }
+        return sum;
+      }, 0);
+
+      if (totalUnitsInCart + decrementQty > product.stockQty) {
         return; // Prevent overstock adding
       }
+
       setCart((prevCart) =>
         prevCart.map((item) =>
-          item.productId === product.id
+          item.productId === product.id && item.saleType === saleType
             ? {
                 ...item,
                 quantity: item.quantity + 1,
@@ -153,6 +167,9 @@ export default function POSPage() {
         )
       );
     } else {
+      const decrementQty = saleType === 'WHOLESALE' ? (product.unitsPerPack || 1) : 1;
+      if (decrementQty > product.stockQty) return;
+
       setCart((prevCart) => [
         ...prevCart,
         {
@@ -164,10 +181,11 @@ export default function POSPage() {
           total: price,
           isTaxable: product.isTaxable ?? true,
           taxInclusive: product.taxInclusive ?? false,
+          saleType: saleType,
         },
       ]);
     }
-  }, [cart, pricingMode]);
+  }, [cart, pricingMode, products]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const currentTime = Date.now();
@@ -205,17 +223,29 @@ export default function POSPage() {
     setCart((prevCart) => prevCart.filter((item) => item.productId !== productId));
   }, []);
 
-  const updateCartItem = useCallback((productId: string, quantity: number, discount: number) => {
+  const updateCartItem = useCallback((productId: string, quantity: number, discount: number, saleType: 'RETAIL' | 'WHOLESALE') => {
     const product = products.find(p => p.id === productId);
-    if (product && quantity > product.stockQty) return;
+    if (!product) return;
+
+    // Calculate total units used by other items of the same product in cart
+    const otherItemsUnits = cart.reduce((sum, item) => {
+      if (item.productId === productId && item.saleType !== saleType) {
+        return sum + (item.saleType === 'WHOLESALE' ? item.quantity * (product.unitsPerPack || 1) : item.quantity);
+      }
+      return sum;
+    }, 0);
+
+    const currentItemUnits = saleType === 'WHOLESALE' ? quantity * (product.unitsPerPack || 1) : quantity;
+
+    if (otherItemsUnits + currentItemUnits > product.stockQty) return;
 
     if (quantity <= 0) {
-      removeFromCart(productId);
+      setCart((prevCart) => prevCart.filter((item) => !(item.productId === productId && item.saleType === saleType)));
       return;
     }
     setCart((prevCart) =>
       prevCart.map((item) =>
-        item.productId === productId
+        item.productId === productId && item.saleType === saleType
           ? {
               ...item,
               quantity,
@@ -225,7 +255,7 @@ export default function POSPage() {
           : item
       )
     );
-  }, [products, removeFromCart]);
+  }, [products, cart]);
 
   const TAX_RATE = 0.075; // 7.5% VAT
 
@@ -269,6 +299,7 @@ export default function POSPage() {
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             discount: item.discount,
+            saleType: item.saleType,
           })),
           discount: 0,
         }),
@@ -1040,41 +1071,62 @@ ${center('Not valid as retail receipt')}
               </div>
             </div>
           ) : (
-            cart.map((item) => (
-              <div key={item.productId} className="bg-card p-4 rounded-xl border shadow-sm group animate-slide-up">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex-1 pr-4">
-                    <p className="font-bold text-sm leading-tight line-clamp-1">{item.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{formatCurrency(item.unitPrice)} / unit</p>
+            cart.map((item) => {
+              const product = products.find(p => p.id === item.productId);
+              return (
+                <div key={`${item.productId}-${item.saleType}`} className="bg-card p-4 rounded-xl border shadow-sm group animate-slide-up">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1 pr-4">
+                      <p className="font-bold text-sm leading-tight line-clamp-1">{item.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-xs text-muted-foreground">{formatCurrency(item.unitPrice)} / {item.saleType === 'WHOLESALE' ? (product?.wholesaleUnit || 'pack') : 'unit'}</p>
+                        {product && product.unitsPerPack > 1 && (
+                          <button
+                            onClick={() => {
+                              const newType = item.saleType === 'RETAIL' ? 'WHOLESALE' : 'RETAIL';
+                              const newPrice = newType === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
+                              setCart(prev => prev.map(i => 
+                                i.productId === item.productId && i.saleType === item.saleType
+                                  ? { ...i, saleType: newType, unitPrice: newPrice, total: newPrice * i.quantity - i.discount }
+                                  : i
+                              ));
+                            }}
+                            className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary px-1.5 py-0.5 rounded hover:bg-primary/20 transition-colors"
+                          >
+                            Switch to {item.saleType === 'RETAIL' ? (product.wholesaleUnit || 'Pack') : 'Unit'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="font-bold text-sm text-primary">{formatCurrency(item.total)}</p>
                   </div>
-                  <p className="font-bold text-sm text-primary">{formatCurrency(item.total)}</p>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                  
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                      <button 
+                        onClick={() => updateCartItem(item.productId, item.quantity - 1, item.discount, item.saleType)}
+                        className="p-1 hover:bg-card rounded-md transition-colors"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="w-8 text-center text-xs font-bold leading-none">{item.quantity}</span>
+                      <button 
+                        onClick={() => updateCartItem(item.productId, item.quantity + 1, item.discount, item.saleType)}
+                        className="p-1 hover:bg-card rounded-md transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     <button 
-                      onClick={() => updateCartItem(item.productId, item.quantity - 1, item.discount)}
-                      className="p-1 hover:bg-card rounded-md transition-colors"
+                      onClick={() => removeFromCart(item.productId)}
+                      className="text-xs text-muted-foreground hover:text-destructive transition-colors font-medium"
                     >
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="w-8 text-center text-xs font-bold leading-none">{item.quantity}</span>
-                    <button 
-                      onClick={() => updateCartItem(item.productId, item.quantity + 1, item.discount)}
-                      className="p-1 hover:bg-card rounded-md transition-colors"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
+                      Remove
                     </button>
                   </div>
-                  <button 
-                    onClick={() => removeFromCart(item.productId)}
-                    className="text-xs text-muted-foreground hover:text-destructive transition-colors font-medium"
-                  >
-                    Remove
-                  </button>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
