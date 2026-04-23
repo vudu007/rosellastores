@@ -89,6 +89,16 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'id, name, email and role are required' }, { status: 400 });
     }
 
+    // Protection for ADMIN accounts
+    const targetUser = await prisma.user.findUnique({ where: { id } });
+    if (!targetUser) {
+      return NextResponse.json({ error: 'Staff member not found' }, { status: 404 });
+    }
+
+    if (targetUser.role === 'ADMIN' && session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Only Admins can modify other Admin accounts' }, { status: 403 });
+    }
+
     if (session.user.role === 'OWNER' && role === 'ADMIN') {
       return NextResponse.json({ error: 'Owners cannot assign the Admin role' }, { status: 403 });
     }
@@ -123,6 +133,12 @@ export async function DELETE(req: NextRequest) {
 
     if (id === session.user.id) {
       return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });
+    }
+
+    // Protection for ADMIN accounts
+    const targetUser = await prisma.user.findUnique({ where: { id } });
+    if (targetUser?.role === 'ADMIN' && session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Only Admins can delete other Admin accounts' }, { status: 403 });
     }
 
     await prisma.user.delete({ where: { id } });

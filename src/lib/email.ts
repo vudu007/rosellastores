@@ -1,15 +1,19 @@
-import { Resend } from 'resend';
+import nodemailer from 'nodemailer';
 import { EODReport } from '@/types';
 
-const resend = process.env.RESEND_API_KEY 
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
+// Gmail SMTP configuration
+// Required ENV vars:
+// GMAIL_USER: your-email@gmail.com
+// GMAIL_APP_PASSWORD: your-16-character-app-password (must be set in Gmail)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
-// The "from" address must be from a domain you've verified in Resend.
-// Set RESEND_FROM_EMAIL in your Vercel env vars, e.g. "RetailPro <reports@yourdomain.com>"
-// Until you verify a domain, use Resend's test address (only delivers to your Resend account email):
-//   RESEND_FROM_EMAIL=onboarding@resend.dev
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+const FROM_EMAIL = process.env.GMAIL_USER || 'MekaERP <noreply@gmail.com>';
 
 export function generateEODEmailHTML(report: EODReport, businessName: string): string {
   const formatCurrency = (value: number) => {
@@ -209,13 +213,14 @@ export async function sendEmail(
   html: string,
   attachments?: { filename: string; content: Buffer; contentType: string }[]
 ): Promise<boolean> {
-  if (!resend) {
-    console.warn('Resend API key missing. Email not sent:', { to, subject });
+  // Graceful handling for build time / missing env vars
+  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    console.warn('Gmail credentials missing. Email not sent:', { to, subject });
     return false;
   }
 
   try {
-    const payload: any = {
+    const mailOptions: any = {
       from: FROM_EMAIL,
       to,
       subject,
@@ -223,22 +228,18 @@ export async function sendEmail(
     };
 
     if (attachments && attachments.length > 0) {
-      payload.attachments = attachments.map((a) => ({
+      mailOptions.attachments = attachments.map((a) => ({
         filename: a.filename,
         content: a.content,
+        contentType: a.contentType,
       }));
     }
 
-    const { error } = await resend.emails.send(payload);
-
-    if (error) {
-      console.error('Resend error:', error);
-      return false;
-    }
-
+    await transporter.sendMail(mailOptions);
+    console.log(`Email sent successfully to ${to}`);
     return true;
   } catch (err) {
-    console.error('Error sending email via Resend:', err);
+    console.error('Error sending email via Gmail SMTP:', err);
     return false;
   }
 }

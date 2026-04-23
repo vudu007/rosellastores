@@ -18,8 +18,11 @@ export const authConfig = {
       // Not logged in on a protected page → send to login
       if (!isLoggedIn) return false;
 
-      // OWNER cannot access Settings — redirect to dashboard
+      // Superuser (ADMIN) has access to everything
       const role = (auth?.user as any)?.role;
+      if (role === 'ADMIN') return true;
+
+      // OWNER cannot access Settings — redirect to dashboard
       if (isSettings && role === 'OWNER') {
         return Response.redirect(new URL('/dashboard', request.nextUrl));
       }
