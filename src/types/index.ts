@@ -20,10 +20,75 @@ export interface EODReport {
 
 export interface DashboardStats {
   todaySales: number;
+  yesterdaySales: number;
   todayRevenue: number;
+  yesterdayRevenue: number;
   weekRevenue: number;
+  prevWeekRevenue: number;
   monthRevenue: number;
+  todayTax: number;
+  monthTax: number;
+  todayExpenses: number;
+  monthExpenses: number;
+  monthNetProfit: number;
   lowStockCount: number;
+  salesTrend: ChartData[];
+  categoryDistribution: CategoryData[];
+}
+
+export interface ChartData {
+  date: string;
+  revenue: number;
+  count: number;
+}
+
+export interface CategoryData {
+  name: string;
+  value: number;
+}
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  branch: { name: string } | null;
+  createdAt: string | Date;
+  tempExpiresAt?: string | Date | null;
+}
+
+export interface Branch {
+  id: string;
+  name: string;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  type: 'RETAIL' | 'WHOLESALE';
+  creditLimit: number | null;
+  creditUsed: number;
+}
+
+export type SaleType = 'RETAIL' | 'WHOLESALE';
+
+export interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  barcodes: string[];
+  categoryId: string;
+  retailPrice: number;
+  wholesalePrice: number;
+  stockQty: number;
+  lowStockThreshold: number;
+  unitsPerPack: number;
+  wholesaleUnit: string;
+  unit: string;
+  isActive: boolean;
+  branchId: string;
 }
 
 export interface SaleItemInput {
@@ -31,10 +96,11 @@ export interface SaleItemInput {
   quantity: number;
   unitPrice: number;
   discount: number;
+  saleType: SaleType;
 }
 
 export interface CreateSaleInput {
-  customerId: string;
+  customerId?: string;
   paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'MOBILE_MONEY';
   items: SaleItemInput[];
   discount: number;
@@ -50,6 +116,8 @@ export interface ProductCreateInput {
   wholesalePrice: number;
   stockQty: number;
   lowStockThreshold?: number;
+  unitsPerPack?: number;
+  wholesaleUnit?: string;
   supplierId: string;
   imageUrl?: string;
   unit?: string;
