@@ -1,7 +1,9 @@
 import { Resend } from 'resend';
 import { EODReport } from '@/types';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY 
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
 // The "from" address must be from a domain you've verified in Resend.
 // Set RESEND_FROM_EMAIL in your Vercel env vars, e.g. "RetailPro <reports@yourdomain.com>"
@@ -207,8 +209,13 @@ export async function sendEmail(
   html: string,
   attachments?: { filename: string; content: Buffer; contentType: string }[]
 ): Promise<boolean> {
+  if (!resend) {
+    console.warn('Resend API key missing. Email not sent:', { to, subject });
+    return false;
+  }
+
   try {
-    const payload: Parameters<typeof resend.emails.send>[0] = {
+    const payload: any = {
       from: FROM_EMAIL,
       to,
       subject,

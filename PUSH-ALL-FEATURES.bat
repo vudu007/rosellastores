@@ -5,7 +5,7 @@ echo Removing git lock files if present...
 if exist ".git\HEAD.lock" del /f ".git\HEAD.lock"
 if exist ".git\index.lock" del /f ".git\index.lock"
 
-echo Installing dependencies (resend)...
+echo Installing dependencies (resend + qz-tray)...
 call npm install
 
 echo Staging all files...
@@ -54,7 +54,21 @@ git add "src/app/api/staff/route.ts"
 git add "src/app/api/products/route.ts"
 git add "src/app/api/products/[id]/route.ts"
 
-git commit -m "feat: ADMIN role, multi-barcode per product, 24h temporary accounts"
+git add "src/app/api/sales/route.ts"
+git add "src/app/api/settings/route.ts"
+git add "src/app/(dashboard)/dashboard/sales/page.tsx"
+git add "prisma/schema.prisma"
+git add "src/app/api/products/route.ts"
+git add "src/app/api/products/[id]/route.ts"
+git add "src/app/(dashboard)/dashboard/inventory/page.tsx"
+git add "src/app/api/dashboard/stats/route.ts"
+git add "src/app/(dashboard)/dashboard/page.tsx"
+
+echo Staging QZ Tray files...
+git add "src/lib/qztray.ts"
+git add "src/app/(dashboard)/dashboard/settings/page.tsx"
+
+git commit -m "feat: ADMIN role, multi-barcode, 24h temp accounts, wholesale 80mm thermal receipt, POS guest checkout, compact product grid, fix Zod errors, iframe printing, reprint feature, API caching, dashboard tax+expenses+revenue, product cost price, QZ Tray silent thermal printing"
 
 echo Pushing to GitHub...
 git push

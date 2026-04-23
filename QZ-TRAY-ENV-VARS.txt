@@ -1,0 +1,84 @@
+=====================================================================
+  QZ TRAY — VERCEL ENVIRONMENT VARIABLES  (Official QZ Demo Cert)
+  Go to: vercel.com > your project > Settings > Environment Variables
+  DELETE any old QZ_CERTIFICATE and QZ_PRIVATE_KEY first, then add these.
+  Select all 3 environments. Then Redeploy.
+=====================================================================
+
+--- VARIABLE 1 ---
+Name:   QZ_CERTIFICATE
+Value:  Copy everything between the === lines (include the dashes)
+
+===
+-----BEGIN CERTIFICATE-----
+MIIECzCCAvOgAwIBAgIGAZ2xn12SMA0GCSqGSIb3DQEBCwUAMIGiMQswCQYDVQQG
+EwJVUzELMAkGA1UECAwCTlkxEjAQBgNVBAcMCUNhbmFzdG90YTEbMBkGA1UECgwS
+UVogSW5kdXN0cmllcywgTExDMRswGQYDVQQLDBJRWiBJbmR1c3RyaWVzLCBMTEMx
+HDAaBgkqhkiG9w0BCQEWDXN1cHBvcnRAcXouaW8xGjAYBgNVBAMMEVFaIFRyYXkg
+RGVtbyBDZXJ0MB4XDTI2MDQyMDE5NTgyNFoXDTQ2MDQyMDE5NTgyNFowgaIxCzAJ
+BgNVBAYTAlVTMQswCQYDVQQIDAJOWTESMBAGA1UEBwwJQ2FuYXN0b3RhMRswGQYD
+VQQKDBJRWiBJbmR1c3RyaWVzLCBMTEMxGzAZBgNVBAsMElFaIEluZHVzdHJpZXMs
+IExMQzEcMBoGCSqGSIb3DQEJARYNc3VwcG9ydEBxei5pbzEaMBgGA1UEAwwRUVog
+VHJheSBEZW1vIENlcnQwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDX
++4lurelSc96GeZgkJ5hmHShXTVhGWVnVknmpn9s5g2k9Fo9EVX9PCW8+XDs2My+a
+ZkS9fIKPMLiGmDaKxytVGxFBhEHrgwgTayC0Ka2mpejzr/2K0rFGH4vqkYrEBCfc
+IdVFtGTcYAwuHdUVop2747HyBfzjLdvtf0nYK2Kbh2rdQ0wsBrXA4RVRP/SgiM0b
+1rtVT8b014CfjXCkWJrTyPPBr7vCfTtbvacmQD6Lt2BoXSLbdAcOSZtc216yRivx
+eicw1rjlFqfqseiTph03bfYKxaEInZ+2Tc24RyuCEWxf+4fXH/iluRNy4hsKzqLL
+TjeSE8gknHwICM6Qx8EHAgMBAAGjRTBDMBIGA1UdEwEB/wQIMAYBAf8CAQEwDgYD
+VR0PAQH/BAQDAgEGMB0GA1UdDgQWBBTWA1528guHenR1npo5+nctzfQYHzANBgkq
+hkiG9w0BAQsFAAOCAQEAcQVhEHgSA1aC25HcgI5lbUTRmbTBv8jzHu+EqyIrnwtF
+FHVD7y37XBYB+tkIrC1dnzqPQalmsuDHn5tmK/7xk6fHRHJBoOObNPerwxkTKr77
+lx7/b37t9mTnEwZ8fSvQrzRtE7w0CwMuqVmXFMP+MllLxFlEz0IEibjg4fwBdqcB
+GWRiHFPymCA3FDA91W7Z92x4I9QY4W0PR7oeByKGmU8eA8Yj2f06iaiKc51JIUN4
+qT6ZNDcEQVU0QNfiFdkF4oFbPwJWhlIWj36EM2bXOqPENEdrkQr0Ea3aK71YWWDB
+lAH0PnoINlQxRDZx7m2loxa9K6dCk2xkW1mTklPzew==
+-----END CERTIFICATE-----
+===
+
+
+--- VARIABLE 2 ---
+Name:   QZ_PRIVATE_KEY
+Value:  Copy everything between the === lines (include the dashes)
+
+===
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDX+4lurelSc96G
+eZgkJ5hmHShXTVhGWVnVknmpn9s5g2k9Fo9EVX9PCW8+XDs2My+aZkS9fIKPMLiG
+mDaKxytVGxFBhEHrgwgTayC0Ka2mpejzr/2K0rFGH4vqkYrEBCfcIdVFtGTcYAwu
+HdUVop2747HyBfzjLdvtf0nYK2Kbh2rdQ0wsBrXA4RVRP/SgiM0b1rtVT8b014Cf
+jXCkWJrTyPPBr7vCfTtbvacmQD6Lt2BoXSLbdAcOSZtc216yRivxeicw1rjlFqfq
+seiTph03bfYKxaEInZ+2Tc24RyuCEWxf+4fXH/iluRNy4hsKzqLLTjeSE8gknHwI
+CM6Qx8EHAgMBAAECggEAAmZU579pQmrE1AQBg5P9tqi9RtcLqOBw8JVg4lht2aI9
+pu7wvDwiSXuxL5AGcmWNh67PiwwZRpkD0S8GGshNZsksXxN781obMAgL2XnwaCkb
+a6sOwJ5IV59IcTHuc5tuNp0Y9F4llBNByg4NIjaSf8DEZzbXe/i0TbERM3nWmHlv
++yeVoKxvVHjwiCBW43Bt0T/nQ4tVccInR2dP7XjN1y0TENwwmcYSrxtSBIr0Mt55
+YcJXdh8boDcrRcoXyNc+1L8wBz7Jr04csYj1fI5kpHsOxey6o84aHS6lf6EUx1LP
+lzLVaChNrp5gMXBtYCN19+2/AUk2uJTXzr6ervS+YQKBgQDvPFi1FHi15+jzjvnG
+3aBQvYUbgvx6QcyRLYrs46EkegXE+xmLJ/cxqzoJ+hzNX0AKAXs4GPpBQ0XaewcY
+sIuL4Sxs6OZ2OkQUW31DQ/g9AvXxrCCLf0qrYt843H/NRd/4aaZxznrfD3euUoG7
+FCoLm57fTQpVwr6at43hYxG8ZwKBgQDnHg0t0usa5Grq1SDZSYFx4DRDfq0wEqKB
+rXOLYy0+sVUsknb5ApXQjh4VkuxlOVrUtWEbZ/suCVB1QEW+yyq3CRcFTkXVTAd8
+4+FCC+1wkWNccZH1piBMaTI5WpuwXBiFmIyJwubmSRDi4IZKyaQkji5muzQ36xKn
+gl6mi5ryYQKBgD+diW0lc2/TqkNRyqOR/XZa3xFQxHhyFMaqGJ4jbY84j14w8zro
+trfTc0yB4LTP1kSS3kQtiCZgkCunuVxcXc8lYl3XlKjtl3reVTHU2ibHKcVI4yKV
+B7MJSJhjMezQ3ty8o1Dx+gRkpYuKTwsDMqcBi76PSudBMNQNaUH8yROTAoGBAJ2a
+hZwxD7g3+Z0IF611DbutC5bXRJzaqEzMDlYIHKt63D1X55+pHqaos2U82s2wTftt
+cLnyr3vWSDKc0LLp8sf8f+FTXhW1Egodj9etMI6p5lr8627biXzx45ju6+pY8zPv
+Mi8jZLe3Lbe5KnrHhJKVDplpoZNcT01BfvANlW0hAoGAWARY2Mh8jqNgsPw9um42
+wqD+4b11CL1f33lpam4zfH+Yv5sDrfd4XhVQl+nu05D8WHApCK4glWbsP95QzZwH
+AJyo5mpKwD4E4NK80wR2WaLTEmGHART6lSQaMtJdUWvLaylF/gX0JEm420ZHzvRb
+VtEJaO2+d619SvHF2iMXjpw=
+-----END PRIVATE KEY-----
+===
+
+
+=====================================================================
+  STEPS:
+  1. In Vercel, DELETE old QZ_CERTIFICATE and QZ_PRIVATE_KEY
+  2. Add the two new variables above
+  3. Save, then Deployments → Redeploy latest
+  4. After deploy, go to Settings > Thermal Printer > Detect Printers
+  5. QZ Tray will now show "QZ Tray Demo Cert" as a TRUSTED certificate
+  6. Check "Remember this decision" + click Allow — never prompts again!
+=====================================================================

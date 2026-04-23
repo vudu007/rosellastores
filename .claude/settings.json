@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "approveEdit": "all",
+    "approveFetch": "all",
+    "approveMcp": "all",
+    "approveBash": ["!rm", "!chmod", "!docker"]
+  },
+  "spinner": {
+    "customMessages": [
+      "Admiring Shayan's code"
+    ],
+    "defaultTips": false
+  },
+  "output": {
+    "explanatory": true,
+    "plans": "./reports"
+  },
+  "autocompact": 0.8,
+  "attribution": "Co-Authored-By: Claude",
+  "hooks": {
+    "onSessionStart": "python3 .claude/hooks/scripts/hooks.py --event=SessionStart",
+    "onSessionEnd": "python3 .claude/hooks/scripts/hooks.py --event=SessionEnd",
+    "onPreToolUse": "python3 .claude/hooks/scripts/hooks.py --event=PreToolUse",
+    "onPostToolUse": "python3 .claude/hooks/scripts/hooks.py --event=PostToolUse",
+    "onPermissionRequest": "python3 .claude/hooks/scripts/hooks.py --event=PermissionRequest",
+    "onStop": "python3 .claude/hooks/scripts/hooks.py --event=Stop",
+    "timeout": 5
+  },
+  "git": {
+    "useGitignore": true,
+    "allMcpServers": true
+  }
+}

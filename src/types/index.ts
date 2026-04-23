@@ -145,7 +145,7 @@ export interface InventoryAdjustmentInput {
   reason: string;
 }
 
-export type UserRole = 'OWNER' | 'MANAGER' | 'CASHIER' | 'WHOLESALE_CUSTOMER';
+export type UserRole = 'ADMIN' | 'OWNER' | 'MANAGER' | 'CASHIER' | 'WHOLESALE_CUSTOMER';
 
 export interface AuthUser {
   id: string;

@@ -6,6 +6,8 @@ import { sendEmail } from '@/lib/email';
  * Vercel Cron Job endpoint — Daily Low Stock Alert
  * Triggered every morning at 8:00 AM via vercel.json schedule.
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
