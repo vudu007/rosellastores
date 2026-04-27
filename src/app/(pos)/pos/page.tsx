@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   Search, ShoppingCart, User, CreditCard, Banknote,
@@ -68,18 +68,31 @@ export default function POSPage() {
   const [lastScanTime, setLastScanTime] = useState(0);
   const [storeSettings, setStoreSettings] = useState<any>({});
   const [showMobileCart, setShowMobileCart] = useState(false);
-  const [isOnline, setIsOnline] = useState(true);
-  const [pendingSalesCount, setPendingSalesCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [pendingSalesCount, setPendingSalesCount] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    try {
+      const raw = localStorage.getItem('meka_offline_sales_v1');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.length : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [syncingPendingSales, setSyncingPendingSales] = useState(false);
 
   // QZ Tray thermal printer — saved name comes from Settings page via localStorage
-  const [thermalPrinter, setThermalPrinter] = useState<string>('');
-
-  // Restore saved thermal printer from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('meka_thermal_printer');
-    if (saved) setThermalPrinter(saved);
-  }, []);
+  const [thermalPrinter, setThermalPrinter] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      return localStorage.getItem('meka_thermal_printer') || '';
+    } catch {
+      return '';
+    }
+  });
+  const printingRef = useRef(false);
 
   const OFFLINE_SALES_KEY = 'meka_offline_sales_v1';
 
@@ -132,9 +145,6 @@ export default function POSPage() {
   }, [loadOfflineSales, saveOfflineSales, syncingPendingSales]);
 
   useEffect(() => {
-    setIsOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
-    setPendingSalesCount(loadOfflineSales().length);
-
     const onOnline = () => {
       setIsOnline(true);
       syncOfflineSales();
@@ -215,15 +225,6 @@ export default function POSPage() {
     return pricingMode === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
   };
 
-  useEffect(() => {
-    setCart(prev => prev.map(item => {
-      const product = products.find(p => p.id === item.productId);
-      if (!product) return item;
-      const newPrice = pricingMode === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
-      return { ...item, unitPrice: newPrice, total: newPrice * item.quantity - item.discount };
-    }));
-  }, [pricingMode, products]);
-
   const addToCart = useCallback((product: Product) => {
     const saleType = pricingMode;
     const price = saleType === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
@@ -276,7 +277,7 @@ export default function POSPage() {
   }, [cart, pricingMode, products]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    const currentTime = Date.now();
+    const currentTime = e.timeStamp;
 
     if (currentTime - lastScanTime > 50) {
       setBarcodeBuffer('');
@@ -374,30 +375,34 @@ export default function POSPage() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
 
+    const clientSaleId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : null;
+
+    if (!clientSaleId) {
+      setSuccessMessage('This device cannot generate a sale ID (crypto.randomUUID unavailable).');
+      setTimeout(() => setSuccessMessage(null), 4000);
+      return;
+    }
+
+    const payload = {
+      clientSaleId,
+      customerId: selectedCustomer?.id || undefined,
+      paymentMethod,
+      notes:
+        paymentMethod === 'SPLIT'
+          ? `Cash: ${splitAmounts.cash}, Card: ${splitAmounts.card}, Transfer: ${splitAmounts.transfer}, Mobile: ${splitAmounts.mobile}`
+          : undefined,
+      items: cart.map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discount: item.discount,
+        saleType: item.saleType,
+      })),
+      discount: 0,
+    };
+
     try {
-      const clientSaleId =
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto
-          ? crypto.randomUUID()
-          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-
-      const payload = {
-        clientSaleId,
-        customerId: selectedCustomer?.id || undefined,
-        paymentMethod,
-        notes:
-          paymentMethod === 'SPLIT'
-            ? `Cash: ${splitAmounts.cash}, Card: ${splitAmounts.card}, Transfer: ${splitAmounts.transfer}, Mobile: ${splitAmounts.mobile}`
-            : undefined,
-        items: cart.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          saleType: item.saleType,
-        })),
-        discount: 0,
-      };
-
       const response = await fetch('/api/sales', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -409,6 +414,7 @@ export default function POSPage() {
         const savedSale = await response.json();
         const completedSale = {
           id: savedSale.id,
+          clientSaleId,
           customerId: selectedCustomer?.id || '',
           customerName: selectedCustomer?.name || 'Walk-In Customer',
           customerType: selectedCustomer?.type || 'RETAIL',
@@ -422,10 +428,10 @@ export default function POSPage() {
             isTaxable: item.isTaxable,
             taxInclusive: item.taxInclusive,
           })),
-          subtotal,
-          tax,
+          subtotal: typeof savedSale?.subtotal === 'number' ? savedSale.subtotal : subtotal,
+          tax: typeof savedSale?.tax === 'number' ? savedSale.tax : tax,
           taxInclusive: taxBreakdown.inclusive,
-          total,
+          total: typeof savedSale?.total === 'number' ? savedSale.total : total,
           date: savedSale.createdAt || new Date().toISOString(),
         };
         setLastSale(completedSale);
@@ -443,28 +449,6 @@ export default function POSPage() {
       }
     } catch (error) {
       console.error('Error completing sale:', error);
-      const clientSaleId =
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto
-          ? crypto.randomUUID()
-          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-
-      const payload = {
-        clientSaleId,
-        customerId: selectedCustomer?.id || undefined,
-        paymentMethod,
-        notes:
-          paymentMethod === 'SPLIT'
-            ? `Cash: ${splitAmounts.cash}, Card: ${splitAmounts.card}, Transfer: ${splitAmounts.transfer}, Mobile: ${splitAmounts.mobile}`
-            : undefined,
-        items: cart.map((item) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          saleType: item.saleType,
-        })),
-        discount: 0,
-      };
 
       const queue = loadOfflineSales();
       saveOfflineSales([
@@ -474,6 +458,7 @@ export default function POSPage() {
 
       const completedSale = {
         id: clientSaleId,
+        clientSaleId,
         customerId: selectedCustomer?.id || '',
         customerName: selectedCustomer?.name || 'Walk-In Customer',
         customerType: selectedCustomer?.type || 'RETAIL',
@@ -557,11 +542,11 @@ export default function POSPage() {
   // that div visible, call window.print(), then clean up.
   const printViaIframe = (html: string) => {
     // Prevent double-prints — guard lives on window to survive re-renders
-    if ((window as any).__mekaPrinting) {
+    if (printingRef.current) {
       console.log('[MekaERP] Print already in progress — skipping duplicate.');
       return;
     }
-    (window as any).__mekaPrinting = true;
+    printingRef.current = true;
 
     // Strip any old auto-print scripts embedded in the HTML
     const cleanHtml = html.replace(/<script[\s\S]*?<\/script>/gi, '');
@@ -613,7 +598,7 @@ export default function POSPage() {
     const releaseLock = () => {
       document.getElementById('__meka_receipt__')?.remove();
       document.getElementById('__meka_receipt_style__')?.remove();
-      (window as any).__mekaPrinting = false;
+      printingRef.current = false;
       console.log('[MekaERP] Print overlay cleaned up.');
     };
     window.addEventListener('afterprint', releaseLock, { once: true });
@@ -640,7 +625,9 @@ export default function POSPage() {
     const sale = saleData || lastSale;
     if (!sale) return;
 
-    const receiptNo  = `R-${sale.id?.slice(-8).toUpperCase() ?? Date.now().toString(36).toUpperCase()}`;
+    const receiptSuffixSource = String(sale.id || sale.clientSaleId || '');
+    const receiptSuffix = receiptSuffixSource ? receiptSuffixSource.slice(-8).toUpperCase() : 'NA';
+    const receiptNo = `R-${receiptSuffix}`;
     const dateObj    = new Date(sale.date);
     const dateStr    = dateObj.toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' });
     const timeStr    = dateObj.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
@@ -779,8 +766,11 @@ export default function POSPage() {
   const printWholesaleReceipt = async () => {
     if (!lastSale) return;
 
-    const invoiceNo = `WS-${new Date(lastSale.date).getFullYear()}${String(new Date(lastSale.date).getMonth()+1).padStart(2,'0')}${String(new Date(lastSale.date).getDate()).padStart(2,'0')}-${lastSale.id?.slice(-5).toUpperCase() ?? Math.floor(Math.random()*99999).toString().padStart(5,'0')}`;
-    const dateStr   = new Date(lastSale.date).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+    const dateObj = new Date(lastSale.date);
+    const dateStr = dateObj.toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+    const suffixSource = String(lastSale.id || lastSale.clientSaleId || '');
+    const suffix = suffixSource ? suffixSource.slice(-5).toUpperCase() : '00000';
+    const invoiceNo = `WS-${dateObj.getFullYear()}${String(dateObj.getMonth() + 1).padStart(2, '0')}${String(dateObj.getDate()).padStart(2, '0')}-${suffix}`;
     const biz       = storeSettings.businessName || 'MEKAERP';
     const W         = 42; // 80mm thermal column width
 
@@ -880,7 +870,9 @@ ${center('Not valid as retail receipt')}
 
     const dateObj   = new Date(lastSale.date);
     const dateStr   = dateObj.toLocaleDateString('en-NG', { day: '2-digit', month: 'long', year: 'numeric' });
-    const invoiceNo = `INV-${dateObj.getFullYear()}${String(dateObj.getMonth()+1).padStart(2,'0')}${String(dateObj.getDate()).padStart(2,'0')}-${lastSale.id?.slice(-5).toUpperCase() ?? Math.floor(Math.random()*99999).toString().padStart(5,'0')}`;
+    const suffixSource = String(lastSale.id || lastSale.clientSaleId || '');
+    const suffix = suffixSource ? suffixSource.slice(-5).toUpperCase() : '00000';
+    const invoiceNo = `INV-${dateObj.getFullYear()}${String(dateObj.getMonth() + 1).padStart(2, '0')}${String(dateObj.getDate()).padStart(2, '0')}-${suffix}`;
     const biz       = storeSettings.businessName || 'MekaERP';
     const PRIMARY   = [37, 99, 235] as [number, number, number];   // blue-600
     const DARK      = [15, 23, 42]  as [number, number, number];   // slate-900
