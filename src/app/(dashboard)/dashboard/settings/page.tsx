@@ -31,16 +31,20 @@ export default function SettingsPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Thermal printer state
-  const [thermalPrinter, setThermalPrinter] = useState('');
+  const [thermalPrinter, setThermalPrinter] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      return localStorage.getItem('meka_thermal_printer') || '';
+    } catch {
+      return '';
+    }
+  });
   const [availablePrinters, setAvailablePrinters] = useState<string[]>([]);
   const [printerStatus, setPrinterStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [printerMsg, setPrinterMsg] = useState('');
 
   useEffect(() => {
     fetchSettings();
-    // Restore saved thermal printer
-    const saved = localStorage.getItem('meka_thermal_printer');
-    if (saved) setThermalPrinter(saved);
   }, []);
 
   useEffect(() => {
