@@ -22,18 +22,6 @@ export default function StaffPage() {
 
   const canManage = ['ADMIN', 'OWNER'].includes(session?.user?.role || '');
 
-  useEffect(() => {
-    fetchStaff();
-    fetchBranches();
-  }, []);
-
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(null), 4000);
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
-
   const fetchStaff = async () => {
     try {
       const res = await fetch('/api/staff');
@@ -53,6 +41,18 @@ export default function StaffPage() {
       setBranches(Array.isArray(data) ? data : []);
     } catch {}
   };
+
+  useEffect(() => {
+    fetchStaff();
+    fetchBranches();
+  }, []);
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Remove ${name}? Their access will be revoked immediately.`)) return;
