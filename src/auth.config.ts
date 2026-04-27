@@ -22,11 +22,6 @@ export const authConfig = {
       const role = (auth?.user as any)?.role;
       if (role === 'ADMIN') return true;
 
-      // OWNER cannot access Settings — redirect to dashboard
-      if (isSettings && role === 'OWNER') {
-        return Response.redirect(new URL('/dashboard', request.nextUrl));
-      }
-
       return true;
     },
     async jwt({ token, user }) {
