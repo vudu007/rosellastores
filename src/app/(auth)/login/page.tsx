@@ -29,7 +29,7 @@ export default function LoginPage() {
         // Fetch the fresh session to get the user's role, then route directly
         const session = await getSession();
         const role = (session?.user as any)?.role;
-        if (role === 'CASHIER')            router.push('/pos');
+        if (role === 'CASHIER' || role === 'OWNER' || role === 'ADMIN') router.push('/pos');
         else if (role === 'WHOLESALE_CUSTOMER') router.push('/wholesale');
         else                               router.push('/dashboard');
       }
