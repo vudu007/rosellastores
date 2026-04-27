@@ -1,17 +1,19 @@
+const CACHE_PREFIX = 'mekaerp-';
+const CACHE_NAME = 'mekaerp-v1';
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
-      .open('mekaerp-v1')
+      .open(CACHE_NAME)
       .then((cache) =>
         cache.addAll([
-          '/',
           '/login',
-          '/pos',
           '/offline.html',
           '/manifest.webmanifest',
           '/icon.svg',
         ])
       )
+      .catch(() => {})
       .then(() => self.skipWaiting())
   );
 });
@@ -21,7 +23,13 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.map((k) => (k === 'mekaerp-v1' ? Promise.resolve() : caches.delete(k))))
+        Promise.all(
+          keys.map((k) => {
+            if (!k.startsWith(CACHE_PREFIX)) return Promise.resolve();
+            if (k === CACHE_NAME) return Promise.resolve();
+            return caches.delete(k);
+          })
+        )
       )
       .then(() => self.clients.claim())
   );
@@ -39,7 +47,7 @@ self.addEventListener('fetch', (event) => {
       fetch(req)
         .then((res) => {
           const copy = res.clone();
-          caches.open('mekaerp-v1').then((cache) => cache.put(req, copy));
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
           return res;
         })
         .catch(() =>
@@ -55,7 +63,7 @@ self.addEventListener('fetch', (event) => {
         if (cached) return cached;
         return fetch(req).then((res) => {
           const copy = res.clone();
-          caches.open('mekaerp-v1').then((cache) => cache.put(req, copy));
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
           return res;
         });
       })
@@ -67,7 +75,7 @@ self.addEventListener('fetch', (event) => {
     fetch(req)
       .then((res) => {
         const copy = res.clone();
-        caches.open('mekaerp-v1').then((cache) => cache.put(req, copy));
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
         return res;
       })
       .catch(() => caches.match(req))
