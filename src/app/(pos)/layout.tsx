@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export default async function POSLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
 
-  if (!session || !['CASHIER', 'MANAGER', 'OWNER'].includes(session.user.role)) {
+  if (!session || !['CASHIER', 'MANAGER', 'OWNER', 'ADMIN'].includes(session.user.role)) {
     redirect('/login');
   }
 
