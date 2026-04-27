@@ -7,7 +7,11 @@
 import NextAuth from 'next-auth';
 import { authConfig } from '@/auth.config';
 
-export const { auth: middleware } = NextAuth(authConfig);
+const { auth } = NextAuth(authConfig);
+
+export function middleware(...args: Parameters<typeof auth>) {
+  return auth(...args);
+}
 
 export const config = {
   matcher: [
