@@ -8,11 +8,6 @@ import IdleTimer from './IdleTimer';
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Close sidebar when route changes on mobile
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, []);
-
   // Close sidebar on Escape key
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
