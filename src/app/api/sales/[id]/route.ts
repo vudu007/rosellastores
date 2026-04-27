@@ -8,15 +8,16 @@ const updateSaleSchema = z.object({
   status: z.enum(['COMPLETED', 'VOIDED', 'HELD']),
 });
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await context.params;
     const sale = await prisma.sale.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         customer: true,
         cashier: { select: { id: true, name: true, email: true } },
@@ -35,15 +36,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
     if (!session || !['MANAGER', 'OWNER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await context.params;
     const sale = await prisma.sale.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { items: true },
     });
 
@@ -68,7 +70,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     }
 
     const updatedSale = await prisma.sale.update({
-      where: { id: params.id },
+      where: { id },
       data: { status: validatedData.status },
       include: {
         customer: true,
