@@ -1,9 +1,9 @@
 import cron from 'node-cron';
 import { prisma } from './prisma';
 import { sendEODReport } from './eod';
-import { startOfDay, startOfDay as startOfDayFn } from 'date-fns';
+import type { ScheduledTask } from 'node-cron';
 
-let cronJobs: cron.ScheduledTask[] = [];
+let cronJobs: ScheduledTask[] = [];
 
 function parseTime(timeStr: string): { hour: number; minute: number } {
   const [hour, minute] = timeStr.split(':').map(Number);
