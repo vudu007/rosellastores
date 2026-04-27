@@ -72,10 +72,10 @@ export default function IdleTimer() {
 
     const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
     events.forEach(ev => window.addEventListener(ev, onActivity, { passive: true }));
-
-    startTimers(); // Kick off on mount
+    const bootId = window.setTimeout(() => startTimers(), 0);
 
     return () => {
+      window.clearTimeout(bootId);
       events.forEach(ev => window.removeEventListener(ev, onActivity));
       clearTimers();
     };
