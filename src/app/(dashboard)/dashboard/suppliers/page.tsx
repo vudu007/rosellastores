@@ -27,15 +27,6 @@ export default function SuppliersPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [form, setForm] = useState({ name: '', contact: '', email: '', phone: '', address: '' });
 
-  useEffect(() => { fetchSuppliers(); }, []);
-
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(null), 4000);
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
-
   const fetchSuppliers = async () => {
     try {
       const res = await fetch('/api/suppliers');
@@ -47,6 +38,17 @@ export default function SuppliersPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchSuppliers();
+  }, []);
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
 
   const openNew = () => {
     setEditing(null);
