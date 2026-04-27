@@ -142,6 +142,7 @@ export async function POST(req: NextRequest) {
     }
 
     let subtotal = 0;
+    let taxExclusive = 0;
     const saleItems = [];
 
     for (const item of validatedData.items) {
@@ -167,6 +168,11 @@ export async function POST(req: NextRequest) {
       const itemTotal = item.unitPrice * item.quantity - item.discount;
       subtotal += itemTotal;
 
+      const taxRate = 0.075;
+      if (product.isTaxable && !product.taxInclusive) {
+        taxExclusive += itemTotal * taxRate;
+      }
+
       saleItems.push({
         productId: item.productId,
         qty: item.quantity,
@@ -177,9 +183,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const taxRate = 0.075;
-    const tax = subtotal * taxRate;
-    const total = subtotal + tax - validatedData.discount;
+    const tax = taxExclusive;
+    const total = subtotal + taxExclusive - validatedData.discount;
 
     const sale = await prisma.sale.create({
       data: {
