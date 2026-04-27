@@ -12,12 +12,13 @@ const updateCustomerSchema = z.object({
   creditLimit: z.number().nonnegative().optional().nullable(),
 });
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const customer = await prisma.customer.findUnique({ where: { id: params.id } });
+    const { id } = await context.params;
+    const customer = await prisma.customer.findUnique({ where: { id } });
     if (!customer || customer.branchId !== session.user.branchId) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
@@ -27,14 +28,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
     if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const customer = await prisma.customer.findUnique({ where: { id: params.id } });
+    const { id } = await context.params;
+    const customer = await prisma.customer.findUnique({ where: { id } });
     if (!customer || customer.branchId !== session.user.branchId) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
@@ -43,7 +45,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const validatedData = updateCustomerSchema.parse(body);
 
     const updated = await prisma.customer.update({
-      where: { id: params.id },
+      where: { id },
       data: validatedData,
     });
 
@@ -54,19 +56,20 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await auth();
     if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const customer = await prisma.customer.findUnique({ where: { id: params.id } });
+    const { id } = await context.params;
+    const customer = await prisma.customer.findUnique({ where: { id } });
     if (!customer || customer.branchId !== session.user.branchId) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    await prisma.customer.delete({ where: { id: params.id } });
+    await prisma.customer.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
