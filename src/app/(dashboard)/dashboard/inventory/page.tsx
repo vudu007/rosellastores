@@ -44,7 +44,10 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => {
+    if (typeof window === 'undefined') return 'table';
+    return window.matchMedia('(max-width: 767px)').matches ? 'grid' : 'table';
+  });
   const [restockProduct, setRestockProduct] = useState<Product | null>(null);
   const [restockQty, setRestockQty] = useState('');
   const [restockLoading, setRestockLoading] = useState(false);
@@ -377,7 +380,7 @@ export default function InventoryPage() {
           />
         </div>
         
-        <div className="flex items-center gap-4 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full md:w-auto">
           <label className="flex items-center gap-2 cursor-pointer bg-muted/40 px-3 py-2 rounded-lg border border-transparent hover:border-border transition-colors">
             <input
               type="checkbox"
@@ -390,7 +393,7 @@ export default function InventoryPage() {
           
           <div className="h-8 w-[1px] bg-border hidden md:block" />
           
-          <div className="flex bg-muted rounded-lg p-1">
+          <div className="flex bg-muted rounded-lg p-1 self-start sm:self-auto">
             <button 
               onClick={() => setViewMode('table')}
               className={`p-1.5 rounded-md transition-all ${viewMode === 'table' ? 'bg-background shadow-sm text-primary' : 'text-muted-foreground hover:text-foreground'}`}
@@ -416,93 +419,95 @@ export default function InventoryPage() {
         <>
           {viewMode === 'table' ? (
             <div className="card-premium overflow-hidden border-none shadow-xl">
-              <table className="w-full text-left">
-                <thead className="bg-muted/50 text-muted-foreground text-xs font-bold uppercase tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4">Product Details</th>
-                    <th className="px-6 py-4">Category</th>
-                    <th className="px-6 py-4">Inventory Status</th>
-                    <th className="px-6 py-4 text-right">Mkt Price</th>
-                    <th className="px-6 py-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {filteredProducts.map((product) => {
-                    const status = getStockStatus(product.stockQty, product.lowStockThreshold);
-                    return (
-                      <tr key={product.id} className="group hover:bg-muted/20 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                              <Package className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold text-foreground">{product.name}</p>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
-                                {!product.isTaxable && (
-                                  <span className="text-[9px] font-black uppercase tracking-wider bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Tax Exempt</span>
-                                )}
-                                {product.isTaxable && product.taxInclusive && (
-                                  <span className="text-[9px] font-black uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Incl. VAT</span>
-                                )}
+              <div className="overflow-x-auto">
+                <table className="min-w-[860px] w-full text-left">
+                  <thead className="bg-muted/50 text-muted-foreground text-xs font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 md:px-6 py-4">Product Details</th>
+                      <th className="px-4 md:px-6 py-4">Category</th>
+                      <th className="px-4 md:px-6 py-4">Inventory Status</th>
+                      <th className="px-4 md:px-6 py-4 text-right">Mkt Price</th>
+                      <th className="px-4 md:px-6 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filteredProducts.map((product) => {
+                      const status = getStockStatus(product.stockQty, product.lowStockThreshold);
+                      return (
+                        <tr key={product.id} className="group hover:bg-muted/20 transition-colors">
+                          <td className="px-4 md:px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+                                <Package className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-foreground">{product.name}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <p className="text-xs text-muted-foreground font-mono">{product.sku}</p>
+                                  {!product.isTaxable && (
+                                    <span className="text-[9px] font-black uppercase tracking-wider bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Tax Exempt</span>
+                                  )}
+                                  {product.isTaxable && product.taxInclusive && (
+                                    <span className="text-[9px] font-black uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Incl. VAT</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-xs font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground">
-                            {product.category.name}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${status.color}`}>
-                                {status.icon}
-                                {status.label}
-                              </span>
+                          </td>
+                          <td className="px-4 md:px-6 py-4">
+                            <span className="text-xs font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground">
+                              {product.category.name}
+                            </span>
+                          </td>
+                          <td className="px-4 md:px-6 py-4">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${status.color}`}>
+                                  {status.icon}
+                                  {status.label}
+                                </span>
+                              </div>
+                              <p className="text-xs font-medium text-muted-foreground">
+                                {product.stockQty} <span className="text-[10px] opacity-70">available</span>
+                                <span className="mx-1 opacity-20">/</span>
+                                <span className="text-[10px] opacity-70">Min: {product.lowStockThreshold}</span>
+                              </p>
                             </div>
-                            <p className="text-xs font-medium text-muted-foreground">
-                              {product.stockQty} <span className="text-[10px] opacity-70">available</span>
-                              <span className="mx-1 opacity-20">/</span>
-                              <span className="text-[10px] opacity-70">Min: {product.lowStockThreshold}</span>
-                            </p>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex flex-col items-end">
-                            <p className="text-sm font-bold text-foreground">{formatCurrency(product.retailPrice)}</p>
-                            <p className="text-[10px] text-muted-foreground font-medium">WS: {formatCurrency(product.wholesalePrice)}</p>
-                            {product.costPrice > 0 && (
-                              <p className="text-[10px] text-amber-600 font-medium">Cost: {formatCurrency(product.costPrice)}</p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => setRestockProduct(product)} className="p-2 hover:bg-green-100 text-green-600 rounded-lg transition-colors" title="Restock">
-                              <PackagePlus className="w-4 h-4" />
-                            </button>
-                            <button className="p-2 hover:bg-primary/10 text-primary rounded-lg" title="View Details">
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => openEditProduct(product)} className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors" title="Edit">
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => handleDeleteProduct(product)} disabled={deletingProductId === product.id} className="p-2 hover:bg-destructive/10 text-destructive rounded-lg disabled:opacity-40" title="Deactivate">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <div className="group-hover:hidden">
-                            <MoreHorizontal className="w-5 h-5 text-muted-foreground ml-auto" />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td className="px-4 md:px-6 py-4 text-right">
+                            <div className="flex flex-col items-end">
+                              <p className="text-sm font-bold text-foreground">{formatCurrency(product.retailPrice)}</p>
+                              <p className="text-[10px] text-muted-foreground font-medium">WS: {formatCurrency(product.wholesalePrice)}</p>
+                              {product.costPrice > 0 && (
+                                <p className="text-[10px] text-amber-600 font-medium">Cost: {formatCurrency(product.costPrice)}</p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 md:px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => setRestockProduct(product)} className="p-2 hover:bg-green-100 text-green-600 rounded-lg transition-colors" title="Restock">
+                                <PackagePlus className="w-4 h-4" />
+                              </button>
+                              <button className="p-2 hover:bg-primary/10 text-primary rounded-lg" title="View Details">
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => openEditProduct(product)} className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors" title="Edit">
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => handleDeleteProduct(product)} disabled={deletingProductId === product.id} className="p-2 hover:bg-destructive/10 text-destructive rounded-lg disabled:opacity-40" title="Deactivate">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <div className="hidden md:block md:group-hover:hidden">
+                              <MoreHorizontal className="w-5 h-5 text-muted-foreground ml-auto" />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               {filteredProducts.length === 0 && (
                 <div className="p-20 text-center space-y-3">
                   <Package className="w-12 h-12 text-muted-foreground/20 mx-auto" />
@@ -897,7 +902,7 @@ export default function InventoryPage() {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-6 right-6 z-50 p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-up ${toast.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+        <div className={`fixed top-4 left-4 right-4 sm:top-6 sm:left-auto sm:right-6 z-50 p-4 rounded-xl shadow-2xl flex items-center gap-3 animate-slide-up ${toast.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
           {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
           <span className="text-sm font-medium">{toast.message}</span>
         </div>
