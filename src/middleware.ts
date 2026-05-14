@@ -24,5 +24,5 @@ export const config = {
      * - api/cron     (Vercel Cron endpoints, secured by CRON_SECRET)
      */
     '/((?!_next/static|_next/image|favicon.ico|api/auth|api/cron|api/qz).*)',
-  ],
+  ]
 };
