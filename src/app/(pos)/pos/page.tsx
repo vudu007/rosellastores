@@ -1150,7 +1150,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
   }
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-background text-foreground transition-all duration-300 relative">
+    <div className="flex min-h-[calc(100vh-64px)] h-[calc(100dvh-64px)] overflow-hidden bg-background text-foreground transition-all duration-300 relative">
       {/* Product Catalog Section */}
       <div className={`flex-col p-4 md:p-6 space-y-4 md:space-y-6 overflow-hidden flex-1 ${showMobileCart ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex flex-col sm:flex-row gap-4">
@@ -1192,7 +1192,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
           </div>
         </div>
 
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2 flex-1 overflow-y-auto pr-2 content-start">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2 flex-1 overflow-y-auto pr-2 content-start">
           {filteredProducts.map((product) => (
             <button
               key={product.id}
@@ -1235,7 +1235,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
 
       {/* Cart Section — full-screen on mobile when active, fixed panel on desktop */}
       <div className={`bg-card border-l flex-col shadow-2xl z-10 animate-entrance w-full md:w-[420px] ${showMobileCart ? 'flex' : 'hidden md:flex'}`}>
-        <div className="p-6 border-b space-y-4">
+        <div className="p-4 md:p-6 border-b space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-xl flex items-center gap-2">
               {/* Back button — mobile only */}
