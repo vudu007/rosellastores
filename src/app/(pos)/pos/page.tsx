@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-// QZ Tray removed — printing handled via browser iframe + Chrome --kiosk-printing
+import { printHTMLWithQZ } from '@/lib/qztray';
 
 interface Product {
   id: string;
@@ -619,6 +619,18 @@ export default function POSPage() {
    * 2. Falls back to iframe printing (shows browser print dialog) on any error.
    */
   const printDoc = async (html: string) => {
+    if (thermalPrinter) {
+      try {
+        console.log(`[MekaERP] Attempting QZ Tray print to "${thermalPrinter}"…`);
+        await printHTMLWithQZ(html, thermalPrinter);
+        console.log('[MekaERP] QZ Tray print successful.');
+        return; // Skip fallback if successful
+      } catch (err: any) {
+        console.warn('[MekaERP] QZ Tray print failed, falling back to browser print:', err);
+        setSuccessMessage(`QZ Print failed: ${err.message}. Falling back to browser print.`);
+        setTimeout(() => setSuccessMessage(null), 4000);
+      }
+    }
     // Uses browser iframe print — silent when Chrome is launched with --kiosk-printing flag
     printViaIframe(html);
   };
