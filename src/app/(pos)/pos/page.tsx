@@ -419,6 +419,7 @@ export default function POSPage() {
           customerName: selectedCustomer?.name || 'Walk-In Customer',
           customerType: selectedCustomer?.type || 'RETAIL',
           paymentMethod,
+          notes: savedSale?.notes ?? payload.notes,
           items: cart.map((item) => ({
             name: item.name,
             quantity: item.quantity,
@@ -463,6 +464,7 @@ export default function POSPage() {
         customerName: selectedCustomer?.name || 'Walk-In Customer',
         customerType: selectedCustomer?.type || 'RETAIL',
         paymentMethod,
+        notes: payload.notes,
         items: cart.map((item) => ({
           name: item.name,
           quantity: item.quantity,
@@ -640,17 +642,41 @@ export default function POSPage() {
       MOBILE_MONEY: 'Mobile Money', SPLIT: 'Split Payment',
     };
 
+    const grossSubtotal = sale.items.reduce((acc: number, item: any) => {
+      const qty = Number(item.quantity) || 0;
+      const unit = Number(item.unitPrice) || 0;
+      return acc + qty * unit;
+    }, 0);
+    const discountTotal = sale.items.reduce((acc: number, item: any) => acc + (Number(item.discount) || 0), 0);
+
+    const splitParts =
+      sale.paymentMethod === 'SPLIT' && typeof sale.notes === 'string'
+        ? (() => {
+            const m = sale.notes.match(/Cash:\s*([\d.]+),\s*Card:\s*([\d.]+),\s*Transfer:\s*([\d.]+),\s*Mobile:\s*([\d.]+)/i);
+            if (!m) return null;
+            const toMoney = (s: string) => formatCurrency(Number(s) || 0);
+            return {
+              cash: toMoney(m[1]),
+              card: toMoney(m[2]),
+              transfer: toMoney(m[3]),
+              mobile: toMoney(m[4]),
+            };
+          })()
+        : null;
+
     const itemRows = sale.items.map((item: any) => {
       const name     = String(item.name).slice(0, 24);
       const taxTag   = !item.isTaxable ? '<span style="font-size:8px;color:#666"> [EX]</span>'
                      : item.taxInclusive ? '<span style="font-size:8px;color:#666"> [TI]</span>' : '';
       const unitP    = formatCurrency(item.unitPrice);
       const tot      = formatCurrency(item.total);
+      const disc     = Number(item.discount) > 0 ? `<div style="font-size:9px;color:#444;font-weight:600">Disc: -${formatCurrency(item.discount)}</div>` : '';
       return `
         <tr>
           <td style="padding:2px 0 1px;vertical-align:top">
             <div style="font-weight:700;font-size:11px">${name}${taxTag}</div>
             <div style="font-size:9.5px;color:#444;font-weight:600">${item.quantity} × ${unitP}</div>
+            ${disc}
           </td>
           <td style="text-align:right;vertical-align:top;padding:2px 0 1px;font-size:11px;font-weight:700;white-space:nowrap">${tot}</td>
         </tr>`;
@@ -661,13 +687,25 @@ export default function POSPage() {
     const taxInclusHtml = sale.taxInclusive > 0
       ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">VAT (incl. in price)</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${formatCurrency(sale.taxInclusive)}</td></tr>` : '';
 
+    const discountHtml = discountTotal > 0
+      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Discount</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">-${formatCurrency(discountTotal)}</td></tr>`
+      : '';
+
+    const splitHtml = splitParts
+      ? `
+        <tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Split: Cash</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${splitParts.cash}</td></tr>
+        <tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Split: Card</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${splitParts.card}</td></tr>
+        <tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Split: Transfer</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${splitParts.transfer}</td></tr>
+        <tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Split: Mobile</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${splitParts.mobile}</td></tr>
+      `
+      : '';
+
     const receiptHtml = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <title>Receipt ${receiptNo}</title>
   <style>
-    @page { size: 80mm auto; margin: 2mm 3mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Courier New', Courier, monospace;
@@ -677,10 +715,11 @@ export default function POSPage() {
       width: 74mm;
       color: #000;
       background: #fff;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
     }
     table { width: 100%; border-collapse: collapse; }
+    img { max-width: 100%; height: auto; }
+    .logo { display: flex; justify-content: center; margin-bottom: 4px; }
+    .logo img { max-height: 18mm; object-fit: contain; }
     .biz-name {
       font-size: 16px; font-weight: 900; letter-spacing: 2px;
       text-align: center; text-transform: uppercase; margin-bottom: 2px;
@@ -706,11 +745,11 @@ export default function POSPage() {
     .grand td:last-child { text-align: right; }
     .footer { text-align: center; font-size: 9.5px; font-weight: 600; color: #222; line-height: 1.7; margin-top: 3px; }
     .rcpt-id { text-align: center; font-size: 9px; font-weight: 600; letter-spacing: 1px; margin-top: 2px; color: #444; }
-    @media print { html, body { margin: 0; width: 74mm; } }
   </style>
 </head>
 <body>
 
+${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.businessLogo}" alt="${biz}"/></div>` : ''}
 <div class="biz-name">${biz}</div>
 <div class="biz-info">
   ${storeSettings.businessAddress ? storeSettings.businessAddress + '<br>' : ''}
@@ -741,8 +780,11 @@ export default function POSPage() {
 
 <hr class="dash">
 <table class="totals">
+  <tr><td>Gross</td><td>${formatCurrency(grossSubtotal)}</td></tr>
+  ${discountHtml}
   <tr><td>Subtotal</td><td>${formatCurrency(sale.subtotal)}</td></tr>
   ${taxAddedHtml}${taxInclusHtml}
+  ${splitHtml}
 </table>
 <hr class="solid">
 <table class="grand">
@@ -772,36 +814,41 @@ export default function POSPage() {
     const suffix = suffixSource ? suffixSource.slice(-5).toUpperCase() : '00000';
     const invoiceNo = `WS-${dateObj.getFullYear()}${String(dateObj.getMonth() + 1).padStart(2, '0')}${String(dateObj.getDate()).padStart(2, '0')}-${suffix}`;
     const biz       = storeSettings.businessName || 'MEKAERP';
-    const W         = 42; // 80mm thermal column width
-
-    const row = (left: string, right: string) => {
-      const gap = W - left.length - right.length;
-      return left + (gap > 0 ? ' '.repeat(gap) : ' ') + right;
-    };
-    const center = (s: string) => {
-      const pad = Math.max(0, Math.floor((W - s.length) / 2));
-      return ' '.repeat(pad) + s;
-    };
-    const dash  = '-'.repeat(W);
-    const dDash = '='.repeat(W);
 
     const payLabel: Record<string, string> = {
       CASH: 'Cash', CARD: 'Card / POS', BANK_TRANSFER: 'Bank Transfer',
       MOBILE_MONEY: 'Mobile Money', SPLIT: 'Split Payment',
     };
 
-    const itemLines = lastSale.items.map((item: any) => {
-      const desc     = `${item.name}`.slice(0, 28);
-      const qtyPrice = `${item.quantity} x ${formatCurrency(item.unitPrice)}`;
-      const total    = formatCurrency(item.total);
-      return [
-        `  ${desc}`,
-        row(`  ${qtyPrice}`, total),
-      ].join('\n');
-    }).join('\n');
+    const grossSubtotal = lastSale.items.reduce((acc: number, item: any) => {
+      const qty = Number(item.quantity) || 0;
+      const unit = Number(item.unitPrice) || 0;
+      return acc + qty * unit;
+    }, 0);
+    const discountTotal = lastSale.items.reduce((acc: number, item: any) => acc + (Number(item.discount) || 0), 0);
 
-    const discountLine = lastSale.discount > 0 ? `\n${row('  Discount:', `-${formatCurrency(lastSale.discount)}`)}` : '';
-    const taxAddedLine = lastSale.tax > 0 ? `\n${row('  VAT 7.5%:', formatCurrency(lastSale.tax))}` : '';
+    const itemRows = lastSale.items.map((item: any) => {
+      const name  = String(item.name).slice(0, 26);
+      const unitP = formatCurrency(item.unitPrice);
+      const tot   = formatCurrency(item.total);
+      const disc  = Number(item.discount) > 0 ? `<div style="font-size:9px;color:#444;font-weight:600">Disc: -${formatCurrency(item.discount)}</div>` : '';
+      return `
+        <tr>
+          <td style="padding:2px 0 1px;vertical-align:top">
+            <div style="font-weight:800;font-size:11px">${name}</div>
+            <div style="font-size:9.5px;color:#444;font-weight:600">${item.quantity} × ${unitP}</div>
+            ${disc}
+          </td>
+          <td style="text-align:right;vertical-align:top;padding:2px 0 1px;font-size:11px;font-weight:800;white-space:nowrap">${tot}</td>
+        </tr>`;
+    }).join('');
+
+    const discountHtml = discountTotal > 0
+      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:700">Discount</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:700">-${formatCurrency(discountTotal)}</td></tr>`
+      : '';
+    const taxAddedHtml = lastSale.tax > 0
+      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:700">VAT 7.5% (excl.)</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:700">${formatCurrency(lastSale.tax)}</td></tr>`
+      : '';
 
     const receiptHtml = `<!DOCTYPE html>
 <html>
@@ -809,55 +856,82 @@ export default function POSPage() {
   <meta charset="UTF-8">
   <title>Wholesale Receipt ${invoiceNo}</title>
   <style>
-    @page { size: 80mm auto; margin: 4mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Courier New', Courier, monospace;
-      font-size: 12px;
-      line-height: 1.45;
-      width: 72mm;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.4;
+      width: 74mm;
       color: #000;
       background: #fff;
-      padding: 4mm 0;
     }
-    pre { white-space: pre-wrap; word-break: break-word; font-family: inherit; font-size: inherit; }
-    .biz-name { font-size: 18px; font-weight: 900; letter-spacing: 1px; text-align: center; margin-bottom: 2px; }
-    .biz-sub  { font-size: 11px; text-align: center; color: #333; }
-    .ws-badge { font-size: 10px; font-weight: 900; letter-spacing: 2px; text-align: center; border: 2px solid #000; padding: 2px 0; margin: 5px 0; }
-    .total-line { font-size: 15px; font-weight: 900; }
-    .footer { text-align: center; font-size: 11px; margin-top: 8px; color: #333; }
-    @media print { html, body { margin: 0; padding: 0; } body { width: 72mm; } }
+    table { width: 100%; border-collapse: collapse; }
+    img { max-width: 100%; height: auto; }
+    .logo { display: flex; justify-content: center; margin-bottom: 4px; }
+    .logo img { max-height: 18mm; object-fit: contain; }
+    .biz-name { font-size: 16px; font-weight: 900; letter-spacing: 2px; text-align: center; text-transform: uppercase; margin-bottom: 2px; }
+    .biz-sub  { font-size: 9.5px; font-weight: 600; text-align: center; line-height: 1.6; color: #222; }
+    .dash  { border: none; border-top: 1px dashed #000; margin: 3px 0; }
+    .solid { border: none; border-top: 2px solid  #000; margin: 3px 0; }
+    .badge { font-size: 10px; font-weight: 900; letter-spacing: 3px; text-align: center; padding: 2px 0; border: 2px solid #000; }
+    .meta td { font-size: 10px; font-weight: 700; padding: 1px 0; }
+    .meta td:last-child { text-align: right; font-weight: 800; }
+    .col-hdr { font-size: 9px; font-weight: 900; letter-spacing: 1px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 2px 0; }
+    .col-hdr td:last-child { text-align: right; }
+    .totals td { padding: 1px 0; font-size: 10.5px; font-weight: 800; }
+    .totals td:last-child { text-align: right; }
+    .grand td { font-size: 14px; font-weight: 900; padding: 2px 0; }
+    .grand td:last-child { text-align: right; }
+    .footer { text-align: center; font-size: 9.5px; font-weight: 600; color: #222; line-height: 1.7; margin-top: 3px; }
   </style>
 </head>
 <body>
+${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.businessLogo}" alt="${biz}"/></div>` : ''}
 <div class="biz-name">${biz}</div>
-${storeSettings.businessAddress ? `<div class="biz-sub">${storeSettings.businessAddress}</div>` : ''}
-${storeSettings.businessPhone   ? `<div class="biz-sub">Tel: ${storeSettings.businessPhone}</div>` : ''}
-${storeSettings.businessEmail   ? `<div class="biz-sub">${storeSettings.businessEmail}</div>` : ''}
-<div class="ws-badge">*** WHOLESALE RECEIPT ***</div>
-<pre>
-${dash}
-${row('Invoice No:', invoiceNo)}
-${row('Date:', dateStr)}
-${row('Customer:', lastSale.customerName || 'Wholesale Customer')}
-${row('Payment:', payLabel[lastSale.paymentMethod] || lastSale.paymentMethod)}
-${dash}
-ITEMS (WHOLESALE PRICING)
-${dash}
-${itemLines}
-${dash}
-${row('Subtotal:', formatCurrency(lastSale.subtotal))}${discountLine}${taxAddedLine}
-${dDash}
-</pre>
-<pre class="total-line">${row('  TOTAL PAID:', formatCurrency(lastSale.total))}</pre>
-<pre>
-${dDash}
-${center('** WHOLESALE COPY **')}
-${center('Not valid as retail receipt')}
-</pre>
+<div class="biz-sub">
+  ${storeSettings.businessAddress ? storeSettings.businessAddress + '<br>' : ''}
+  ${storeSettings.businessPhone   ? 'Tel: ' + storeSettings.businessPhone : ''}
+  ${storeSettings.businessEmail   ? '<br>' + storeSettings.businessEmail : ''}
+</div>
+
+<hr class="solid">
+<div class="badge">&#9733; WHOLESALE RECEIPT &#9733;</div>
+<hr class="dash">
+
+<table class="meta">
+  <tr><td>Invoice #</td><td>${invoiceNo}</td></tr>
+  <tr><td>Date</td><td>${dateStr}</td></tr>
+  <tr><td>Customer</td><td>${lastSale.customerName || 'Wholesale Customer'}</td></tr>
+  <tr><td>Payment</td><td>${payLabel[lastSale.paymentMethod] || lastSale.paymentMethod}</td></tr>
+</table>
+
+<hr class="dash">
+<table>
+  <tr class="col-hdr">
+    <td>ITEM (WHOLESALE)</td>
+    <td style="text-align:right">AMOUNT</td>
+  </tr>
+  ${itemRows}
+</table>
+
+<hr class="dash">
+<table class="totals">
+  <tr><td>Gross</td><td>${formatCurrency(grossSubtotal)}</td></tr>
+  ${discountHtml}
+  <tr><td>Subtotal</td><td>${formatCurrency(lastSale.subtotal)}</td></tr>
+  ${taxAddedHtml}
+</table>
+<hr class="solid">
+<table class="grand">
+  <tr><td>TOTAL PAID</td><td>${formatCurrency(lastSale.total)}</td></tr>
+</table>
+<hr class="dash">
+
 <div class="footer">
-  ${storeSettings.receiptFooter || 'Thank you for your business!'}
-  <br>Please retain for your records.
+  <div style="font-weight:900;letter-spacing:1px">WHOLESALE COPY</div>
+  <div style="font-size:9px;color:#444">Not valid as retail receipt</div>
+  <div style="margin-top:3px">${storeSettings.receiptFooter || 'Thank you for your business!'}</div>
 </div>
 </body>
 </html>`;
