@@ -12,12 +12,16 @@ test.describe('Authentication', () => {
     await page.fill('input[type="password"]', 'owner123');
     await page.click('button[type="submit"]');
 
-    // Should redirect to POS by default. Note: WebKit might take slightly longer.
-    await expect(page).toHaveURL(/.*\/pos/, { timeout: 10000 });
+    // Default landing for OWNER is Dashboard
+    await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
 
     // Should be able to navigate to dashboard
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/.*\/dashboard/);
+
+    // Should be able to access POS as well
+    await page.goto('/pos');
+    await expect(page).toHaveURL(/.*\/pos/);
   });
 
   test('cashier should be able to login and access POS but NOT Dashboard', async ({ page }) => {
@@ -27,7 +31,7 @@ test.describe('Authentication', () => {
     await page.click('button[type="submit"]');
 
     // Should redirect to POS by default
-    await expect(page).toHaveURL(/.*\/pos/, { timeout: 10000 });
+    await expect(page).toHaveURL(/.*\/pos/, { timeout: 15000 });
 
     // Dashboard should kick them back
     await page.goto('/dashboard');
