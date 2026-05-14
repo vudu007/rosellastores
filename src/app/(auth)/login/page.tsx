@@ -2,14 +2,41 @@
 
 import { useState } from 'react';
 import { signIn, getSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const normalizeCallbackUrl = (value: string | null) => {
+    if (!value) return null;
+    const decoded = decodeURIComponent(value);
+    if (decoded.startsWith('/')) return decoded;
+    try {
+      const url = new URL(decoded);
+      return `${url.pathname}${url.search}${url.hash}`;
+    } catch {
+      return null;
+    }
+  };
+
+  const isSafeRedirectTarget = (path: string) => {
+    if (!path.startsWith('/')) return false;
+    if (path.startsWith('/api')) return false;
+    if (path.startsWith('/_next')) return false;
+    if (path.startsWith('/login')) return false;
+    return true;
+  };
+
+  const getDefaultLanding = (role: string | undefined) => {
+    if (role === 'CASHIER') return '/pos';
+    if (role === 'WHOLESALE_CUSTOMER') return '/wholesale';
+    return '/dashboard';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,10 +55,23 @@ export default function LoginPage() {
       } else if (result?.ok) {
         // Fetch the fresh session to get the user's role, then route directly
         const session = await getSession();
-        const role = (session?.user as any)?.role;
-        if (role === 'CASHIER' || role === 'OWNER' || role === 'ADMIN') router.push('/pos');
-        else if (role === 'WHOLESALE_CUSTOMER') router.push('/wholesale');
-        else                               router.push('/dashboard');
+        const role = (session?.user as any)?.role as string | undefined;
+
+        const callbackUrlRaw = searchParams.get('callbackUrl');
+        const candidate = normalizeCallbackUrl(callbackUrlRaw);
+        const safeCandidate = candidate && isSafeRedirectTarget(candidate) ? candidate : null;
+
+        const defaultLanding = getDefaultLanding(role);
+
+        let target = safeCandidate ?? defaultLanding;
+
+        if (role === 'CASHIER') {
+          if (!target.startsWith('/pos')) target = '/pos';
+        } else if (role === 'WHOLESALE_CUSTOMER') {
+          if (!target.startsWith('/wholesale')) target = '/wholesale';
+        }
+
+        router.push(target);
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
