@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { signIn, getSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function LoginPage() {
+function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
@@ -137,5 +137,27 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-8">
+              <h1 className="text-3xl font-bold text-white text-center">MekaERP</h1>
+              <p className="text-blue-100 text-center mt-2">Management System</p>
+            </div>
+            <div className="p-8">
+              <div className="text-center text-sm text-muted-foreground">Loading…</div>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <LoginInner />
+    </Suspense>
   );
 }
