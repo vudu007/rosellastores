@@ -94,7 +94,13 @@ export default function InventoryPage() {
               body: JSON.stringify(results.data),
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Failed to import');
+            if (!res.ok) {
+              const msg =
+                (Array.isArray(data?.errors) && data.errors.length > 0
+                  ? data.errors.slice(0, 4).join(' • ')
+                  : data?.error) || 'Failed to import';
+              throw new Error(msg);
+            }
             
             setToast({ type: 'success', message: `${data.message}` });
             
