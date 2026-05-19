@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     });
     
     // Default to a fallback if setting is missing
-    const businessName = businessNameSetting?.value || 'MekaERP Store';
+    const businessName = businessNameSetting?.value || 'Rosellla Stores';
     
     // Use the owner's email or a configured recipient
     const ownerEmailSetting = await prisma.setting.findUnique({
