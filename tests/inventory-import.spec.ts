@@ -26,6 +26,42 @@ const toSkuSafe = (value: string) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 36);
 
+const inferCategoryFromName = (name: string) => {
+  const n = name.toLowerCase();
+
+  const hasAny = (words: string[]) => words.some((w) => n.includes(w));
+
+  if (hasAny(['milo', 'ovaltine', 'milk', 'tea', 'coffee', 'coke', 'fanta', 'sprite', 'pepsi', 'juice', 'malt', 'water', 'choco'])) {
+    return 'Beverages';
+  }
+
+  if (hasAny(['soap', 'tooth', 'toothbrush', 'toothpaste', 'shampoo', 'conditioner', 'rollon', 'deodorant', 'perfume', 'lotion', 'cream', 'vaseline', 'sanitary', 'pad', 'tissue'])) {
+    return 'Toiletries';
+  }
+
+  if (hasAny(['diaper', 'nappy', 'baby', 'kiddies', 'wipe', 'feeding', 'bottle', 'pacifier'])) {
+    return 'Baby';
+  }
+
+  if (hasAny(['detergent', 'bleach', 'dish', 'washing', 'wash', 'cleaner', 'sponge', 'broom', 'bucket'])) {
+    return 'Household';
+  }
+
+  if (hasAny(['biscuit', 'cookie', 'cracker', 'chips', 'chin', 'sweet', 'candy', 'gum', 'chocolate', 'popcorn'])) {
+    return 'Snacks';
+  }
+
+  if (hasAny(['rice', 'beans', 'garri', 'flour', 'sugar', 'salt', 'oil', 'noodle', 'pasta', 'spaghetti', 'tomato', 'seasoning', 'maggi', 'knorr'])) {
+    return 'Groceries';
+  }
+
+  if (hasAny(['pen', 'pencil', 'notebook', 'book', 'eraser', 'marker', 'crayon'])) {
+    return 'Stationery';
+  }
+
+  return 'Other';
+};
+
 const readInventoryCsv = () => {
   const candidates = [
     csvPath,
@@ -90,9 +126,7 @@ test('import inventory from CSV into a clean active inventory', async ({ page })
     if (c?.name && c?.id) categoryByName.set(String(c.name).trim(), String(c.id));
   }
 
-  const uniqueCategoryNames = Array.from(
-    new Set(rows.map((r) => String(r['Under Group'] ?? 'General').trim() || 'General'))
-  );
+  const uniqueCategoryNames = Array.from(new Set(rows.map((r) => inferCategoryFromName(String(r.Name ?? '').trim()))));
 
   for (const name of uniqueCategoryNames) {
     if (categoryByName.has(name)) continue;
@@ -124,7 +158,7 @@ test('import inventory from CSV into a clean active inventory', async ({ page })
   const payload = rows.map((r, idx) => {
     const name = String(r.Name ?? '').trim();
     const alias = String(r.Alias ?? '').trim();
-    const group = String(r['Under Group'] ?? 'General').trim() || 'General';
+    const group = inferCategoryFromName(name);
 
     const base = alias ? toSkuSafe(alias) : `${toSkuSafe(name)}-${idx + 1}`;
     const baseSku = `IMP-${runId}-${base || `ITEM-${idx + 1}`}`;
@@ -132,7 +166,7 @@ test('import inventory from CSV into a clean active inventory', async ({ page })
     skuCounts.set(baseSku, seen);
     const sku = seen > 1 ? `${baseSku}-${seen}` : baseSku;
 
-    const categoryId = categoryByName.get(group) ?? categoryByName.get('General');
+    const categoryId = categoryByName.get(group) ?? categoryByName.get('Other');
     if (!categoryId) {
       throw new Error(`Missing categoryId for "${group}"`);
     }
