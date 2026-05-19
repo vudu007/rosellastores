@@ -50,13 +50,6 @@ export async function POST(req: NextRequest) {
             supplierId: p.supplierId,
             branchId: branchId,
             retailPrice: parseFloat(p.retailPrice),
-            wholesalePrice: (() => {
-              const fallback = parseFloat(p.retailPrice);
-              const candidate = p.wholesalePrice === undefined || p.wholesalePrice === null || p.wholesalePrice === ''
-                ? NaN
-                : parseFloat(p.wholesalePrice);
-              return Number.isFinite(candidate) ? candidate : fallback;
-            })(),
             stockQty: parseInt(p.stockQty, 10) || 0,
             lowStockThreshold: parseInt(p.lowStockThreshold, 10) || 10,
             unit: p.unit || 'pcs'
