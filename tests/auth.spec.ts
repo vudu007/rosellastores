@@ -8,6 +8,8 @@ test.describe('Authentication', () => {
     expect(json?.env?.databaseUrlPresent).toBeTruthy();
     expect(json?.env?.databaseUrlHasQuotes).toBeFalsy();
     expect(json?.db?.connected).toBeTruthy();
+    expect(json?.db?.branchCount).toBeGreaterThan(0);
+    expect(json?.db?.userCount).toBeGreaterThan(0);
   });
 
   test('should redirect unauthenticated users to login', async ({ page }) => {
