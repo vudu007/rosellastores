@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
+import path from 'node:path';
 import Papa from 'papaparse';
 
 type CsvRow = {
@@ -24,7 +25,17 @@ const toSkuSafe = (value: string) =>
     .slice(0, 36);
 
 const readInventoryCsv = () => {
-  const raw = fs.readFileSync(csvPath, 'utf8');
+  const candidates = [
+    csvPath,
+    'D:\\ListofItems.csv',
+    path.resolve(process.cwd(), 'ListofItems.csv'),
+  ];
+  const resolved = candidates.find((p) => fs.existsSync(p));
+  if (!resolved) {
+    throw new Error(`CSV file not found. Tried: ${candidates.join(', ')}`);
+  }
+
+  const raw = fs.readFileSync(resolved, 'utf8');
   const lines = raw.split(/\r?\n/);
   const startIdx = Math.max(0, lines.findIndex((l) => l.trim().startsWith('Name,Alias,Under Group')));
   const sliced = lines.slice(startIdx).join('\n');
@@ -97,31 +108,28 @@ test('import inventory from CSV into a clean active inventory', async ({ page })
 
   const inventoryBefore = await page.request.get('/api/inventory');
   expect(inventoryBefore.ok()).toBeTruthy();
-  const activeProductsBefore = (await inventoryBefore.json()) as any[];
-
-  for (const p of activeProductsBefore) {
-    const id = p?.id as string | undefined;
-    if (!id) continue;
-    const del = await page.request.delete(`/api/products/${id}`);
-    if (!del.ok()) {
-      const err = await del.json().catch(() => ({}));
-      throw new Error(`Failed to deactivate product ${id}: ${err?.error ?? del.status()}`);
-    }
-  }
+  const clearRes = await page.request.delete('/api/inventory');
+  expect(clearRes.ok()).toBeTruthy();
 
   const inventoryCleared = await page.request.get('/api/inventory');
   expect(inventoryCleared.ok()).toBeTruthy();
   const activeAfterClear = (await inventoryCleared.json()) as any[];
   expect(activeAfterClear.length).toBe(0);
 
+  const runId = Date.now().toString(36).toUpperCase();
   const skuToCategoryName = new Map<string, string>();
+  const skuCounts = new Map<string, number>();
   const payload = rows.map((r, idx) => {
     const name = String(r.Name ?? '').trim();
     const alias = String(r.Alias ?? '').trim();
     const group = String(r['Under Group'] ?? 'General').trim() || 'General';
 
-    const skuBase = alias ? `IMP-${toSkuSafe(alias)}` : `IMP-${toSkuSafe(name)}-${idx + 1}`;
-    const sku = skuBase || `IMP-ITEM-${idx + 1}`;
+    const base = alias ? toSkuSafe(alias) : `${toSkuSafe(name)}-${idx + 1}`;
+    const baseSku = `IMP-${runId}-${base || `ITEM-${idx + 1}`}`;
+    const seen = (skuCounts.get(baseSku) ?? 0) + 1;
+    skuCounts.set(baseSku, seen);
+    const sku = seen > 1 ? `${baseSku}-${seen}` : baseSku;
+
     const categoryId = categoryByName.get(group) ?? categoryByName.get('General');
     if (!categoryId) {
       throw new Error(`Missing categoryId for "${group}"`);
