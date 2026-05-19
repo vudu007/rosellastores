@@ -65,13 +65,31 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
     const body = await req.json();
     const validatedData = updateProductSchema.parse(body);
 
-    const updatedProduct = await prisma.product.update({
-      where: { id },
-      data: validatedData,
-      include: {
-        category: true,
-        supplier: true,
-      },
+    const priceChanged =
+      typeof validatedData.retailPrice === 'number' && validatedData.retailPrice !== product.retailPrice;
+
+    const updatedProduct = await prisma.$transaction(async tx => {
+      const updated = await tx.product.update({
+        where: { id },
+        data: validatedData,
+        include: {
+          category: true,
+          supplier: true,
+        },
+      });
+
+      if (priceChanged) {
+        await tx.priceTag.create({
+          data: {
+            productId: id,
+            branchId: session.user.branchId!,
+            oldPrice: product.retailPrice,
+            newPrice: validatedData.retailPrice!,
+          },
+        });
+      }
+
+      return updated;
     });
 
     return NextResponse.json(updatedProduct);
