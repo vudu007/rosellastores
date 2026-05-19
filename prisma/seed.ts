@@ -21,6 +21,7 @@ async function main() {
   console.log('Branch created:', branch.id);
 
   const hashedOwnerPassword = await bcrypt.hash('owner123', 10);
+  const hashedAdminPassword = await bcrypt.hash('admin123', 10);
   const hashedCashierPassword = await bcrypt.hash('cashier123', 10);
 
   await prisma.user.upsert({
@@ -36,6 +37,23 @@ async function main() {
       email: 'admin@rosellastores.com',
       password: hashedOwnerPassword,
       role: 'OWNER',
+      branchId: branch.id,
+    },
+  });
+
+  await prisma.user.upsert({
+    where: { email: 'superadmin@rosellastores.com' },
+    update: {
+      name: 'Admin',
+      password: hashedAdminPassword,
+      role: 'ADMIN',
+      branchId: branch.id,
+    },
+    create: {
+      name: 'Admin',
+      email: 'superadmin@rosellastores.com',
+      password: hashedAdminPassword,
+      role: 'ADMIN',
       branchId: branch.id,
     },
   });
@@ -57,7 +75,7 @@ async function main() {
     },
   });
 
-  console.log('Users created (owner + cashier)');
+  console.log('Users created (admin + owner + cashier)');
 
   // System Settings only - NO sample categories, products, suppliers, or customers
   const settings = [
@@ -86,6 +104,7 @@ async function main() {
   console.log('  No template products or categories were created.');
   console.log('');
   console.log('  Login credentials:');
+  console.log('  Admin:   superadmin@rosellastores.com / admin123');
   console.log('  Owner:   admin@rosellastores.com / owner123');
   console.log('  Cashier: cashier@rosellastores.com / cashier123');
   console.log('===========================================');
