@@ -139,7 +139,7 @@ export default function PriceTagsPage() {
       .meta { display: flex; justify-content: space-between; gap: 2mm; font-size: 7pt; color: #334155; }
       .sku { font-weight: 700; }
       .barcode { text-align: right; }
-      .price { font-weight: 900; font-size: 12pt; color: #be123c; }
+      .price { font-weight: 900; font-size: 12pt; color: #ff6a00; }
       @media print { .label { break-inside: avoid; } }
     </style>
   </head>
@@ -319,7 +319,7 @@ export default function PriceTagsPage() {
             'fixed bottom-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl border text-sm font-medium',
             toast.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-              : 'bg-rose-50 text-rose-800 border-rose-200',
+              : 'bg-destructive/10 text-destructive border-destructive/20',
           ].join(' ')}
         >
           {toast.message}
@@ -328,4 +328,3 @@ export default function PriceTagsPage() {
     </div>
   );
 }
-
