@@ -53,10 +53,10 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
       {/* Brand */}
       <Link href="/" className="flex items-center gap-2.5 shrink-0">
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shadow-sm shadow-primary/30">
-          <span className="text-primary-foreground font-black text-sm">M</span>
+          <span className="text-primary-foreground font-black text-sm">R</span>
         </div>
         <span className="font-black text-foreground text-base tracking-tight hidden sm:inline">
-          MekaERP
+          Rosellla Stores
         </span>
       </Link>
 
