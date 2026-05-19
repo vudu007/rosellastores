@@ -180,10 +180,10 @@ export default function InventoryPage() {
   );
 
   const getStockStatus = (current: number, threshold: number) => {
-    if (current === 0) return { label: 'Out of Stock', color: 'text-red-600 bg-red-50 border-red-100', icon: <AlertCircle className="w-3 h-3" /> };
-    if (current <= threshold / 2) return { label: 'Critical', color: 'text-rose-600 bg-rose-50 border-rose-100', icon: <AlertCircle className="w-3 h-3" /> };
-    if (current <= threshold) return { label: 'Low Stock', color: 'text-amber-600 bg-amber-50 border-amber-100', icon: <AlertCircle className="w-3 h-3" /> };
-    return { label: 'Healthy', color: 'text-emerald-600 bg-emerald-50 border-emerald-100', icon: <CheckCircle2 className="w-3 h-3" /> };
+    if (current === 0) return { label: 'Out of Stock', color: 'text-destructive bg-destructive/10 border-destructive/20', icon: <AlertCircle className="w-3 h-3" /> };
+    if (current <= threshold / 2) return { label: 'Critical', color: 'text-destructive bg-destructive/10 border-destructive/20', icon: <AlertCircle className="w-3 h-3" /> };
+    if (current <= threshold) return { label: 'Low Stock', color: 'text-amber-600 bg-amber-500/10 border-amber-500/20', icon: <AlertCircle className="w-3 h-3" /> };
+    return { label: 'Healthy', color: 'text-emerald-600 bg-emerald-500/10 border-emerald-500/20', icon: <CheckCircle2 className="w-3 h-3" /> };
   };
 
   const formatCurrency = (value: number) => {
