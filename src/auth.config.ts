@@ -10,7 +10,6 @@ export const authConfig = {
       const isLoggedIn   = !!(auth?.user?.email || (auth as any)?.user?.name);
       const pathname     = request.nextUrl.pathname;
       const isAuthPage   = pathname.startsWith('/login');
-      const isSettings   = pathname.startsWith('/dashboard/settings');
 
       // Always let the login page render — no auto-redirect for logged-in users
       if (isAuthPage) return true;
@@ -21,6 +20,8 @@ export const authConfig = {
       // Superuser (ADMIN) has access to everything
       const role = (auth?.user as any)?.role;
       if (role === 'ADMIN') return true;
+
+      if (pathname.startsWith('/dashboard/staff')) return false;
 
       return true;
     },
