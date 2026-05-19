@@ -4,10 +4,10 @@ export const authConfig = {
   pages: { signIn: '/login' },
   // Required on Vercel: trust the host header so JWT verification works in Edge Runtime
   trustHost: true,
+  secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
   callbacks: {
     authorized({ auth, request }) {
-      // In NextAuth v5 beta + Edge Runtime, check both auth.user and auth directly
-      const isLoggedIn   = !!(auth?.user?.email || (auth as any)?.user?.name);
+      const isLoggedIn   = !!auth?.user;
       const pathname     = request.nextUrl.pathname;
       const isAuthPage   = pathname.startsWith('/login');
 
@@ -20,8 +20,6 @@ export const authConfig = {
       // Superuser (ADMIN) has access to everything
       const role = (auth?.user as any)?.role;
       if (role === 'ADMIN') return true;
-
-      if (pathname.startsWith('/dashboard/staff')) return false;
 
       return true;
     },
