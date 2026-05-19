@@ -37,7 +37,6 @@ export async function GET(req: NextRequest) {
       category: p.category?.name || '',
       supplier: p.supplier?.name || '',
       retailPrice: p.retailPrice,
-      wholesalePrice: p.wholesalePrice,
       systemStock: p.stockQty
     }));
 
@@ -50,4 +49,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
