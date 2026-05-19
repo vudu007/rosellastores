@@ -11,7 +11,7 @@ import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_EMAIL    = 'admin@mekaerp.com';
+const ADMIN_EMAIL    = 'admin@roselllastores.com';
 const ADMIN_PASSWORD = 'Admin2025!';
 
 export async function GET() {
