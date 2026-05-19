@@ -67,12 +67,7 @@ export interface Customer {
   name: string;
   email: string | null;
   phone: string | null;
-  type: 'RETAIL';
-  creditLimit: number | null;
-  creditUsed: number;
 }
-
-export type SaleType = 'RETAIL';
 
 export interface Product {
   id: string;
@@ -81,11 +76,8 @@ export interface Product {
   barcodes: string[];
   categoryId: string;
   retailPrice: number;
-  wholesalePrice?: number;
   stockQty: number;
   lowStockThreshold: number;
-  unitsPerPack?: number;
-  wholesaleUnit?: string;
   unit: string;
   isActive: boolean;
   branchId: string;
@@ -112,11 +104,8 @@ export interface ProductCreateInput {
   barcodes?: string[];
   categoryId: string;
   retailPrice: number;
-  wholesalePrice?: number;
   stockQty: number;
   lowStockThreshold?: number;
-  unitsPerPack?: number;
-  wholesaleUnit?: string;
   supplierId: string;
   imageUrl?: string;
   unit?: string;
