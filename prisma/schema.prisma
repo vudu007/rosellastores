@@ -29,6 +29,11 @@ enum SaleStatus {
   HELD
 }
 
+enum PriceTagStatus {
+  PENDING
+  PRINTED
+}
+
 model User {
   id        String    @id @default(auto()) @map("_id") @db.ObjectId
   name      String
@@ -62,6 +67,7 @@ model Branch {
   sales     Sale[]
   customers Customer[]
   expenses  Expense[]
+  priceTags PriceTag[]
 
   @@index([isActive])
 }
@@ -91,11 +97,30 @@ model Product {
   updatedAt         DateTime  @updatedAt
 
   saleItems SaleItem[]
+  priceTags PriceTag[]
 
   @@index([categoryId])
   @@index([supplierId])
   @@index([branchId])
   @@index([isActive])
+}
+
+model PriceTag {
+  id        String         @id @default(auto()) @map("_id") @db.ObjectId
+  productId String         @db.ObjectId
+  product   Product        @relation(fields: [productId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branchId  String         @db.ObjectId
+  branch    Branch         @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  oldPrice  Float
+  newPrice  Float
+  status    PriceTagStatus @default(PENDING)
+  printedAt DateTime?
+  createdAt DateTime       @default(now())
+
+  @@index([productId])
+  @@index([branchId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Category {
