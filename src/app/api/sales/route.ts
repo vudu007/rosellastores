@@ -124,7 +124,6 @@ export async function POST(req: NextRequest) {
         walkIn = await prisma.customer.create({
           data: {
             name: 'Walk-In Customer',
-            type: 'RETAIL',
             branchId: session.user.branchId!,
           },
         });
