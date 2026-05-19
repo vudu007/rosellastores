@@ -9,7 +9,7 @@ declare module 'next-auth' {
     id: string;
     email: string;
     name: string;
-    role: 'ADMIN' | 'OWNER' | 'MANAGER' | 'CASHIER' | 'WHOLESALE_CUSTOMER';
+    role: 'ADMIN' | 'OWNER' | 'MANAGER' | 'CASHIER';
     branchId: string | null;
   }
 
