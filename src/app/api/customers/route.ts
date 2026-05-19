@@ -8,8 +8,6 @@ const createCustomerSchema = z.object({
   name: z.string().min(1),
   email: z.preprocess(v => (v === '' ? undefined : v), z.string().email().optional()),
   phone: z.preprocess(v => (v === '' ? undefined : v), z.string().optional()),
-  type: z.enum(['RETAIL', 'WHOLESALE']),
-  creditLimit: z.number().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -20,18 +18,14 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get('type');
     const search = searchParams.get('search');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
     const where: any = {
       branchId: session.user.branchId ?? undefined,
+      type: 'RETAIL',
     };
-
-    if (type) {
-      where.type = type;
-    }
 
     if (search) {
       where.OR = [
@@ -81,6 +75,7 @@ export async function POST(req: NextRequest) {
     const customer = await prisma.customer.create({
       data: {
         ...validatedData,
+        type: 'RETAIL',
         branchId: session.user.branchId!,
       },
     });
@@ -94,4 +89,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
