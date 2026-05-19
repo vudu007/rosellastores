@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     for (const [index, p] of products.entries()) {
       try {
-        if (!p.name || !p.sku || !p.categoryId || !p.supplierId || p.retailPrice === undefined || p.wholesalePrice === undefined) {
+        if (!p.name || !p.sku || !p.categoryId || !p.supplierId || p.retailPrice === undefined) {
           throw new Error('Missing required fields');
         }
 
@@ -50,7 +50,13 @@ export async function POST(req: NextRequest) {
             supplierId: p.supplierId,
             branchId: branchId,
             retailPrice: parseFloat(p.retailPrice),
-            wholesalePrice: parseFloat(p.wholesalePrice),
+            wholesalePrice: (() => {
+              const fallback = parseFloat(p.retailPrice);
+              const candidate = p.wholesalePrice === undefined || p.wholesalePrice === null || p.wholesalePrice === ''
+                ? NaN
+                : parseFloat(p.wholesalePrice);
+              return Number.isFinite(candidate) ? candidate : fallback;
+            })(),
             stockQty: parseInt(p.stockQty, 10) || 0,
             lowStockThreshold: parseInt(p.lowStockThreshold, 10) || 10,
             unit: p.unit || 'pcs'
@@ -76,4 +82,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 });
   }
 }
-
