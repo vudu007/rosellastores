@@ -10,6 +10,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const branchId = session.user.branchId ?? undefined;
+    if (!branchId) {
+      return NextResponse.json({ error: 'User does not belong to a branch' }, { status: 400 });
+    }
+
     const body = await req.json();
     const { productId, qty, supplierId, costPerUnit, notes } = body;
 
@@ -17,16 +22,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Product ID and a positive quantity are required' }, { status: 400 });
     }
 
-    // Get the product
-    const product = await prisma.product.findUnique({ where: { id: productId } });
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true, name: true, stockQty: true, branchId: true },
+    });
     if (!product) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    // Update stock quantity
+    if (product.branchId !== branchId) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
     const updatedProduct = await prisma.product.update({
       where: { id: productId },
-      data: { stockQty: product.stockQty + qty },
+      data: { stockQty: { increment: qty } },
     });
 
     // Log the restock as an audit entry
