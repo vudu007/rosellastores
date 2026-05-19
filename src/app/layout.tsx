@@ -4,14 +4,14 @@ import Script from 'next/script';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'MekaERP - Management System',
-  description: 'Complete ERP management system with POS, inventory, and reporting',
-  applicationName: 'MekaERP',
+  title: 'Rosellla Stores - Kiddies Hub ERP System',
+  description: 'Kiddies Hub ERP System with POS, inventory, and reporting',
+  applicationName: 'Rosellla Stores',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'MekaERP',
+    title: 'Rosellla Stores',
   },
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
@@ -19,13 +19,13 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0b1220',
+  themeColor: '#e11d48',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-gray-50">
+      <body className="bg-background text-foreground">
         <SessionProvider>{children}</SessionProvider>
         <Script id="sw-register" strategy="afterInteractive">
           {`if ("serviceWorker" in navigator) { window.addEventListener("load", function () { navigator.serviceWorker.register("/sw.js").catch(function () {}); }); }`}
