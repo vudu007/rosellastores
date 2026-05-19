@@ -20,7 +20,19 @@ export default function StaffPage() {
   const [editingMember, setEditingMember] = useState<StaffMember | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  const canManage = ['ADMIN', 'OWNER'].includes(session?.user?.role || '');
+  const canManage = session?.user?.role === 'ADMIN';
+
+  if (session && session.user.role !== 'ADMIN') {
+    return (
+      <div className="p-4 md:p-8 animate-entrance">
+        <div className="card-premium p-10 text-center">
+          <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-foreground">Admin Only</h1>
+          <p className="text-muted-foreground mt-2">Staff management is restricted to the Admin account.</p>
+        </div>
+      </div>
+    );
+  }
 
   const fetchStaff = async () => {
     try {
