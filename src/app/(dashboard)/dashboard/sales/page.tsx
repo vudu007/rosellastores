@@ -126,7 +126,7 @@ export default function SalesPage() {
   // Guard lives on window so it survives React re-renders.
   const printDoc = (html: string) => {
     if ((window as any).__mekaPrinting) {
-      console.log('[Rosellla Stores] Print already in progress — ignoring duplicate.');
+      console.log('[Rosella Stores] Print already in progress — ignoring duplicate.');
       return;
     }
     (window as any).__mekaPrinting = true;
@@ -181,7 +181,7 @@ export default function SalesPage() {
 
   const handleReprint = async (sale: Sale) => {
     setPrintingId(sale.id);
-    const biz = storeSettings.businessName || 'ROSELLLA STORES';
+    const biz = storeSettings.businessName || 'ROSELLA STORES';
     const receiptNo = `R-${sale.id.slice(-8).toUpperCase()}`;
     const dateStr = new Date(sale.createdAt).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
 

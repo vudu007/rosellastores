@@ -56,7 +56,7 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
           <span className="text-primary-foreground font-black text-sm">R</span>
         </div>
         <span className="font-black text-foreground text-base tracking-tight hidden sm:inline">
-          Rosellla Stores
+          Rosella Stores
         </span>
       </Link>
 

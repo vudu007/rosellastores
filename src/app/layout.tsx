@@ -4,14 +4,14 @@ import Script from 'next/script';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Rosellla Stores - Kiddies Hub ERP System',
+  title: 'Rosella Stores - Kiddies Hub ERP System',
   description: 'Kiddies Hub ERP System with POS, inventory, and reporting',
-  applicationName: 'Rosellla Stores',
+  applicationName: 'Rosella Stores',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Rosellla Stores',
+    title: 'Rosella Stores',
   },
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],

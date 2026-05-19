@@ -1,5 +1,5 @@
-const CACHE_PREFIX = 'rosellla-';
-const CACHE_NAME = 'rosellla-v1';
+const CACHE_PREFIX = 'rosella-';
+const CACHE_NAME = 'rosella-v1';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

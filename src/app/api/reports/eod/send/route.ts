@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     });
     
     // Default to a fallback if setting is missing
-    const businessName = businessNameSetting?.value || 'Rosellla Stores';
+    const businessName = businessNameSetting?.value || 'Rosella Stores';
     
     // Use the owner's email or a configured recipient
     const ownerEmailSetting = await prisma.setting.findUnique({

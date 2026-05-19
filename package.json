@@ -1,7 +1,7 @@
 {
-  "name": "rosellla-stores-erp",
+  "name": "rosella-stores-erp",
   "version": "1.0.0",
-  "description": "Rosellla Stores — Kiddies Hub ERP System with POS, inventory, and reporting",
+  "description": "Rosella Stores — Kiddies Hub ERP System with POS, inventory, and reporting",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",

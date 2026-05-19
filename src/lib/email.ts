@@ -16,7 +16,7 @@ function createTransporter() {
 }
 
 function getFromEmail() {
-  return process.env.GMAIL_FROM || getEmailCredentials().user || 'Rosellla Stores <noreply@gmail.com>';
+  return process.env.GMAIL_FROM || getEmailCredentials().user || 'Rosella Stores <noreply@gmail.com>';
 }
 
 export function getEmailConfigError(): string | null {

@@ -520,7 +520,7 @@ export default function POSPage() {
   const printViaIframe = (html: string) => {
     // Prevent double-prints — guard lives on window to survive re-renders
     if (printingRef.current) {
-      console.log('[Rosellla Stores] Print already in progress — skipping duplicate.');
+      console.log('[Rosella Stores] Print already in progress — skipping duplicate.');
       return;
     }
     printingRef.current = true;
@@ -576,14 +576,14 @@ export default function POSPage() {
       document.getElementById('__meka_receipt__')?.remove();
       document.getElementById('__meka_receipt_style__')?.remove();
       printingRef.current = false;
-      console.log('[Rosellla Stores] Print overlay cleaned up.');
+      console.log('[Rosella Stores] Print overlay cleaned up.');
     };
     window.addEventListener('afterprint', releaseLock, { once: true });
     setTimeout(() => releaseLock(), 8000); // safety fallback
 
     // Small delay so React finishes any pending renders before we print
     setTimeout(() => {
-      console.log('[Rosellla Stores] Sending receipt to printer…');
+      console.log('[Rosella Stores] Sending receipt to printer…');
       window.print();
     }, 250);
   };
@@ -596,12 +596,12 @@ export default function POSPage() {
   const printDoc = async (html: string) => {
     if (thermalPrinter) {
       try {
-        console.log(`[Rosellla Stores] Attempting QZ Tray print to "${thermalPrinter}"…`);
+        console.log(`[Rosella Stores] Attempting QZ Tray print to "${thermalPrinter}"…`);
         await printHTMLWithQZ(html, thermalPrinter);
-        console.log('[Rosellla Stores] QZ Tray print successful.');
+        console.log('[Rosella Stores] QZ Tray print successful.');
         return; // Skip fallback if successful
       } catch (err: any) {
-        console.warn('[Rosellla Stores] QZ Tray print failed, falling back to browser print:', err);
+        console.warn('[Rosella Stores] QZ Tray print failed, falling back to browser print:', err);
         setSuccessMessage(`QZ Print failed: ${err.message}. Falling back to browser print.`);
         setTimeout(() => setSuccessMessage(null), 4000);
       }
@@ -620,7 +620,7 @@ export default function POSPage() {
     const dateObj    = new Date(sale.date);
     const dateStr    = dateObj.toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' });
     const timeStr    = dateObj.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
-    const biz        = storeSettings.businessName || 'ROSELLLA STORES';
+    const biz        = storeSettings.businessName || 'ROSELLA STORES';
     const cashier    = (session?.user as any)?.name || 'Staff';
     const badgeLabel = sale.offline ? '&#9733; OFFLINE SALE &#9733;' : '&#9733; SALES RECEIPT &#9733;';
 
@@ -800,7 +800,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
     const suffixSource = String(lastSale.id || lastSale.clientSaleId || '');
     const suffix = suffixSource ? suffixSource.slice(-5).toUpperCase() : '00000';
     const invoiceNo = `INV-${dateObj.getFullYear()}${String(dateObj.getMonth() + 1).padStart(2, '0')}${String(dateObj.getDate()).padStart(2, '0')}-${suffix}`;
-    const biz       = storeSettings.businessName || 'Rosellla Stores';
+    const biz       = storeSettings.businessName || 'Rosella Stores';
     const PRIMARY   = [37, 99, 235] as [number, number, number];   // blue-600
     const DARK      = [15, 23, 42]  as [number, number, number];   // slate-900
     const MUTED     = [100, 116, 139] as [number, number, number]; // slate-500
