@@ -16,8 +16,13 @@ const ADMIN_PASSWORD = 'admin123';
 
 export async function GET() {
   try {
-    // Delete any existing admin with this email (clears broken entries)
-    await prisma.user.deleteMany({ where: { email: ADMIN_EMAIL } });
+    const existing = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
+    if (existing) {
+      return NextResponse.json(
+        { error: 'Admin already exists. Use the Admin account to manage staff and settings.' },
+        { status: 409 }
+      );
+    }
 
     // Find first branch
     const branch = await prisma.branch.findFirst();
@@ -44,7 +49,6 @@ export async function GET() {
       success:  true,
       message:  'Admin account created. Login now, then change the password from Settings.',
       email:    ADMIN_EMAIL,
-      password: ADMIN_PASSWORD,
       userId:   admin.id,
     });
 
