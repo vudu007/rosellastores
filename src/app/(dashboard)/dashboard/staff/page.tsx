@@ -74,7 +74,7 @@ export default function StaffPage() {
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'ADMIN':
-        return 'bg-rose-100 text-rose-800 border-rose-200';
+        return 'bg-primary/15 text-primary border-primary/25';
       case 'OWNER':
         return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'MANAGER':
