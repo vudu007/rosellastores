@@ -41,9 +41,9 @@ export default function ReportsPage() {
       doc.setFontSize(18);
       doc.text(`Monthly Tax Summary - ${data.period}`, 14, 22);
       
-      const tableColumn = ["Date", "Sale ID", "Customer", "Type", "Payment M.", "Gross Total", "Discount", "Tax Collected", "Net Total"];
+      const tableColumn = ["Date", "Sale ID", "Customer", "Payment M.", "Gross Total", "Discount", "Tax Collected", "Net Total"];
       const tableRows = data.sales.map((s: any) => [
-        s.date, s.id.substring(0,8)+'...', s.customer, s.type, s.paymentMethod, s.subtotal.toFixed(2), s.discount.toFixed(2), s.tax.toFixed(2), s.total.toFixed(2)
+        s.date, s.id.substring(0,8)+'...', s.customer, s.paymentMethod, s.subtotal.toFixed(2), s.discount.toFixed(2), s.tax.toFixed(2), s.total.toFixed(2)
       ]);
       
       tableRows.push(["TOTAL", "", "", "", "", data.summary.totalGross.toFixed(2), "", data.summary.totalTax.toFixed(2), data.summary.totalNet.toFixed(2)]);
