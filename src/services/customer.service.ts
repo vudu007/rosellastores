@@ -4,20 +4,16 @@ import { CustomerCreateInput } from '@/types';
 export class CustomerService {
   static async getCustomers(params: {
     branchId?: string;
-    type?: string | null;
     search?: string | null;
     page?: number;
     limit?: number;
   }) {
-    const { branchId, type, search, page = 1, limit = 20 } = params;
+    const { branchId, search, page = 1, limit = 20 } = params;
 
     const where: any = {
       branchId: branchId ?? undefined,
+      type: 'RETAIL',
     };
-
-    if (type) {
-      where.type = type;
-    }
 
     if (search) {
       where.OR = [
@@ -54,8 +50,7 @@ export class CustomerService {
         name: data.name,
         email: data.email,
         phone: data.phone,
-        type: data.type,
-        creditLimit: data.creditLimit,
+        type: 'RETAIL',
         branchId: data.branchId,
       },
     });
