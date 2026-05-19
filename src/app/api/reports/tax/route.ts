@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
         date: format(new Date(s.createdAt), 'yyyy-MM-dd HH:mm'),
         id: s.id,
         customer: s.customer?.name || 'Walk-in',
-        type: s.customer?.type || 'RETAIL',
+        type: 'RETAIL',
         paymentMethod: s.paymentMethod,
         subtotal: s.subtotal,
         discount: s.discount,
