@@ -16,7 +16,7 @@ function createTransporter() {
 }
 
 function getFromEmail() {
-  return process.env.GMAIL_FROM || getEmailCredentials().user || 'MekaERP <noreply@gmail.com>';
+  return process.env.GMAIL_FROM || getEmailCredentials().user || 'Rosellla Stores <noreply@gmail.com>';
 }
 
 export function getEmailConfigError(): string | null {
@@ -57,13 +57,13 @@ export function generateEODEmailHTML(report: EODReport, businessName: string): s
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; color: #333; }
         .container { max-width: 800px; margin: 0 auto; background: #f9fafb; padding: 20px; }
         .email-wrapper { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .header { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); color: white; padding: 40px 20px; text-align: center; }
+        .header { background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%); color: white; padding: 40px 20px; text-align: center; }
         .header h1 { font-size: 28px; margin-bottom: 5px; }
         .header p { font-size: 14px; opacity: 0.9; }
         .content { padding: 40px 20px; }
         .date-stamp { text-align: center; color: #6B7280; font-size: 14px; margin-bottom: 30px; }
         .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 40px; }
-        .stat-card { background: #f3f4f6; border-left: 4px solid #3B82F6; padding: 20px; border-radius: 8px; }
+        .stat-card { background: #f3f4f6; border-left: 4px solid #E11D48; padding: 20px; border-radius: 8px; }
         .stat-label { font-size: 12px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
         .stat-value { font-size: 24px; font-weight: bold; color: #1F2937; }
         .section { margin-bottom: 40px; }
