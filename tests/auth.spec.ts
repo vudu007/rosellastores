@@ -55,7 +55,7 @@ test.describe('Authentication', () => {
     await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
 
     await page.goto('/dashboard/staff');
-    await expect(page).not.toHaveURL(/.*\/dashboard\/staff/);
+    await expect(page.getByText('Admin Only')).toBeVisible();
 
     const res = await page.request.post('/api/settings', {
       data: { businessName: 'Rosella Stores' },
