@@ -24,7 +24,6 @@ export async function GET(req: NextRequest) {
 
     const where: any = {
       branchId: session.user.branchId ?? undefined,
-      type: 'RETAIL',
     };
 
     if (search) {
@@ -75,7 +74,6 @@ export async function POST(req: NextRequest) {
     const customer = await prisma.customer.create({
       data: {
         ...validatedData,
-        type: 'RETAIL',
         branchId: session.user.branchId!,
       },
     });
