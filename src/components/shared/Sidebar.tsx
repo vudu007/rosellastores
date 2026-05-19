@@ -21,7 +21,7 @@ const menuItems = [
   { href: '/dashboard/suppliers',  label: 'Suppliers',   icon: Truck,           roles: ['ADMIN', 'OWNER', 'MANAGER'] },
   { href: '/dashboard/expenses',   label: 'Expenses',    icon: CreditCard,      roles: ['ADMIN', 'OWNER', 'MANAGER'] },
   { href: '/dashboard/reports',    label: 'Reports',     icon: BarChart2,       roles: ['ADMIN', 'OWNER', 'MANAGER'] },
-  { href: '/dashboard/staff',      label: 'Staff',       icon: Users2,          roles: ['ADMIN', 'OWNER'] },
+  { href: '/dashboard/staff',      label: 'Staff',       icon: Users2,          roles: ['ADMIN'] },
   { href: '/dashboard/settings',   label: 'Settings',    icon: Settings,        roles: ['ADMIN', 'OWNER', 'MANAGER'] },
 ];
 
