@@ -50,6 +50,20 @@ test.describe('Authentication', () => {
     await expect(page).not.toHaveURL(/.*\/dashboard/);
   });
 
+  test('owner should not be able to manage staff or update business settings', async ({ page }) => {
+    await login(page, 'admin@rosellastores.com', 'owner123');
+    await expect(page).toHaveURL(/.*\/dashboard/, { timeout: 15000 });
+
+    await page.goto('/dashboard/staff');
+    await expect(page).not.toHaveURL(/.*\/dashboard\/staff/);
+
+    const res = await page.request.post('/api/settings', {
+      data: { businessName: 'Rosella Stores' },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(res.status()).toBe(401);
+  });
+
   test('POS cart should add, update quantity, and remove items', async ({ page }) => {
     test.setTimeout(60000);
     await login(page, 'admin@rosellastores.com', 'owner123');
