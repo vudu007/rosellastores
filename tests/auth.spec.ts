@@ -5,7 +5,9 @@ test.describe('Authentication', () => {
     const res = await request.get('/api/health');
     expect(res.ok()).toBeTruthy();
     const json = await res.json();
-    expect(json?.ok).toBeTruthy();
+    expect(json?.env?.databaseUrlPresent).toBeTruthy();
+    expect(json?.env?.databaseUrlHasQuotes).toBeFalsy();
+    expect(json?.db?.connected).toBeTruthy();
   });
 
   test('should redirect unauthenticated users to login', async ({ page }) => {
