@@ -27,6 +27,10 @@ declare module 'next-auth' {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  secret:
+    process.env.NEXTAUTH_SECRET ??
+    process.env.AUTH_SECRET ??
+    (process.env.NODE_ENV === 'development' ? 'dev-secret' : undefined),
   providers: [
     Credentials({
       async authorize(credentials) {
