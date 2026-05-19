@@ -17,10 +17,7 @@ interface Product {
   sku: string;
   barcodes: string[];
   retailPrice: number;
-  wholesalePrice: number;
   stockQty: number;
-  unitsPerPack: number;
-  wholesaleUnit: string;
   category: { name: string };
   imageUrl?: string;
   isTaxable: boolean;
@@ -30,7 +27,7 @@ interface Product {
 interface Customer {
   id: string;
   name: string;
-  type: 'RETAIL' | 'WHOLESALE';
+  type: 'RETAIL';
 }
 
 interface CartItem {
@@ -42,7 +39,6 @@ interface CartItem {
   total: number;
   isTaxable: boolean;
   taxInclusive: boolean;
-  saleType: 'RETAIL' | 'WHOLESALE';
 }
 
 export default function POSPage() {
@@ -55,13 +51,12 @@ export default function POSPage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
-  const [pricingMode, setPricingMode] = useState<'RETAIL' | 'WHOLESALE'>('RETAIL');
   const [splitAmounts, setSplitAmounts] = useState({ cash: 0, card: 0, transfer: 0, mobile: 0 });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
-  const [customerForm, setCustomerForm] = useState({ name: '', phone: '', email: '', type: 'RETAIL' as 'RETAIL' | 'WHOLESALE' });
+  const [customerForm, setCustomerForm] = useState({ name: '', phone: '', email: '' });
   const [lastSale, setLastSale] = useState<any>(null);
   const [lastCompletedSale, setLastCompletedSale] = useState<any>(null);
   const [barcodeBuffer, setBarcodeBuffer] = useState('');
@@ -222,31 +217,26 @@ export default function POSPage() {
   }, [products, searchQuery, selectedCategory]);
 
   const getProductPrice = (product: Product) => {
-    return pricingMode === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
+    return product.retailPrice;
   };
 
   const addToCart = useCallback((product: Product) => {
-    const saleType = pricingMode;
-    const price = saleType === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
-    const existingItem = cart.find((item) => item.productId === product.id && item.saleType === saleType);
+    const price = product.retailPrice;
+    const existingItem = cart.find((item) => item.productId === product.id);
 
     if (existingItem) {
-      const decrementQty = saleType === 'WHOLESALE' ? (product.unitsPerPack || 1) : 1;
       const totalUnitsInCart = cart.reduce((sum, item) => {
-        if (item.productId === product.id) {
-          const productRef = products.find(p => p.id === item.productId);
-          return sum + (item.saleType === 'WHOLESALE' ? item.quantity * (productRef?.unitsPerPack || 1) : item.quantity);
-        }
+        if (item.productId === product.id) return sum + item.quantity;
         return sum;
       }, 0);
 
-      if (totalUnitsInCart + decrementQty > product.stockQty) {
+      if (totalUnitsInCart + 1 > product.stockQty) {
         return; // Prevent overstock adding
       }
 
       setCart((prevCart) =>
         prevCart.map((item) =>
-          item.productId === product.id && item.saleType === saleType
+          item.productId === product.id
             ? {
                 ...item,
                 quantity: item.quantity + 1,
@@ -256,8 +246,7 @@ export default function POSPage() {
         )
       );
     } else {
-      const decrementQty = saleType === 'WHOLESALE' ? (product.unitsPerPack || 1) : 1;
-      if (decrementQty > product.stockQty) return;
+      if (product.stockQty < 1) return;
 
       setCart((prevCart) => [
         ...prevCart,
@@ -270,11 +259,10 @@ export default function POSPage() {
           total: price,
           isTaxable: product.isTaxable ?? true,
           taxInclusive: product.taxInclusive ?? false,
-          saleType: saleType,
         },
       ]);
     }
-  }, [cart, pricingMode, products]);
+  }, [cart]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const currentTime = e.timeStamp;
@@ -312,29 +300,19 @@ export default function POSPage() {
     setCart((prevCart) => prevCart.filter((item) => item.productId !== productId));
   }, []);
 
-  const updateCartItem = useCallback((productId: string, quantity: number, discount: number, saleType: 'RETAIL' | 'WHOLESALE') => {
+  const updateCartItem = useCallback((productId: string, quantity: number, discount: number) => {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
-    // Calculate total units used by other items of the same product in cart
-    const otherItemsUnits = cart.reduce((sum, item) => {
-      if (item.productId === productId && item.saleType !== saleType) {
-        return sum + (item.saleType === 'WHOLESALE' ? item.quantity * (product.unitsPerPack || 1) : item.quantity);
-      }
-      return sum;
-    }, 0);
-
-    const currentItemUnits = saleType === 'WHOLESALE' ? quantity * (product.unitsPerPack || 1) : quantity;
-
-    if (otherItemsUnits + currentItemUnits > product.stockQty) return;
+    if (quantity > product.stockQty) return;
 
     if (quantity <= 0) {
-      setCart((prevCart) => prevCart.filter((item) => !(item.productId === productId && item.saleType === saleType)));
+      setCart((prevCart) => prevCart.filter((item) => item.productId !== productId));
       return;
     }
     setCart((prevCart) =>
       prevCart.map((item) =>
-        item.productId === productId && item.saleType === saleType
+        item.productId === productId
           ? {
               ...item,
               quantity,
@@ -344,7 +322,7 @@ export default function POSPage() {
           : item
       )
     );
-  }, [products, cart]);
+  }, [products]);
 
   const TAX_RATE = 0.075; // 7.5% VAT
 
@@ -397,7 +375,6 @@ export default function POSPage() {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         discount: item.discount,
-        saleType: item.saleType,
       })),
       discount: 0,
     };
@@ -417,7 +394,7 @@ export default function POSPage() {
           clientSaleId,
           customerId: selectedCustomer?.id || '',
           customerName: selectedCustomer?.name || 'Walk-In Customer',
-          customerType: selectedCustomer?.type || 'RETAIL',
+          customerType: 'RETAIL',
           paymentMethod,
           notes: savedSale?.notes ?? payload.notes,
           items: cart.map((item) => ({
@@ -462,7 +439,7 @@ export default function POSPage() {
         clientSaleId,
         customerId: selectedCustomer?.id || '',
         customerName: selectedCustomer?.name || 'Walk-In Customer',
-        customerType: selectedCustomer?.type || 'RETAIL',
+        customerType: 'RETAIL',
         paymentMethod,
         notes: payload.notes,
         items: cart.map((item) => ({
@@ -505,7 +482,6 @@ export default function POSPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: customerForm.name,
-          type: customerForm.type,
           ...(customerForm.phone ? { phone: customerForm.phone } : {}),
           ...(customerForm.email ? { email: customerForm.email } : {}),
         }),
@@ -514,9 +490,8 @@ export default function POSPage() {
         const newCustomer = await res.json();
         setCustomers(prev => [...prev, newCustomer].sort((a, b) => a.name.localeCompare(b.name)));
         setSelectedCustomer(newCustomer);
-        setPricingMode(newCustomer.type);
         setShowAddCustomerModal(false);
-        setCustomerForm({ name: '', phone: '', email: '', type: 'RETAIL' });
+        setCustomerForm({ name: '', phone: '', email: '' });
         setSuccessMessage(`Customer ${newCustomer.name} added!`);
         setTimeout(() => setSuccessMessage(null), 2000);
       } else {
@@ -817,140 +792,6 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
     await printDoc(receiptHtml);
   };
 
-  const printWholesaleReceipt = async () => {
-    if (!lastSale) return;
-
-    const dateObj = new Date(lastSale.date);
-    const dateStr = dateObj.toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
-    const suffixSource = String(lastSale.id || lastSale.clientSaleId || '');
-    const suffix = suffixSource ? suffixSource.slice(-5).toUpperCase() : '00000';
-    const invoiceNo = `WS-${dateObj.getFullYear()}${String(dateObj.getMonth() + 1).padStart(2, '0')}${String(dateObj.getDate()).padStart(2, '0')}-${suffix}`;
-    const biz       = storeSettings.businessName || 'MEKAERP';
-
-    const payLabel: Record<string, string> = {
-      CASH: 'Cash', CARD: 'Card / POS', BANK_TRANSFER: 'Bank Transfer',
-      MOBILE_MONEY: 'Mobile Money', SPLIT: 'Split Payment',
-    };
-
-    const grossSubtotal = lastSale.items.reduce((acc: number, item: any) => {
-      const qty = Number(item.quantity) || 0;
-      const unit = Number(item.unitPrice) || 0;
-      return acc + qty * unit;
-    }, 0);
-    const discountTotal = lastSale.items.reduce((acc: number, item: any) => acc + (Number(item.discount) || 0), 0);
-
-    const itemRows = lastSale.items.map((item: any) => {
-      const name  = String(item.name).slice(0, 26);
-      const unitP = formatCurrency(item.unitPrice);
-      const tot   = formatCurrency(item.total);
-      const disc  = Number(item.discount) > 0 ? `<div style="font-size:9px;color:#444;font-weight:600">Disc: -${formatCurrency(item.discount)}</div>` : '';
-      return `
-        <tr>
-          <td style="padding:2px 0 1px;vertical-align:top">
-            <div style="font-weight:800;font-size:11px">${name}</div>
-            <div style="font-size:9.5px;color:#444;font-weight:600">${item.quantity} × ${unitP}</div>
-            ${disc}
-          </td>
-          <td style="text-align:right;vertical-align:top;padding:2px 0 1px;font-size:11px;font-weight:800;white-space:nowrap">${tot}</td>
-        </tr>`;
-    }).join('');
-
-    const discountHtml = discountTotal > 0
-      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:700">Discount</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:700">-${formatCurrency(discountTotal)}</td></tr>`
-      : '';
-    const taxAddedHtml = lastSale.tax > 0
-      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:700">VAT 7.5% (excl.)</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:700">${formatCurrency(lastSale.tax)}</td></tr>`
-      : '';
-
-    const receiptHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Wholesale Receipt ${invoiceNo}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1.4;
-      width: 74mm;
-      color: #000;
-      background: #fff;
-    }
-    table { width: 100%; border-collapse: collapse; }
-    img { max-width: 100%; height: auto; }
-    .logo { display: flex; justify-content: center; margin-bottom: 4px; }
-    .logo img { max-height: 18mm; object-fit: contain; }
-    .biz-name { font-size: 16px; font-weight: 900; letter-spacing: 2px; text-align: center; text-transform: uppercase; margin-bottom: 2px; }
-    .biz-sub  { font-size: 9.5px; font-weight: 600; text-align: center; line-height: 1.6; color: #222; }
-    .dash  { border: none; border-top: 1px dashed #000; margin: 3px 0; }
-    .solid { border: none; border-top: 2px solid  #000; margin: 3px 0; }
-    .badge { font-size: 10px; font-weight: 900; letter-spacing: 3px; text-align: center; padding: 2px 0; border: 2px solid #000; }
-    .meta td { font-size: 10px; font-weight: 700; padding: 1px 0; }
-    .meta td:last-child { text-align: right; font-weight: 800; }
-    .col-hdr { font-size: 9px; font-weight: 900; letter-spacing: 1px; border-top: 1px solid #000; border-bottom: 1px solid #000; padding: 2px 0; }
-    .col-hdr td:last-child { text-align: right; }
-    .totals td { padding: 1px 0; font-size: 10.5px; font-weight: 800; }
-    .totals td:last-child { text-align: right; }
-    .grand td { font-size: 14px; font-weight: 900; padding: 2px 0; }
-    .grand td:last-child { text-align: right; }
-    .footer { text-align: center; font-size: 9.5px; font-weight: 600; color: #222; line-height: 1.7; margin-top: 3px; }
-  </style>
-</head>
-<body>
-${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.businessLogo}" alt="${biz}"/></div>` : ''}
-<div class="biz-name">${biz}</div>
-<div class="biz-sub">
-  ${storeSettings.businessAddress ? storeSettings.businessAddress + '<br>' : ''}
-  ${storeSettings.businessPhone   ? 'Tel: ' + storeSettings.businessPhone : ''}
-  ${storeSettings.businessEmail   ? '<br>' + storeSettings.businessEmail : ''}
-</div>
-
-<hr class="solid">
-<div class="badge">&#9733; WHOLESALE RECEIPT &#9733;</div>
-<hr class="dash">
-
-<table class="meta">
-  <tr><td>Invoice #</td><td>${invoiceNo}</td></tr>
-  <tr><td>Date</td><td>${dateStr}</td></tr>
-  <tr><td>Customer</td><td>${lastSale.customerName || 'Wholesale Customer'}</td></tr>
-  <tr><td>Payment</td><td>${payLabel[lastSale.paymentMethod] || lastSale.paymentMethod}</td></tr>
-</table>
-
-<hr class="dash">
-<table>
-  <tr class="col-hdr">
-    <td>ITEM (WHOLESALE)</td>
-    <td style="text-align:right">AMOUNT</td>
-  </tr>
-  ${itemRows}
-</table>
-
-<hr class="dash">
-<table class="totals">
-  <tr><td>Gross</td><td>${formatCurrency(grossSubtotal)}</td></tr>
-  ${discountHtml}
-  <tr><td>Subtotal</td><td>${formatCurrency(lastSale.subtotal)}</td></tr>
-  ${taxAddedHtml}
-</table>
-<hr class="solid">
-<table class="grand">
-  <tr><td>TOTAL PAID</td><td>${formatCurrency(lastSale.total)}</td></tr>
-</table>
-<hr class="dash">
-
-<div class="footer">
-  <div style="font-weight:900;letter-spacing:1px">WHOLESALE COPY</div>
-  <div style="font-size:9px;color:#444">Not valid as retail receipt</div>
-  <div style="margin-top:3px">${storeSettings.receiptFooter || 'Thank you for your business!'}</div>
-</div>
-</body>
-</html>`;
-
-    await printDoc(receiptHtml);
-  };
-
   const generateInvoice = () => {
     if (!lastSale) return;
 
@@ -1026,7 +867,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(...MUTED);
-    doc.text(lastSale.customerType === 'WHOLESALE' ? 'Wholesale Account' : 'Retail Customer', M, y + 14);
+    doc.text('Retail Customer', M, y + 14);
 
     // ── Items table ───────────────────────────────────────────────────
     y = 84;
@@ -1264,26 +1105,16 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 onChange={(e) => {
                   const customer = customers.find((c) => c.id === e.target.value);
                   setSelectedCustomer(customer || null);
-                  if (customer && customer.type === 'WHOLESALE') {
-                    setPricingMode('WHOLESALE');
-                  } else {
-                    setPricingMode('RETAIL');
-                  }
                 }}
                 className="input-base pl-10 appearance-none bg-muted/50 border-none cursor-pointer"
               >
-                <option value="">Guest Customer (Retail)</option>
+                <option value="">Guest Customer</option>
                 {customers.map((customer) => (
                   <option key={customer.id} value={customer.id}>
-                    {customer.name} — {customer.type}
+                    {customer.name}
                   </option>
                 ))}
               </select>
-              {selectedCustomer?.type === 'WHOLESALE' && (
-                <div className="absolute right-8 top-1/2 -translate-y-1/2">
-                  <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Wholesale Applied</span>
-                </div>
-              )}
             </div>
             <button 
               onClick={() => setShowAddCustomerModal(true)}
@@ -1308,30 +1139,13 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
             </div>
           ) : (
             cart.map((item) => {
-              const product = products.find(p => p.id === item.productId);
               return (
-                <div key={`${item.productId}-${item.saleType}`} className="bg-card p-4 rounded-xl border shadow-sm group animate-slide-up">
+                <div key={item.productId} className="bg-card p-4 rounded-xl border shadow-sm group animate-slide-up">
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1 pr-4">
                       <p className="font-bold text-sm leading-tight line-clamp-1">{item.name}</p>
                       <div className="flex items-center gap-2 mt-1">
-                        <p className="text-xs text-muted-foreground">{formatCurrency(item.unitPrice)} / {item.saleType === 'WHOLESALE' ? (product?.wholesaleUnit || 'pack') : 'unit'}</p>
-                        {product && product.unitsPerPack > 1 && (
-                          <button
-                            onClick={() => {
-                              const newType = item.saleType === 'RETAIL' ? 'WHOLESALE' : 'RETAIL';
-                              const newPrice = newType === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice;
-                              setCart(prev => prev.map(i => 
-                                i.productId === item.productId && i.saleType === item.saleType
-                                  ? { ...i, saleType: newType, unitPrice: newPrice, total: newPrice * i.quantity - i.discount }
-                                  : i
-                              ));
-                            }}
-                            className="text-[10px] font-bold uppercase tracking-wider bg-primary/10 text-primary px-1.5 py-0.5 rounded hover:bg-primary/20 transition-colors"
-                          >
-                            Switch to {item.saleType === 'RETAIL' ? (product.wholesaleUnit || 'Pack') : 'Unit'}
-                          </button>
-                        )}
+                        <p className="text-xs text-muted-foreground">{formatCurrency(item.unitPrice)} / unit</p>
                       </div>
                     </div>
                     <p className="font-bold text-sm text-primary">{formatCurrency(item.total)}</p>
@@ -1340,14 +1154,14 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
                       <button 
-                        onClick={() => updateCartItem(item.productId, item.quantity - 1, item.discount, item.saleType)}
+                        onClick={() => updateCartItem(item.productId, item.quantity - 1, item.discount)}
                         className="p-1 hover:bg-card rounded-md transition-colors"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
                       <span className="w-8 text-center text-xs font-bold leading-none">{item.quantity}</span>
                       <button 
-                        onClick={() => updateCartItem(item.productId, item.quantity + 1, item.discount, item.saleType)}
+                        onClick={() => updateCartItem(item.productId, item.quantity + 1, item.discount)}
                         className="p-1 hover:bg-card rounded-md transition-colors"
                       >
                         <Plus className="w-3.5 h-3.5" />
@@ -1419,11 +1233,6 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 <option value="MOBILE_MONEY">Mobile Money</option>
                 <option value="SPLIT">Split Payment</option>
               </select>
-            </div>
-            
-            <div className="col-span-2 flex items-center bg-muted/30 p-1.5 rounded-lg">
-               <button onClick={() => setPricingMode('RETAIL')} className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${pricingMode === 'RETAIL' ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground'}`}>Retail Mode</button>
-               <button onClick={() => setPricingMode('WHOLESALE')} className={`flex-1 py-1 text-xs font-bold rounded-md transition-all ${pricingMode === 'WHOLESALE' ? 'bg-blue-600 text-white shadow-sm' : 'text-muted-foreground'}`}>Wholesale Mode</button>
             </div>
 
             {/* Printer status indicator + reprint */}
@@ -1506,23 +1315,12 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 >
                   🖨 Print Again
                 </button>
-                {(lastSale.customerType === 'WHOLESALE' || pricingMode === 'WHOLESALE') && (
-                  <>
-                    <button
-                      onClick={generateInvoice}
-                      className="bg-green-800 text-white px-4 py-1 rounded-full font-bold text-sm hover:bg-green-900 transition-colors"
-                    >
-                      Invoice PDF
-                    </button>
-                    <button
-                      onClick={printWholesaleReceipt}
-                      title="Print on 80mm thermal printer (no A4 needed)"
-                      className="bg-yellow-500 text-white px-4 py-1 rounded-full font-bold text-sm hover:bg-yellow-600 transition-colors"
-                    >
-                      🖨 80mm
-                    </button>
-                  </>
-                )}
+                <button
+                  onClick={generateInvoice}
+                  className="bg-green-800 text-white px-4 py-1 rounded-full font-bold text-sm hover:bg-green-900 transition-colors"
+                >
+                  Invoice PDF
+                </button>
               </div>
             )}
             {/* Dismiss button */}
@@ -1634,13 +1432,6 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               <div>
                 <label className="text-xs font-bold text-muted-foreground uppercase">Phone Number</label>
                 <input type="tel" value={customerForm.phone} onChange={e => setCustomerForm({...customerForm, phone: e.target.value})} className="input-base mt-1" placeholder="080..." />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase">Customer Type</label>
-                <select value={customerForm.type} onChange={e => setCustomerForm({...customerForm, type: e.target.value as any})} className="input-base mt-1 appearance-none cursor-pointer">
-                  <option value="RETAIL">Retail (Standard Prices)</option>
-                  <option value="WHOLESALE">Wholesale (Discounted Prices)</option>
-                </select>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
