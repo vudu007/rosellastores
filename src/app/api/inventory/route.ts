@@ -106,3 +106,27 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
+export async function DELETE() {
+  try {
+    const session = await auth();
+    if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const branchId = session.user.branchId ?? undefined;
+    if (!branchId) {
+      return NextResponse.json({ error: 'User does not belong to a branch' }, { status: 400 });
+    }
+
+    const result = await prisma.product.updateMany({
+      where: { branchId, isActive: true },
+      data: { isActive: false },
+    });
+
+    return NextResponse.json({ cleared: result.count });
+  } catch (error) {
+    console.error('Error clearing inventory:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
