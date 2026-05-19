@@ -3,6 +3,7 @@
 import { Suspense, useState } from 'react';
 import { signIn, getSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { ShoppingCart } from 'lucide-react';
 
 function LoginInner() {
   const router = useRouter();
@@ -78,8 +79,21 @@ function LoginInner() {
   };
 
   return (
-    <div className="min-h-screen brand-hero flex items-center justify-center p-4">
-      <div className="w-full max-w-md card shadow-2xl overflow-hidden">
+    <div className="min-h-screen brand-hero flex items-center justify-center p-4 relative overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-0 hidden lg:flex items-center justify-start w-[28vw]"
+      >
+        <ShoppingCart className="w-[320px] h-[320px] text-primary/25 drop-shadow-[0_20px_60px_rgba(255,106,0,0.25)] -rotate-12 translate-x-[-20%] blur-[0.2px]" />
+      </div>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 right-0 hidden lg:flex items-center justify-end w-[28vw]"
+      >
+        <ShoppingCart className="w-[300px] h-[300px] text-primary/20 drop-shadow-[0_20px_60px_rgba(255,106,0,0.22)] rotate-12 translate-x-[20%] blur-[0.2px]" />
+      </div>
+
+      <div className="w-full max-w-md card shadow-2xl overflow-hidden relative z-10">
         <div className="px-6 py-8 bg-card border-b">
           <h1 className="text-3xl font-black text-foreground text-center tracking-tight">Rosella Stores</h1>
           <p className="text-muted-foreground text-center mt-2">Kiddies Hub ERP System</p>
@@ -88,7 +102,7 @@ function LoginInner() {
         <div className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-muted-foreground mb-2">
                 Email Address
               </label>
               <input
@@ -102,7 +116,7 @@ function LoginInner() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-muted-foreground mb-2">
                 Password
               </label>
               <input
@@ -141,8 +155,21 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen brand-hero flex items-center justify-center p-4">
-          <div className="w-full max-w-md card shadow-2xl overflow-hidden">
+        <div className="min-h-screen brand-hero flex items-center justify-center p-4 relative overflow-hidden">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 left-0 hidden lg:flex items-center justify-start w-[28vw]"
+          >
+            <ShoppingCart className="w-[320px] h-[320px] text-primary/25 drop-shadow-[0_20px_60px_rgba(255,106,0,0.25)] -rotate-12 translate-x-[-20%] blur-[0.2px]" />
+          </div>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 right-0 hidden lg:flex items-center justify-end w-[28vw]"
+          >
+            <ShoppingCart className="w-[300px] h-[300px] text-primary/20 drop-shadow-[0_20px_60px_rgba(255,106,0,0.22)] rotate-12 translate-x-[20%] blur-[0.2px]" />
+          </div>
+
+          <div className="w-full max-w-md card shadow-2xl overflow-hidden relative z-10">
             <div className="px-6 py-8 bg-card border-b">
               <h1 className="text-3xl font-black text-foreground text-center tracking-tight">Rosella Stores</h1>
               <p className="text-muted-foreground text-center mt-2">Kiddies Hub ERP System</p>
