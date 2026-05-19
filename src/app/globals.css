@@ -4,48 +4,48 @@
 
 /* ─── CSS Variables ──────────────────────────────────────────────────── */
 :root {
-  --background: 210 40% 98%;
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 346.8 77.2% 49.8%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 346.8 77.2% 49.8%;
-  --radius: 0.75rem;
+  --background: 18 18% 6%;
+  --foreground: 0 0% 98%;
+  --card: 18 18% 9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 18 18% 9%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 18 95% 55%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 18 16% 14%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 18 14% 16%;
+  --muted-foreground: 24 6% 72%;
+  --accent: 18 16% 14%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 80% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 18 14% 18%;
+  --input: 18 14% 18%;
+  --ring: 18 95% 55%;
+  --radius: 1rem;
 }
 
 .dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 346.8 90.2% 60.2%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 346.8 90.2% 60.2%;
+  --background: 18 18% 4%;
+  --foreground: 0 0% 98%;
+  --card: 18 18% 7%;
+  --card-foreground: 0 0% 98%;
+  --popover: 18 18% 7%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 18 95% 58%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 18 16% 12%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 18 14% 14%;
+  --muted-foreground: 24 6% 72%;
+  --accent: 18 16% 12%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 80% 55%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 18 14% 16%;
+  --input: 18 14% 16%;
+  --ring: 18 95% 58%;
 }
 
 /* ─── Base resets (outside layers — intentional) ─────────────────────── */
@@ -57,6 +57,13 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-feature-settings: "rlig" 1, "calt" 1;
+  background-image:
+    radial-gradient(1200px circle at 12% 10%, hsl(var(--primary) / 0.16), transparent 55%),
+    radial-gradient(900px circle at 88% 22%, hsl(var(--primary) / 0.10), transparent 52%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg fill='none' stroke='rgb(255,106,0)' stroke-opacity='0.10' stroke-width='10' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 42h70M22 74h38M32 112l28-20 28 20M168 44c16 0 28 12 28 28s-12 28-28 28-28-12-28-28 12-28 28-28zM118 146c18 0 34 14 34 32H84c0-18 16-32 34-32zM30 166c14 0 24 10 24 24H6c0-14 10-24 24-24zM168 154l12 12-12 12-12-12zM148 96c8-10 20-16 34-16M148 112c6 8 16 14 28 16'/%3E%3Cpath d='M92 38c10 10 10 26 0 36-10 10-26 10-36 0'/%3E%3Cpath d='M78 74c-10 10-26 10-36 0'/%3E%3Cpath d='M98 188h54M108 204h38'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: auto, auto, 260px 260px;
+  background-repeat: no-repeat, no-repeat, repeat;
+  background-attachment: fixed;
 }
 
 /* ─── Custom scrollbar ───────────────────────────────────────────────── */
@@ -75,6 +82,33 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes cart-bump {
+  0% { transform: translateZ(0) scale(1); }
+  45% { transform: translateZ(0) scale(1.03); }
+  100% { transform: translateZ(0) scale(1); }
+}
+
+@keyframes cart-glow {
+  0% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.0); }
+  35% { box-shadow: 0 0 0 6px hsl(var(--primary) / 0.20); }
+  100% { box-shadow: 0 0 0 14px hsl(var(--primary) / 0.0); }
+}
+
+@keyframes cart-flash {
+  0% { background-color: hsl(var(--primary) / 0.22); border-color: hsl(var(--primary) / 0.35); }
+  100% { background-color: transparent; border-color: hsl(var(--border)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-entrance,
+  .animate-slide-up,
+  .animate-cart-bump,
+  .animate-cart-glow,
+  .animate-cart-flash {
+    animation: none !important;
+  }
+}
+
 /* ─── Component classes — inside @layer so Tailwind utilities always win */
 @layer components {
 
@@ -83,8 +117,19 @@ body {
   .animate-slide-up { animation: slide-up 0.3s ease-out forwards; }
 
   /* Glassmorphism */
-  .glass { @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl; }
-  .dark .glass { @apply bg-black/40 backdrop-blur-md border border-white/10 shadow-xl; }
+  .glass { @apply bg-card/70 backdrop-blur-md border border-border/50 shadow-xl; }
+  .dark .glass { @apply bg-card/65 backdrop-blur-md border border-border/50 shadow-xl; }
+
+  .animate-cart-bump { animation: cart-bump 220ms ease-out; }
+  .animate-cart-glow { animation: cart-glow 520ms ease-out; }
+  .animate-cart-flash { animation: cart-flash 520ms ease-out; }
+
+  .brand-hero {
+    background-image:
+      radial-gradient(1200px circle at 10% 0%, hsl(var(--primary) / 0.22), transparent 55%),
+      radial-gradient(900px circle at 90% 40%, hsl(var(--primary) / 0.14), transparent 55%),
+      linear-gradient(180deg, hsl(var(--background)) 0%, hsl(var(--background) / 0.92) 100%);
+  }
 
   /* ── Inputs ──────────────────────────────────────────────────────── */
   .input-base {
@@ -126,7 +171,7 @@ body {
   }
   .card-premium {
     @apply rounded-xl border bg-card text-card-foreground shadow-sm
-           transition-all hover:shadow-md hover:border-primary/20;
+           transition-all hover:shadow-md hover:border-primary/25;
   }
 
   /* ── Badges ──────────────────────────────────────────────────────── */
