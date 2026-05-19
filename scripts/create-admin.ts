@@ -16,8 +16,8 @@ async function main() {
     process.exit(1);
   }
 
-  const email = 'admin@rosellastores.com';
-  const password = 'MekaAdmin@2025';
+  const email = 'superadmin@rosellastores.com';
+  const password = 'admin123';
 
   // Check if admin already exists
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -30,7 +30,7 @@ async function main() {
 
   const admin = await prisma.user.create({
     data: {
-      name: 'Super Admin',
+      name: 'Admin',
       email,
       password: hashed,
       role: 'ADMIN',
