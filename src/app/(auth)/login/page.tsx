@@ -34,7 +34,6 @@ function LoginInner() {
 
   const getDefaultLanding = (role: string | undefined) => {
     if (role === 'CASHIER') return '/pos';
-    if (role === 'WHOLESALE_CUSTOMER') return '/wholesale';
     return '/dashboard';
   };
 
@@ -67,8 +66,6 @@ function LoginInner() {
 
         if (role === 'CASHIER') {
           if (!target.startsWith('/pos')) target = '/pos';
-        } else if (role === 'WHOLESALE_CUSTOMER') {
-          if (!target.startsWith('/wholesale')) target = '/wholesale';
         }
 
         router.push(target);
