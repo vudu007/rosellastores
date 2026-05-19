@@ -71,9 +71,9 @@ export default function ReportsPage() {
       doc.setFontSize(18);
       doc.text(`Inventory Audit - ${data.date}`, 14, 22);
       
-      const tableColumn = ["SKU", "Product Name", "Category", "Supplier", "Retail", "Wholesale", "System Stock", "Phys. Count", "Diff."];
+      const tableColumn = ["SKU", "Product Name", "Category", "Supplier", "Retail", "System Stock", "Phys. Count", "Diff."];
       const tableRows = data.inventory.map((p: any) => [
-        p.sku, p.name, p.category, p.supplier, p.retailPrice, p.wholesalePrice, p.systemStock, "", ""
+        p.sku, p.name, p.category, p.supplier, p.retailPrice, p.systemStock, "", ""
       ]);
       
       autoTable(doc, { head: [tableColumn], body: tableRows, startY: 30 });
