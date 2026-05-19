@@ -12,7 +12,6 @@ export class CustomerService {
 
     const where: any = {
       branchId: branchId ?? undefined,
-      type: 'RETAIL',
     };
 
     if (search) {
@@ -50,7 +49,6 @@ export class CustomerService {
         name: data.name,
         email: data.email,
         phone: data.phone,
-        type: 'RETAIL',
         branchId: data.branchId,
       },
     });
