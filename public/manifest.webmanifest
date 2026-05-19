@@ -1,12 +1,12 @@
 {
-  "name": "MekaERP",
-  "short_name": "MekaERP",
-  "description": "Retail management system with POS, inventory, and reporting",
+  "name": "Rosellla Stores",
+  "short_name": "Rosellla",
+  "description": "Kiddies Hub ERP System with POS, inventory, and reporting",
   "start_url": "/login",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#0b1220",
-  "theme_color": "#0b1220",
+  "background_color": "#e11d48",
+  "theme_color": "#e11d48",
   "icons": [
     {
       "src": "/icon.svg",
