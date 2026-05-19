@@ -90,15 +90,22 @@ export default function PriceTagsPage() {
     const { w, h } = labelDims(preset);
     const pageSize = preset === 'A4' ? 'A4' : `${w}mm ${h}mm`;
     const margin = preset === 'A4' ? '8mm' : '2mm';
+    const escapeHtml = (value: string) =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 
     const labels = rows
       .map(r => {
         const barcode = r.product.barcodes?.[0] || '';
-        const name = (r.product.name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const sku = (r.product.sku || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const name = escapeHtml(r.product.name || '');
+        const sku = escapeHtml(r.product.sku || '');
         const price = formatCurrency(r.product.retailPrice);
-        const priceSafe = price.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const barcodeSafe = barcode.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const priceSafe = escapeHtml(price);
+        const barcodeSafe = escapeHtml(barcode);
 
         return `
           <div class="label">
@@ -171,7 +178,18 @@ export default function PriceTagsPage() {
       w.document.write(html);
       w.document.close();
       w.focus();
-      w.print();
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          resolve();
+        };
+        w.onafterprint = finish;
+        w.onbeforeunload = finish;
+        w.print();
+        setTimeout(finish, 15000);
+      });
       w.close();
 
       const res = await fetch('/api/price-tags', {
