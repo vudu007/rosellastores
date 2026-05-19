@@ -46,13 +46,10 @@ export function StaffForm({ editingMember, branches, onSuccess, onCancel }: Staf
     ];
     if (session?.user?.role === 'ADMIN') {
       return [
-        { value: 'ADMIN', label: 'Admin — Full system access incl. Settings' },
-        { value: 'OWNER', label: 'Owner — Full access except Settings' },
+        { value: 'ADMIN', label: 'Admin — Full system access incl. Staff + Settings' },
+        { value: 'OWNER', label: 'Owner — Full access except Staff + Settings' },
         ...base,
       ];
-    }
-    if (session?.user?.role === 'OWNER') {
-      return base;
     }
     return base;
   };
