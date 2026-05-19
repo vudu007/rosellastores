@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import { 
   Package, Search, Filter, AlertCircle, CheckCircle2, 
   ArrowUpRight, MoreHorizontal, LayoutGrid, List,
-  Edit, Trash2, Eye, History, Plus, Truck, X, PackagePlus, Upload, Download
+  Edit, Trash2, Eye, History, Plus, Truck, X, PackagePlus, Upload, Download, Tags
 } from 'lucide-react';
 
 interface Product {
@@ -348,6 +349,11 @@ export default function InventoryPage() {
             {importing ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent flex-shrink-0" /> : <Upload className="w-4 h-4" />}
             <span className="hidden sm:inline font-medium">Import CSV</span>
           </button>
+
+          <Link href="/dashboard/price-tags" className="btn-secondary h-10 px-4 flex items-center justify-center gap-2">
+            <Tags className="w-4 h-4" />
+            <span className="hidden sm:inline font-medium">Price Tags</span>
+          </Link>
 
           <button onClick={() => setShowAddProduct(true)} className="btn-primary h-10 px-4 flex items-center justify-center gap-2 shadow-lg hover:shadow-primary/25 transition-all">
             <Plus className="w-4 h-4" />
