@@ -23,6 +23,6 @@ export const config = {
      * - api/auth     (NextAuth endpoints must always be public)
      * - api/cron     (Vercel Cron endpoints, secured by CRON_SECRET)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/auth|api/cron|api/qz|api/health).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest\\.webmanifest|sw\\.js|offline\\.html|icon\\.svg|api/auth|api/cron|api/qz|api/health).*)',
   ]
 };
