@@ -10,7 +10,9 @@ type CsvRow = {
 };
 
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? process.env.E2E_BASE_URL ?? 'http://localhost:3000';
-const csvPath = process.env.INVENTORY_CSV_PATH ?? 'D:\\ListofItems.csv';
+const csvPath =
+  process.env.INVENTORY_CSV_PATH ??
+  path.resolve(process.cwd(), 'ListofItems.csv');
 const email = process.env.INVENTORY_IMPORT_EMAIL ?? 'admin@rosellastores.com';
 const password = process.env.INVENTORY_IMPORT_PASSWORD ?? 'owner123';
 
