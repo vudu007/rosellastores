@@ -35,7 +35,6 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
     OWNER: 'Owner',
     MANAGER: 'Manager',
     CASHIER: 'Cashier',
-    WHOLESALE_CUSTOMER: 'Wholesale',
   };
 
   return (
