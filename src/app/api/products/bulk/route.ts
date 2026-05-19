@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
           failedCount: products.length,
           errors,
         },
-        { status: 200 }
+        { status: 422 }
       );
     }
 
