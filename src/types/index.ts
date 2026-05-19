@@ -67,12 +67,12 @@ export interface Customer {
   name: string;
   email: string | null;
   phone: string | null;
-  type: 'RETAIL' | 'WHOLESALE';
+  type: 'RETAIL';
   creditLimit: number | null;
   creditUsed: number;
 }
 
-export type SaleType = 'RETAIL' | 'WHOLESALE';
+export type SaleType = 'RETAIL';
 
 export interface Product {
   id: string;
@@ -81,11 +81,11 @@ export interface Product {
   barcodes: string[];
   categoryId: string;
   retailPrice: number;
-  wholesalePrice: number;
+  wholesalePrice?: number;
   stockQty: number;
   lowStockThreshold: number;
-  unitsPerPack: number;
-  wholesaleUnit: string;
+  unitsPerPack?: number;
+  wholesaleUnit?: string;
   unit: string;
   isActive: boolean;
   branchId: string;
@@ -96,7 +96,6 @@ export interface SaleItemInput {
   quantity: number;
   unitPrice: number;
   discount: number;
-  saleType: SaleType;
 }
 
 export interface CreateSaleInput {
@@ -113,7 +112,7 @@ export interface ProductCreateInput {
   barcodes?: string[];
   categoryId: string;
   retailPrice: number;
-  wholesalePrice: number;
+  wholesalePrice?: number;
   stockQty: number;
   lowStockThreshold?: number;
   unitsPerPack?: number;
@@ -128,8 +127,6 @@ export interface CustomerCreateInput {
   name: string;
   email?: string;
   phone?: string;
-  type: 'RETAIL' | 'WHOLESALE';
-  creditLimit?: number;
 }
 
 export interface ExpenseCreateInput {
@@ -145,7 +142,7 @@ export interface InventoryAdjustmentInput {
   reason: string;
 }
 
-export type UserRole = 'ADMIN' | 'OWNER' | 'MANAGER' | 'CASHIER' | 'WHOLESALE_CUSTOMER';
+export type UserRole = 'ADMIN' | 'OWNER' | 'MANAGER' | 'CASHIER';
 
 export interface AuthUser {
   id: string;
