@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import {
   Search, ShoppingCart, User, CreditCard, Banknote,
   Smartphone, Trash2, Plus, Minus, CheckCircle,
-  ChevronRight, Package, AlertCircle, ArrowLeft, Printer
+  ChevronRight, Package, AlertCircle, ArrowLeft, Printer, Info, X
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -290,9 +290,21 @@ export default function POSPage() {
   }, [cart, triggerCartPulse]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const target = e.target as HTMLElement | null;
+    if (
+      target &&
+      (target.isContentEditable ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT')
+    ) {
+      return;
+    }
+
     const currentTime = e.timeStamp;
 
-    if (currentTime - lastScanTime > 50) {
+    if (currentTime - lastScanTime > 80) {
       setBarcodeBuffer('');
     }
 
@@ -537,7 +549,7 @@ export default function POSPage() {
     if (!lastCompletedSale) return;
     // Restore last sale into the success notification so all print buttons are available
     setLastSale(lastCompletedSale);
-    setSuccessMessage('🖨 Reprinting Last Receipt');
+    setSuccessMessage('Reprinting last receipt');
   };
 
 
@@ -1018,6 +1030,14 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
     );
   }
 
+  const toastTone = (() => {
+    const msg = (successMessage ?? '').toLowerCase();
+    if (msg.includes('failed') || msg.includes('error')) return 'error';
+    if (msg.includes('offline') || msg.includes('scanned')) return 'info';
+    if (lastSale) return 'success';
+    return 'info';
+  })();
+
   return (
     <div className="flex min-h-[calc(100vh-64px)] h-[calc(100dvh-64px)] overflow-hidden bg-background text-foreground transition-all duration-300 relative">
       {/* Product Catalog Section */}
@@ -1354,17 +1374,29 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
 
       {/* Transaction status overlay */}
       {successMessage && (
-        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-bounce">
-          <div className={`px-5 py-3 rounded-2xl flex items-center gap-3 shadow-2xl ${lastSale ? 'bg-green-600' : 'bg-red-500'} text-white`}>
-            <CheckCircle className="w-5 h-5 shrink-0" />
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-entrance">
+          <div
+            className={[
+              'px-5 py-3 rounded-2xl flex items-center gap-3 shadow-2xl text-white',
+              toastTone === 'success' ? 'bg-emerald-600' : toastTone === 'error' ? 'bg-destructive' : 'bg-primary',
+            ].join(' ')}
+          >
+            {toastTone === 'success' ? (
+              <CheckCircle className="w-5 h-5 shrink-0" />
+            ) : toastTone === 'error' ? (
+              <AlertCircle className="w-5 h-5 shrink-0" />
+            ) : (
+              <Info className="w-5 h-5 shrink-0" />
+            )}
             <span className="font-bold tracking-tight text-sm">{successMessage}</span>
             {lastSale && (
               <div className="ml-2 flex gap-2 flex-wrap">
                 <button
                   onClick={() => printReceipt()}
-                  className="bg-white text-green-600 px-4 py-1 rounded-full font-bold text-sm hover:bg-white/90 transition-colors"
+                  className="bg-white text-emerald-700 px-4 py-1 rounded-full font-bold text-sm hover:bg-white/90 transition-colors flex items-center gap-2"
                 >
-                  🖨 Print Again
+                  <Printer className="w-4 h-4" />
+                  Print Again
                 </button>
                 <button
                   onClick={generateInvoice}
@@ -1380,7 +1412,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               className="ml-2 p-1 rounded-full hover:bg-white/20 transition-colors shrink-0"
               title="Dismiss"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
