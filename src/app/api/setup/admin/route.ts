@@ -11,8 +11,8 @@ import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
-const ADMIN_EMAIL    = 'admin@rosellastores.com';
-const ADMIN_PASSWORD = 'Admin2025!';
+const ADMIN_EMAIL    = 'superadmin@rosellastores.com';
+const ADMIN_PASSWORD = 'admin123';
 
 export async function GET() {
   try {
@@ -32,7 +32,7 @@ export async function GET() {
 
     const admin = await prisma.user.create({
       data: {
-        name:     'Super Admin',
+        name:     'Admin',
         email:    ADMIN_EMAIL,
         password: hashed,
         role:     'ADMIN',
