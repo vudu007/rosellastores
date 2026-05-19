@@ -78,11 +78,11 @@ function LoginInner() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-600 to-rose-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden">
-        <div className="bg-gradient-to-r from-rose-600 to-rose-700 px-6 py-8">
-          <h1 className="text-3xl font-bold text-white text-center">Rosella Stores</h1>
-          <p className="text-rose-100 text-center mt-2">Kiddies Hub ERP System</p>
+    <div className="min-h-screen brand-hero flex items-center justify-center p-4">
+      <div className="w-full max-w-md card shadow-2xl overflow-hidden">
+        <div className="px-6 py-8 bg-card border-b">
+          <h1 className="text-3xl font-black text-foreground text-center tracking-tight">Rosella Stores</h1>
+          <p className="text-muted-foreground text-center mt-2">Kiddies Hub ERP System</p>
         </div>
 
         <div className="p-8">
@@ -124,7 +124,7 @@ function LoginInner() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed h-12 text-base"
             >
               {loading ? 'Logging in...' : 'Login'}
             </button>
@@ -141,11 +141,11 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-to-br from-rose-600 to-rose-900 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden">
-            <div className="bg-gradient-to-r from-rose-600 to-rose-700 px-6 py-8">
-              <h1 className="text-3xl font-bold text-white text-center">Rosella Stores</h1>
-              <p className="text-rose-100 text-center mt-2">Kiddies Hub ERP System</p>
+        <div className="min-h-screen brand-hero flex items-center justify-center p-4">
+          <div className="w-full max-w-md card shadow-2xl overflow-hidden">
+            <div className="px-6 py-8 bg-card border-b">
+              <h1 className="text-3xl font-black text-foreground text-center tracking-tight">Rosella Stores</h1>
+              <p className="text-muted-foreground text-center mt-2">Kiddies Hub ERP System</p>
             </div>
             <div className="p-8">
               <div className="text-center text-sm text-muted-foreground">Loading…</div>
