@@ -15,11 +15,8 @@ interface Product {
   barcodes: string[];
   stockQty: number;
   lowStockThreshold: number;
-  unitsPerPack: number;
-  wholesaleUnit: string;
   costPrice: number;
   retailPrice: number;
-  wholesalePrice: number;
   unit?: string;
   categoryId?: string;
   supplierId?: string;
@@ -33,8 +30,8 @@ interface SupplierOption { id: string; name: string; }
 
 const emptyProductForm = {
   name: '', sku: '', barcodes: [] as string[], categoryId: '', supplierId: '',
-  costPrice: '', retailPrice: '', wholesalePrice: '', stockQty: '', lowStockThreshold: '10', 
-  unitsPerPack: '1', wholesaleUnit: 'pack', unit: 'pcs',
+  costPrice: '', retailPrice: '', stockQty: '', lowStockThreshold: '10',
+  unit: 'pcs',
   isTaxable: true, taxInclusive: false,
 };
 
@@ -67,8 +64,8 @@ export default function InventoryPage() {
   const [editBarcodeInput, setEditBarcodeInput] = useState('');
 
   const downloadTemplate = () => {
-    const headers = ['name', 'sku', 'barcodes', 'categoryId', 'supplierId', 'retailPrice', 'wholesalePrice', 'stockQty', 'lowStockThreshold', 'unit'];
-    const example = ['Sample Product', 'SKU-001', '', categories[0]?.id || 'cat_id', suppliers[0]?.id || 'sup_id', '1500', '1200', '50', '10', 'pcs'];
+    const headers = ['name', 'sku', 'barcodes', 'categoryId', 'supplierId', 'retailPrice', 'stockQty', 'lowStockThreshold', 'unit'];
+    const example = ['Sample Product', 'SKU-001', '', categories[0]?.id || 'cat_id', suppliers[0]?.id || 'sup_id', '1500', '50', '10', 'pcs'];
     const csv = [headers.join(','), example.join(',')].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -198,7 +195,7 @@ export default function InventoryPage() {
 
   const handleAddProduct = async () => {
     const f = productForm;
-    if (!f.name || !f.sku || !f.categoryId || !f.supplierId || !f.retailPrice || !f.wholesalePrice) {
+    if (!f.name || !f.sku || !f.categoryId || !f.supplierId || !f.retailPrice) {
       setToast({ type: 'error', message: 'Please fill in all required fields' });
       return;
     }
@@ -215,11 +212,8 @@ export default function InventoryPage() {
           supplierId: f.supplierId,
           costPrice: parseFloat(f.costPrice) || 0,
           retailPrice: parseFloat(f.retailPrice),
-          wholesalePrice: parseFloat(f.wholesalePrice),
           stockQty: parseInt(f.stockQty) || 0,
           lowStockThreshold: parseInt(f.lowStockThreshold) || 10,
-          unitsPerPack: parseInt(f.unitsPerPack) || 1,
-          wholesaleUnit: f.wholesaleUnit || 'pack',
           unit: f.unit || 'pcs',
           isTaxable: f.isTaxable,
           taxInclusive: f.taxInclusive,
@@ -253,11 +247,8 @@ export default function InventoryPage() {
       supplierId: product.supplierId || '',
       costPrice: (product.costPrice || 0).toString(),
       retailPrice: product.retailPrice.toString(),
-      wholesalePrice: product.wholesalePrice.toString(),
       stockQty: product.stockQty.toString(),
       lowStockThreshold: product.lowStockThreshold.toString(),
-      unitsPerPack: (product.unitsPerPack || 1).toString(),
-      wholesaleUnit: product.wholesaleUnit || 'pack',
       unit: product.unit || 'pcs',
       isTaxable: product.isTaxable ?? true,
       taxInclusive: product.taxInclusive ?? false,
@@ -283,7 +274,7 @@ export default function InventoryPage() {
   const handleEditProduct = async () => {
     if (!editingProduct) return;
     const f = editProductForm;
-    if (!f.name || !f.sku || !f.retailPrice || !f.wholesalePrice) {
+    if (!f.name || !f.sku || !f.retailPrice) {
       setToast({ type: 'error', message: 'Please fill in required fields' });
       return;
     }
@@ -294,10 +285,7 @@ export default function InventoryPage() {
         sku: f.sku,
         costPrice: parseFloat(f.costPrice) || 0,
         retailPrice: parseFloat(f.retailPrice),
-        wholesalePrice: parseFloat(f.wholesalePrice),
         lowStockThreshold: parseInt(f.lowStockThreshold) || 10,
-        unitsPerPack: parseInt(f.unitsPerPack) || 1,
-        wholesaleUnit: f.wholesaleUnit || 'pack',
       };
       if (f.categoryId) body.categoryId = f.categoryId;
       if (f.supplierId) body.supplierId = f.supplierId;
@@ -477,7 +465,6 @@ export default function InventoryPage() {
                           <td className="px-4 md:px-6 py-4 text-right">
                             <div className="flex flex-col items-end">
                               <p className="text-sm font-bold text-foreground">{formatCurrency(product.retailPrice)}</p>
-                              <p className="text-[10px] text-muted-foreground font-medium">WS: {formatCurrency(product.wholesalePrice)}</p>
                               {product.costPrice > 0 && (
                                 <p className="text-[10px] text-amber-600 font-medium">Cost: {formatCurrency(product.costPrice)}</p>
                               )}
@@ -644,25 +631,6 @@ export default function InventoryPage() {
                 <input type="number" min="0" step="0.01" value={editProductForm.retailPrice} onChange={(e) => setEditProductForm({...editProductForm, retailPrice: e.target.value})} className="input-base mt-1" />
               </div>
               <div>
-                <label className="text-sm font-medium text-foreground">Wholesale Price (₦) *</label>
-                <input type="number" min="0" step="0.01" value={editProductForm.wholesalePrice} onChange={(e) => setEditProductForm({...editProductForm, wholesalePrice: e.target.value})} className="input-base mt-1" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Units Per Pack/Carton *</label>
-                <input type="number" min="1" value={editProductForm.unitsPerPack} onChange={(e) => setEditProductForm({...editProductForm, unitsPerPack: e.target.value})} className="input-base mt-1" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Wholesale Unit Label</label>
-                <select value={editProductForm.wholesaleUnit} onChange={(e) => setEditProductForm({...editProductForm, wholesaleUnit: e.target.value})} className="input-base mt-1">
-                  <option value="pack">Pack</option>
-                  <option value="carton">Carton</option>
-                  <option value="box">Box</option>
-                  <option value="dozen">Dozen</option>
-                  <option value="crate">Crate</option>
-                  <option value="bag">Bag</option>
-                </select>
-              </div>
-              <div>
                 <label className="text-sm font-medium text-foreground">Low Stock Alert At</label>
                 <input type="number" min="0" value={editProductForm.lowStockThreshold} onChange={(e) => setEditProductForm({...editProductForm, lowStockThreshold: e.target.value})} className="input-base mt-1" />
               </div>
@@ -809,25 +777,6 @@ export default function InventoryPage() {
               <div>
                 <label className="text-sm font-medium text-foreground">Retail Price (₦) *</label>
                 <input type="number" min="0" step="0.01" value={productForm.retailPrice} onChange={(e) => setProductForm({...productForm, retailPrice: e.target.value})} className="input-base mt-1" placeholder="e.g. 2500" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Wholesale Price (₦) *</label>
-                <input type="number" min="0" step="0.01" value={productForm.wholesalePrice} onChange={(e) => setProductForm({...productForm, wholesalePrice: e.target.value})} className="input-base mt-1" placeholder="e.g. 2000" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Units Per Pack/Carton *</label>
-                <input type="number" min="1" value={productForm.unitsPerPack} onChange={(e) => setProductForm({...productForm, unitsPerPack: e.target.value})} className="input-base mt-1" placeholder="e.g. 12" />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-foreground">Wholesale Unit Label</label>
-                <select value={productForm.wholesaleUnit} onChange={(e) => setProductForm({...productForm, wholesaleUnit: e.target.value})} className="input-base mt-1">
-                  <option value="pack">Pack</option>
-                  <option value="carton">Carton</option>
-                  <option value="box">Box</option>
-                  <option value="dozen">Dozen</option>
-                  <option value="crate">Crate</option>
-                  <option value="bag">Bag</option>
-                </select>
               </div>
               <div>
                 <label className="text-sm font-medium text-foreground">Initial Stock Qty</label>
