@@ -11,7 +11,7 @@ const createProductSchema = z.object({
   categoryId: z.string(),
   costPrice: z.number().nonnegative().optional().default(0),
   retailPrice: z.number().positive(),
-  wholesalePrice: z.number().positive(),
+  wholesalePrice: z.number().positive().optional(),
   stockQty: z.number().int().nonnegative(),
   lowStockThreshold: z.number().int().optional(),
   unitsPerPack: z.number().int().positive().optional().default(1),
@@ -64,8 +64,7 @@ export async function GET(req: NextRequest) {
             ...pagination,
             select: {
               id: true, name: true, sku: true, barcodes: true,
-              retailPrice: true, wholesalePrice: true, stockQty: true,
-              unitsPerPack: true, wholesaleUnit: true,
+              retailPrice: true, stockQty: true,
               imageUrl: true, isTaxable: true, taxInclusive: true,
               category: { select: { name: true } },
             },
@@ -109,6 +108,7 @@ export async function POST(req: NextRequest) {
       data: {
         ...validatedData,
         branchId: session.user.branchId!,
+        wholesalePrice: validatedData.wholesalePrice ?? validatedData.retailPrice,
         lowStockThreshold: validatedData.lowStockThreshold || 10,
         unitsPerPack: validatedData.unitsPerPack || 1,
         wholesaleUnit: validatedData.wholesaleUnit || 'pack',
@@ -130,4 +130,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
