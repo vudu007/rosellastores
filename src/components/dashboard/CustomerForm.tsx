@@ -15,8 +15,6 @@ const emptyForm: CustomerCreateInput = {
   name: '',
   email: '',
   phone: '',
-  type: 'RETAIL',
-  creditLimit: 0,
 };
 
 export function CustomerForm({ editingCustomer, onSuccess, onCancel }: CustomerFormProps) {
@@ -26,8 +24,6 @@ export function CustomerForm({ editingCustomer, onSuccess, onCancel }: CustomerF
           name: editingCustomer.name,
           email: editingCustomer.email ?? '',
           phone: editingCustomer.phone ?? '',
-          type: editingCustomer.type,
-          creditLimit: editingCustomer.creditLimit ?? 0,
         }
       : emptyForm
   );
@@ -91,29 +87,6 @@ export function CustomerForm({ editingCustomer, onSuccess, onCancel }: CustomerF
             className="input-base bg-muted/30 border-none"
           />
         </div>
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Customer Type</label>
-          <select
-            value={formData.type}
-            onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
-            className="input-base bg-muted/30 border-none"
-          >
-            <option value="RETAIL">Retail</option>
-            <option value="WHOLESALE">Wholesale</option>
-          </select>
-        </div>
-        {formData.type === 'WHOLESALE' && (
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Credit Limit (₦)</label>
-            <input
-              type="number"
-              placeholder="0.00"
-              value={formData.creditLimit || ''}
-              onChange={(e) => setFormData({ ...formData, creditLimit: parseFloat(e.target.value) })}
-              className="input-base bg-muted/30 border-none"
-            />
-          </div>
-        )}
         <div className="col-span-full flex gap-3 pt-2">
           <button type="submit" disabled={saving} className="btn-primary flex-1">
             {saving ? 'Saving…' : editingCustomer ? 'Update Customer' : 'Add Customer'}
