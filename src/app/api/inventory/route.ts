@@ -25,13 +25,7 @@ export async function GET(req: NextRequest) {
       isActive: true,
     };
 
-    if (lowStockOnly) {
-      where.stockQty = {
-        lte: prisma.product.fields.lowStockThreshold,
-      };
-    }
-
-    const products = await prisma.product.findMany({
+    let products = await prisma.product.findMany({
       where,
       include: {
         category: true,
@@ -39,6 +33,10 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { name: 'asc' },
     });
+
+    if (lowStockOnly) {
+      products = products.filter((p) => p.stockQty <= p.lowStockThreshold);
+    }
 
     return NextResponse.json(products);
   } catch (error) {
@@ -57,11 +55,13 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const validatedData = adjustStockSchema.parse(body);
 
-    const product = await prisma.product.findUnique({
-      where: { id: validatedData.productId },
-    });
+    const branchId = session.user.branchId ?? undefined;
+    if (!branchId) {
+      return NextResponse.json({ error: 'User does not belong to a branch' }, { status: 400 });
+    }
 
-    if (!product || product.branchId !== session.user.branchId) {
+    const product = await prisma.product.findUnique({ where: { id: validatedData.productId } });
+    if (!product || product.branchId !== branchId) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
@@ -76,13 +76,8 @@ export async function PATCH(req: NextRequest) {
 
     const updatedProduct = await prisma.product.update({
       where: { id: validatedData.productId },
-      data: {
-        stockQty: newStockQty,
-      },
-      include: {
-        category: true,
-        supplier: true,
-      },
+      data: { stockQty: { increment: validatedData.quantityChange } },
+      include: { category: true, supplier: true },
     });
 
     await prisma.auditLog.create({
@@ -91,8 +86,12 @@ export async function PATCH(req: NextRequest) {
         action: 'STOCK_ADJUSTMENT',
         entity: 'Product',
         entityId: validatedData.productId,
-        oldValue: product.stockQty.toString(),
-        newValue: newStockQty.toString(),
+        oldValue: JSON.stringify({ stockQty: product.stockQty }),
+        newValue: JSON.stringify({
+          stockQty: updatedProduct.stockQty,
+          quantityChange: validatedData.quantityChange,
+          reason: validatedData.reason,
+        }),
       },
     });
 
