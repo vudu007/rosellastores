@@ -7,27 +7,31 @@ async function main() {
   console.log('Starting database seed...');
 
   const existingBranch = await prisma.branch.findFirst();
-  if (existingBranch) {
-    console.log('Seed skipped: database already has a branch.');
-    return;
-  }
-
-  const branch = await prisma.branch.create({
-    data: {
-      name: 'Rosella Stores',
-      address: 'Your business address here',
-      phone: '+234-000-000-0000',
-      isActive: true,
-    },
-  });
+  const branch =
+    existingBranch ??
+    (await prisma.branch.create({
+      data: {
+        name: 'Rosella Stores',
+        address: 'Your business address here',
+        phone: '+234-000-000-0000',
+        isActive: true,
+      },
+    }));
 
   console.log('Branch created:', branch.id);
 
   const hashedOwnerPassword = await bcrypt.hash('owner123', 10);
   const hashedCashierPassword = await bcrypt.hash('cashier123', 10);
 
-  await prisma.user.create({
-    data: {
+  await prisma.user.upsert({
+    where: { email: 'admin@rosellastores.com' },
+    update: {
+      name: 'Owner',
+      password: hashedOwnerPassword,
+      role: 'OWNER',
+      branchId: branch.id,
+    },
+    create: {
       name: 'Owner',
       email: 'admin@rosellastores.com',
       password: hashedOwnerPassword,
@@ -36,8 +40,15 @@ async function main() {
     },
   });
 
-  await prisma.user.create({
-    data: {
+  await prisma.user.upsert({
+    where: { email: 'cashier@rosellastores.com' },
+    update: {
+      name: 'Cashier',
+      password: hashedCashierPassword,
+      role: 'CASHIER',
+      branchId: branch.id,
+    },
+    create: {
       name: 'Cashier',
       email: 'cashier@rosellastores.com',
       password: hashedCashierPassword,
@@ -61,8 +72,10 @@ async function main() {
   ];
 
   for (const setting of settings) {
-    await prisma.setting.create({
-      data: setting,
+    await prisma.setting.upsert({
+      where: { key: setting.key },
+      update: { value: setting.value, description: setting.description },
+      create: setting,
     });
   }
 
