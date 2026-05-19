@@ -46,6 +46,8 @@ export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartPulse, setCartPulse] = useState(false);
+  const [pulseItemId, setPulseItemId] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -88,8 +90,29 @@ export default function POSPage() {
     }
   });
   const printingRef = useRef(false);
+  const cartPulseTimeoutRef = useRef<number | null>(null);
+  const itemPulseTimeoutRef = useRef<number | null>(null);
 
   const OFFLINE_SALES_KEY = 'meka_offline_sales_v1';
+
+  const triggerCartPulse = useCallback((productId?: string) => {
+    setCartPulse(true);
+    if (cartPulseTimeoutRef.current) window.clearTimeout(cartPulseTimeoutRef.current);
+    cartPulseTimeoutRef.current = window.setTimeout(() => setCartPulse(false), 220);
+
+    if (productId) {
+      setPulseItemId(productId);
+      if (itemPulseTimeoutRef.current) window.clearTimeout(itemPulseTimeoutRef.current);
+      itemPulseTimeoutRef.current = window.setTimeout(() => setPulseItemId(null), 520);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (cartPulseTimeoutRef.current) window.clearTimeout(cartPulseTimeoutRef.current);
+      if (itemPulseTimeoutRef.current) window.clearTimeout(itemPulseTimeoutRef.current);
+    };
+  }, []);
 
   const loadOfflineSales = useCallback(() => {
     try {
@@ -245,6 +268,7 @@ export default function POSPage() {
             : item
         )
       );
+      triggerCartPulse(product.id);
     } else {
       if (product.stockQty < 1) return;
 
@@ -261,8 +285,9 @@ export default function POSPage() {
           taxInclusive: product.taxInclusive ?? false,
         },
       ]);
+      triggerCartPulse(product.id);
     }
-  }, [cart]);
+  }, [cart, triggerCartPulse]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const currentTime = e.timeStamp;
@@ -298,7 +323,8 @@ export default function POSPage() {
 
   const removeFromCart = useCallback((productId: string) => {
     setCart((prevCart) => prevCart.filter((item) => item.productId !== productId));
-  }, []);
+    triggerCartPulse(productId);
+  }, [triggerCartPulse]);
 
   const updateCartItem = useCallback((productId: string, quantity: number, discount: number) => {
     const product = products.find(p => p.id === productId);
@@ -308,6 +334,7 @@ export default function POSPage() {
 
     if (quantity <= 0) {
       setCart((prevCart) => prevCart.filter((item) => item.productId !== productId));
+      triggerCartPulse(productId);
       return;
     }
     setCart((prevCart) =>
@@ -322,7 +349,8 @@ export default function POSPage() {
           : item
       )
     );
-  }, [products]);
+    triggerCartPulse(productId);
+  }, [products, triggerCartPulse]);
 
   const TAX_RATE = 0.075; // 7.5% VAT
 
@@ -1004,6 +1032,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               onChange={(e) => setSearchQuery(e.target.value)}
               className="input-base pl-10 h-12 bg-card text-lg"
               autoFocus
+              data-testid="pos-search"
             />
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -1040,6 +1069,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               onClick={() => addToCart(product)}
               disabled={product.stockQty === 0}
               className="card-premium p-2.5 flex flex-col text-left group relative disabled:opacity-40 hover:border-primary/60 transition-all min-h-[88px]"
+              data-testid={`pos-product-${product.sku}`}
             >
               {/* Stock status badge — top right */}
               <div className="absolute top-1.5 right-1.5">
@@ -1075,8 +1105,16 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
       </div>
 
       {/* Cart Section — full-screen on mobile when active, fixed panel on desktop */}
-      <div className={`bg-card border-l flex-col shadow-2xl z-10 animate-entrance w-full md:w-[420px] ${showMobileCart ? 'flex' : 'hidden md:flex'}`}>
-        <div className="p-4 md:p-6 border-b space-y-4">
+      <div
+        className={[
+          'bg-card/80 backdrop-blur-xl border-l flex-col shadow-2xl z-10 w-full md:w-[420px]',
+          'fixed inset-y-0 right-0 md:static md:translate-x-0 md:flex',
+          'transform transition-transform duration-300 ease-out',
+          showMobileCart ? 'translate-x-0 flex' : 'translate-x-full pointer-events-none md:pointer-events-auto md:translate-x-0 md:flex',
+        ].join(' ')}
+        data-testid="pos-cart-panel"
+      >
+        <div className="p-4 md:p-6 border-b space-y-4 bg-card/60">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-xl flex items-center gap-2">
               {/* Back button — mobile only */}
@@ -1086,12 +1124,13 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              <ShoppingCart className="w-5 h-5 text-primary" />
+              <ShoppingCart className={`w-5 h-5 text-primary ${cartPulse ? 'animate-cart-bump' : ''}`} />
               Current Order
             </h3>
             <button
               onClick={() => setCart([])}
               className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
+              aria-label="Clear cart"
             >
               <Trash2 className="w-5 h-5" />
             </button>
@@ -1140,7 +1179,14 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
           ) : (
             cart.map((item) => {
               return (
-                <div key={item.productId} className="bg-card p-4 rounded-xl border shadow-sm group animate-slide-up">
+                <div
+                  key={item.productId}
+                  className={[
+                    'bg-card p-4 rounded-xl border shadow-sm group animate-slide-up',
+                    pulseItemId === item.productId ? 'animate-cart-flash' : '',
+                  ].join(' ')}
+                  data-testid={`pos-cart-item-${item.productId}`}
+                >
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1 pr-4">
                       <p className="font-bold text-sm leading-tight line-clamp-1">{item.name}</p>
@@ -1156,13 +1202,15 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                       <button 
                         onClick={() => updateCartItem(item.productId, item.quantity - 1, item.discount)}
                         className="p-1 hover:bg-card rounded-md transition-colors"
+                        aria-label={`Decrease quantity for ${item.name}`}
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="w-8 text-center text-xs font-bold leading-none">{item.quantity}</span>
+                      <span className="w-8 text-center text-xs font-bold leading-none" data-testid={`pos-cart-qty-${item.productId}`}>{item.quantity}</span>
                       <button 
                         onClick={() => updateCartItem(item.productId, item.quantity + 1, item.discount)}
                         className="p-1 hover:bg-card rounded-md transition-colors"
+                        aria-label={`Increase quantity for ${item.name}`}
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -1170,6 +1218,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                     <button 
                       onClick={() => removeFromCart(item.productId)}
                       className="text-xs text-muted-foreground hover:text-destructive transition-colors font-medium"
+                      aria-label={`Remove ${item.name}`}
                     >
                       Remove
                     </button>
@@ -1213,7 +1262,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
 
             <div className="flex justify-between items-end pt-2 border-t">
               <span className="text-base font-bold text-muted-foreground">Total Payable</span>
-              <span className="text-3xl font-black text-primary tracking-tighter">
+              <span className={`text-3xl font-black text-primary tracking-tighter ${cartPulse ? 'animate-cart-bump' : ''}`} data-testid="pos-total">
                 {formatCurrency(total)}
               </span>
             </div>
@@ -1277,6 +1326,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               onClick={() => setShowPaymentModal(true)}
               disabled={cart.length === 0}
               className="col-span-2 bg-primary text-primary-foreground h-14 rounded-xl font-bold text-lg shadow-lg shadow-primary/30 hover:shadow-primary/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:grayscale disabled:shadow-none flex items-center justify-center gap-2"
+              data-testid="pos-checkout"
             >
               <CheckCircle className="w-5 h-5" />
               Finalize Transaction
@@ -1289,7 +1339,8 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
       {!showMobileCart && (
         <button
           onClick={() => setShowMobileCart(true)}
-          className="fixed bottom-6 right-6 md:hidden z-50 flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3.5 rounded-full shadow-2xl shadow-primary/40 font-bold text-sm active:scale-95 transition-all"
+          className={`fixed bottom-6 right-6 md:hidden z-50 flex items-center gap-2 bg-primary text-primary-foreground px-5 py-3.5 rounded-full shadow-2xl shadow-primary/40 font-bold text-sm active:scale-95 transition-all ${cartPulse ? 'animate-cart-glow' : ''}`}
+          aria-label="Open cart"
         >
           <ShoppingCart className="w-5 h-5" />
           Cart
