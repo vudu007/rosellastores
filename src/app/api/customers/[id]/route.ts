@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     const { id } = await context.params;
     const customer = await prisma.customer.findUnique({ where: { id } });
-    if (!customer || customer.branchId !== session.user.branchId || customer.type !== 'RETAIL') {
+    if (!customer || customer.branchId !== session.user.branchId) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
     return NextResponse.json(customer);
@@ -35,7 +35,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 
     const { id } = await context.params;
     const customer = await prisma.customer.findUnique({ where: { id } });
-    if (!customer || customer.branchId !== session.user.branchId || customer.type !== 'RETAIL') {
+    if (!customer || customer.branchId !== session.user.branchId) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
@@ -63,7 +63,7 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
 
     const { id } = await context.params;
     const customer = await prisma.customer.findUnique({ where: { id } });
-    if (!customer || customer.branchId !== session.user.branchId || customer.type !== 'RETAIL') {
+    if (!customer || customer.branchId !== session.user.branchId) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
