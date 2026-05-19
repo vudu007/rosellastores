@@ -11,7 +11,7 @@ import { StaffForm } from '@/components/dashboard/StaffForm';
 import { deleteStaffAction } from '@/app/actions/staff.actions';
 
 export default function StaffPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,18 +21,6 @@ export default function StaffPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const canManage = session?.user?.role === 'ADMIN';
-
-  if (session && session.user.role !== 'ADMIN') {
-    return (
-      <div className="p-4 md:p-8 animate-entrance">
-        <div className="card-premium p-10 text-center">
-          <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-foreground">Admin Only</h1>
-          <p className="text-muted-foreground mt-2">Staff management is restricted to the Admin account.</p>
-        </div>
-      </div>
-    );
-  }
 
   const fetchStaff = async () => {
     try {
@@ -55,9 +43,14 @@ export default function StaffPage() {
   };
 
   useEffect(() => {
+    if (status === 'loading') return;
+    if (!canManage) {
+      setLoading(false);
+      return;
+    }
     fetchStaff();
     fetchBranches();
-  }, []);
+  }, [status, canManage]);
 
   useEffect(() => {
     if (toast) {
@@ -106,6 +99,18 @@ export default function StaffPage() {
     const hrs = Math.ceil((exp.getTime() - now.getTime()) / 3600000);
     return { label: `Expires in ${hrs}h`, color: 'bg-amber-100 text-amber-700 border-amber-200' };
   };
+
+  if (session && session.user.role !== 'ADMIN') {
+    return (
+      <div className="p-4 md:p-8 animate-entrance">
+        <div className="card-premium p-10 text-center">
+          <AlertCircle className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
+          <h1 className="text-xl font-bold text-foreground">Admin Only</h1>
+          <p className="text-muted-foreground mt-2">Staff management is restricted to the Admin account.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 space-y-6 animate-entrance">
