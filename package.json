@@ -1,7 +1,7 @@
 {
-  "name": "retail-management-system",
+  "name": "rosellla-stores-erp",
   "version": "1.0.0",
-  "description": "Complete full-stack retail management system with POS, inventory, and reporting",
+  "description": "Rosellla Stores — Kiddies Hub ERP System with POS, inventory, and reporting",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
