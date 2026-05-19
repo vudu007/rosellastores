@@ -15,17 +15,8 @@ export async function createStaffAction(data: {
   tempAccount?: boolean;
 }) {
   const session = await auth();
-  if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
+  if (!session || session.user.role !== 'ADMIN') {
     throw new Error('Unauthorized');
-  }
-
-  // Protection for ADMIN accounts
-  if (data.role === 'ADMIN' && session.user.role !== 'ADMIN') {
-    throw new Error('Only Admins can create other Admin accounts');
-  }
-
-  if (session.user.role === 'OWNER' && data.role === 'ADMIN') {
-    throw new Error('Owners cannot create Admin accounts');
   }
 
   const staff = await StaffService.createStaff(data);
@@ -42,7 +33,7 @@ export async function updateStaffAction(id: string, data: {
   tempAccount?: boolean;
 }) {
   const session = await auth();
-  if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
+  if (!session || session.user.role !== 'ADMIN') {
     throw new Error('Unauthorized');
   }
 
@@ -52,10 +43,6 @@ export async function updateStaffAction(id: string, data: {
     throw new Error('Only Admins can modify other Admin accounts');
   }
 
-  if (session.user.role === 'OWNER' && data.role === 'ADMIN') {
-    throw new Error('Owners cannot assign the Admin role');
-  }
-
   const staff = await StaffService.updateStaff(id, data);
   revalidatePath('/dashboard/staff');
   return staff;
@@ -63,7 +50,7 @@ export async function updateStaffAction(id: string, data: {
 
 export async function deleteStaffAction(id: string) {
   const session = await auth();
-  if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
+  if (!session || session.user.role !== 'ADMIN') {
     throw new Error('Unauthorized');
   }
 
