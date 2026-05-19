@@ -1,5 +1,5 @@
-const CACHE_PREFIX = 'mekaerp-';
-const CACHE_NAME = 'mekaerp-v1';
+const CACHE_PREFIX = 'rosellla-';
+const CACHE_NAME = 'rosellla-v1';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
