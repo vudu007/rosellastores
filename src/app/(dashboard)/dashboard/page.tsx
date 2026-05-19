@@ -269,7 +269,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <QuickActionCard
           title="New POS Sale"
-          description="Start a new retail or wholesale transaction."
+          description="Start a new retail transaction."
           href="/pos"
           icon={<ShoppingBag className="text-blue-600" />}
         />
