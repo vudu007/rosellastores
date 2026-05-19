@@ -7,14 +7,12 @@ import bcrypt from 'bcryptjs';
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
+    if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const where: any = {};
-    if (session.user.role === 'MANAGER' && session.user.branchId) {
-      where.branchId = session.user.branchId;
-    }
+    where.branchId = session.user.branchId ?? undefined;
 
     const staff = await prisma.user.findMany({
       where,
@@ -33,7 +31,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
+    if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -42,11 +40,6 @@ export async function POST(req: NextRequest) {
 
     if (!name || !email || !password || !role) {
       return NextResponse.json({ error: 'Name, email, password and role are required' }, { status: 400 });
-    }
-
-    // OWNER cannot create ADMIN accounts
-    if (session.user.role === 'OWNER' && role === 'ADMIN') {
-      return NextResponse.json({ error: 'Owners cannot create Admin accounts' }, { status: 403 });
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -78,7 +71,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
+    if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -97,10 +90,6 @@ export async function PUT(req: NextRequest) {
 
     if (targetUser.role === 'ADMIN' && session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Only Admins can modify other Admin accounts' }, { status: 403 });
-    }
-
-    if (session.user.role === 'OWNER' && role === 'ADMIN') {
-      return NextResponse.json({ error: 'Owners cannot assign the Admin role' }, { status: 403 });
     }
 
     const updateData: any = { name, email, role, branchId: branchId || null };
@@ -123,7 +112,7 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
+    if (!session || session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
