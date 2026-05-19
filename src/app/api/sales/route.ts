@@ -15,7 +15,6 @@ const createSaleSchema = z.object({
       quantity: z.number().int().positive(),
       unitPrice: z.number().positive(),
       discount: z.number().nonnegative().default(0),
-      saleType: z.enum(['RETAIL', 'WHOLESALE']).default('RETAIL'),
     })
   ),
   discount: z.number().nonnegative().default(0),
@@ -154,9 +153,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `Product ${item.productId} not found` }, { status: 404 });
       }
 
-      const decrementQty = item.saleType === 'WHOLESALE' 
-        ? item.quantity * (product.unitsPerPack || 1)
-        : item.quantity;
+      const decrementQty = item.quantity;
 
       if (product.stockQty < decrementQty) {
         return NextResponse.json(
@@ -179,7 +176,6 @@ export async function POST(req: NextRequest) {
         unitPrice: item.unitPrice,
         discount: item.discount,
         total: itemTotal,
-        saleType: item.saleType,
       });
     }
 
@@ -210,9 +206,7 @@ export async function POST(req: NextRequest) {
     });
 
     for (const item of sale.items) {
-      const decrementAmount = item.saleType === 'WHOLESALE' 
-        ? item.qty * (item.product.unitsPerPack || 1)
-        : item.qty;
+      const decrementAmount = item.qty;
 
       await prisma.product.update({
         where: { id: item.productId },
