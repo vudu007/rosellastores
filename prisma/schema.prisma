@@ -13,12 +13,6 @@ enum Role {
   OWNER
   MANAGER
   CASHIER
-  WHOLESALE_CUSTOMER
-}
-
-enum CustomerType {
-  RETAIL
-  WHOLESALE
 }
 
 enum PaymentMethod {
@@ -72,11 +66,6 @@ model Branch {
   @@index([isActive])
 }
 
-enum SaleType {
-  RETAIL
-  WHOLESALE
-}
-
 model Product {
   id                String    @id @default(auto()) @map("_id") @db.ObjectId
   name              String
@@ -86,11 +75,8 @@ model Product {
   category          Category  @relation(fields: [categoryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   costPrice         Float     @default(0)
   retailPrice       Float
-  wholesalePrice    Float
   stockQty          Int
   lowStockThreshold Int       @default(10)
-  unitsPerPack      Int       @default(1)
-  wholesaleUnit     String    @default("pack")
   supplierId        String    @db.ObjectId
   supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   branchId          String    @db.ObjectId
@@ -146,9 +132,6 @@ model Customer {
   name        String
   email       String?
   phone       String?
-  type        CustomerType @default(RETAIL)
-  creditLimit Float?
-  creditUsed  Float        @default(0)
   branchId    String       @db.ObjectId
   branch      Branch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   createdAt   DateTime     @default(now())
@@ -157,7 +140,6 @@ model Customer {
   sales Sale[]
 
   @@index([branchId])
-  @@index([type])
   @@index([email])
 }
 
@@ -199,7 +181,6 @@ model SaleItem {
   unitPrice Float
   discount  Float    @default(0)
   total     Float
-  saleType  SaleType @default(RETAIL)
   createdAt DateTime @default(now())
 
   @@index([saleId])
