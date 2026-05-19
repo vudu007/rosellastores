@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react';
 import { X } from 'lucide-react';
 import {
   LayoutDashboard, ShoppingBag, Package, Tag,
+  Tags,
   Users, Truck, BarChart2, Users2, CreditCard,
   Settings, ShoppingCart
 } from 'lucide-react';
@@ -15,6 +16,7 @@ const menuItems = [
   { href: '/dashboard/sales',      label: 'Sales',       icon: ShoppingBag,     roles: ['ADMIN', 'OWNER', 'MANAGER'] },
   { href: '/dashboard/inventory',  label: 'Inventory',   icon: Package,         roles: ['ADMIN', 'OWNER', 'MANAGER'] },
   { href: '/dashboard/categories', label: 'Categories',  icon: Tag,             roles: ['ADMIN', 'OWNER', 'MANAGER'] },
+  { href: '/dashboard/price-tags', label: 'Price Tags',  icon: Tags,            roles: ['ADMIN', 'OWNER', 'MANAGER'] },
   { href: '/dashboard/customers',  label: 'Customers',   icon: Users,           roles: ['ADMIN', 'OWNER', 'MANAGER'] },
   { href: '/dashboard/suppliers',  label: 'Suppliers',   icon: Truck,           roles: ['ADMIN', 'OWNER', 'MANAGER'] },
   { href: '/dashboard/expenses',   label: 'Expenses',    icon: CreditCard,      roles: ['ADMIN', 'OWNER', 'MANAGER'] },
