@@ -8,8 +8,6 @@ const updateCustomerSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional().nullable(),
   phone: z.string().optional().nullable(),
-  type: z.enum(['RETAIL', 'WHOLESALE']).optional(),
-  creditLimit: z.number().nonnegative().optional().nullable(),
 });
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -19,7 +17,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
     const { id } = await context.params;
     const customer = await prisma.customer.findUnique({ where: { id } });
-    if (!customer || customer.branchId !== session.user.branchId) {
+    if (!customer || customer.branchId !== session.user.branchId || customer.type !== 'RETAIL') {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
     return NextResponse.json(customer);
@@ -37,7 +35,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 
     const { id } = await context.params;
     const customer = await prisma.customer.findUnique({ where: { id } });
-    if (!customer || customer.branchId !== session.user.branchId) {
+    if (!customer || customer.branchId !== session.user.branchId || customer.type !== 'RETAIL') {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
@@ -65,7 +63,7 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
 
     const { id } = await context.params;
     const customer = await prisma.customer.findUnique({ where: { id } });
-    if (!customer || customer.branchId !== session.user.branchId) {
+    if (!customer || customer.branchId !== session.user.branchId || customer.type !== 'RETAIL') {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
