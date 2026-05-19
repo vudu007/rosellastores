@@ -29,8 +29,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
-      return NextResponse.json({ error: 'Unauthorized. Only ADMIN or OWNER can update settings' }, { status: 401 });
+    if (!session || session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized. Only ADMIN can update settings' }, { status: 401 });
     }
 
     const body = await req.json();
