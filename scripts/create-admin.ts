@@ -16,7 +16,7 @@ async function main() {
     process.exit(1);
   }
 
-  const email = 'admin@mekaerp.com';
+  const email = 'admin@roselllastores.com';
   const password = 'MekaAdmin@2025';
 
   // Check if admin already exists
