@@ -13,7 +13,6 @@ export default function CustomersPage() {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [type, setType] = useState<'RETAIL' | 'WHOLESALE' | ''>('');
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -22,7 +21,6 @@ export default function CustomersPage() {
   const fetchCustomers = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      if (type) params.append('type', type);
       params.append('limit', '100');
       const response = await fetch(`/api/customers?${params}`);
       const data = await response.json();
@@ -32,7 +30,7 @@ export default function CustomersPage() {
     } finally {
       setLoading(false);
     }
-  }, [type]);
+  }, []);
 
   useEffect(() => {
     fetchCustomers();
@@ -71,7 +69,7 @@ export default function CustomersPage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Customers</h1>
-          <p className="page-subtitle">Manage retail and wholesale customer accounts</p>
+          <p className="page-subtitle">Manage customer accounts</p>
         </div>
         {canEdit && (
           <button
@@ -121,17 +119,6 @@ export default function CustomersPage() {
           />
         </div>
 
-        {/* Type filter */}
-        <select
-          value={type}
-          onChange={(e) => setType(e.target.value as any)}
-          className="input-base w-full sm:w-44 bg-muted/30 border-none"
-        >
-          <option value="">All Types</option>
-          <option value="RETAIL">Retail</option>
-          <option value="WHOLESALE">Wholesale</option>
-        </select>
-
         {/* Count badge */}
         <span className="text-sm text-muted-foreground whitespace-nowrap shrink-0">
           {filteredCustomers.length} of {customers.length}
@@ -152,15 +139,13 @@ export default function CustomersPage() {
                 <tr>
                   <th>Customer</th>
                   <th>Contact</th>
-                  <th>Type</th>
-                  <th>Credit Usage</th>
                   {canEdit && <th className="text-center">Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 5 : 4} className="py-16 text-center text-muted-foreground">
+                    <td colSpan={canEdit ? 3 : 2} className="py-16 text-center text-muted-foreground">
                       <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
                       <p className="font-medium">{search ? 'No customers match your search.' : 'No customers yet.'}</p>
                     </td>
@@ -179,38 +164,6 @@ export default function CustomersPage() {
                       <td>
                         <p className="text-foreground">{customer.email || '—'}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{customer.phone || '—'}</p>
-                      </td>
-                      <td>
-                        <span className={customer.type === 'RETAIL' ? 'badge-primary' : 'badge-success'}>
-                          {customer.type}
-                        </span>
-                      </td>
-                      <td>
-                        {customer.type === 'WHOLESALE' ? (
-                          <div>
-                            <p className="text-foreground font-medium">
-                              ₦{(customer.creditUsed ?? 0).toLocaleString()}{' '}
-                              <span className="text-muted-foreground font-normal">
-                                / ₦{(customer.creditLimit ?? 0).toLocaleString()}
-                              </span>
-                            </p>
-                            {customer.creditLimit ? (
-                              <div className="mt-1.5 h-1.5 w-24 bg-muted rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-primary rounded-full transition-all"
-                                  style={{
-                                    width: `${Math.min(
-                                      100,
-                                      ((customer.creditUsed ?? 0) / customer.creditLimit) * 100
-                                    )}%`,
-                                  }}
-                                />
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
                       </td>
                       {canEdit && (
                         <td>
