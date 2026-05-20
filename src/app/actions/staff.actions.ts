@@ -1,6 +1,6 @@
 'use server';
 
-import { auth } from '@/lib/auth';
+import { authWithSession } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { StaffService } from '@/services/staff.service';
 import { UserRole } from '@/types';
@@ -14,7 +14,7 @@ export async function createStaffAction(data: {
   branchId?: string | null;
   tempAccount?: boolean;
 }) {
-  const session = await auth();
+  const session = await authWithSession();
   if (!session || session.user.role !== 'ADMIN') {
     throw new Error('Unauthorized');
   }
@@ -32,7 +32,7 @@ export async function updateStaffAction(id: string, data: {
   branchId?: string | null;
   tempAccount?: boolean;
 }) {
-  const session = await auth();
+  const session = await authWithSession();
   if (!session || session.user.role !== 'ADMIN') {
     throw new Error('Unauthorized');
   }
@@ -49,7 +49,7 @@ export async function updateStaffAction(id: string, data: {
 }
 
 export async function deleteStaffAction(id: string) {
-  const session = await auth();
+  const session = await authWithSession();
   if (!session || session.user.role !== 'ADMIN') {
     throw new Error('Unauthorized');
   }
