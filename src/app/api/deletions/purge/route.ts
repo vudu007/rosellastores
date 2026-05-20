@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       await prisma.product.delete({ where: { id: entityId } });
     } else if (entityType === 'CATEGORY') {
       const softProducts = await prisma.product.findMany({
-        where: { categoryId: entityId, isActive: false, deletedAt: { not: null } },
+        where: { categoryId: entityId },
         select: { id: true },
         take: 2000,
       });
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       await prisma.category.delete({ where: { id: entityId } });
     } else if (entityType === 'SUPPLIER') {
       const softProducts = await prisma.product.findMany({
-        where: { supplierId: entityId, isActive: false, deletedAt: { not: null } },
+        where: { supplierId: entityId },
         select: { id: true },
         take: 2000,
       });
