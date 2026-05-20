@@ -69,7 +69,7 @@ function LoginInner() {
           if (!target.startsWith('/pos')) target = '/pos';
         }
 
-        router.push(target);
+        window.location.assign(target);
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
