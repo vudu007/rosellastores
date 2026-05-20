@@ -17,6 +17,13 @@ type PurgeResult = {
   error?: string;
 };
 
+const isRecordNotFound = (err: any) => {
+  const code = (err as any)?.code as string | undefined;
+  if (code === 'P2025') return true;
+  const msg = String((err as any)?.message || '');
+  return msg.includes('Record to delete does not exist') || msg.includes('required but not found');
+};
+
 export async function POST(req: NextRequest) {
   const session = await authWithSession();
   if (!session || session.user.role !== 'ADMIN') {
@@ -87,7 +94,11 @@ export async function POST(req: NextRequest) {
     if (entityType === 'PRODUCT') {
       const saleItemCount = await prisma.saleItem.count({ where: { productId: entityId } });
       if (saleItemCount > 0) throw new Error(`Cannot permanently delete product: linked to ${saleItemCount} sale item(s).`);
-      await prisma.product.delete({ where: { id: entityId } });
+      try {
+        await prisma.product.delete({ where: { id: entityId } });
+      } catch (e: any) {
+        if (!isRecordNotFound(e)) throw e;
+      }
     } else if (entityType === 'CATEGORY') {
       const softProducts = await prisma.product.findMany({
         where: { categoryId: entityId },
@@ -97,7 +108,11 @@ export async function POST(req: NextRequest) {
       for (const p of softProducts) {
         const saleItemCount = await prisma.saleItem.count({ where: { productId: p.id } });
         if (saleItemCount === 0) {
-          await prisma.product.delete({ where: { id: p.id } });
+          try {
+            await prisma.product.delete({ where: { id: p.id } });
+          } catch (e: any) {
+            if (!isRecordNotFound(e)) throw e;
+          }
         }
       }
 
@@ -105,7 +120,11 @@ export async function POST(req: NextRequest) {
       if (productCount > 0) throw new Error(`Cannot permanently delete category: ${productCount} product(s) still reference it (some may be active or have sales history).`);
       const childCount = await prisma.category.count({ where: { parentId: entityId } });
       if (childCount > 0) throw new Error(`Cannot permanently delete category: ${childCount} sub-category(ies) still reference it.`);
-      await prisma.category.delete({ where: { id: entityId } });
+      try {
+        await prisma.category.delete({ where: { id: entityId } });
+      } catch (e: any) {
+        if (!isRecordNotFound(e)) throw e;
+      }
     } else if (entityType === 'SUPPLIER') {
       const softProducts = await prisma.product.findMany({
         where: { supplierId: entityId },
@@ -115,13 +134,21 @@ export async function POST(req: NextRequest) {
       for (const p of softProducts) {
         const saleItemCount = await prisma.saleItem.count({ where: { productId: p.id } });
         if (saleItemCount === 0) {
-          await prisma.product.delete({ where: { id: p.id } });
+          try {
+            await prisma.product.delete({ where: { id: p.id } });
+          } catch (e: any) {
+            if (!isRecordNotFound(e)) throw e;
+          }
         }
       }
 
       const productCount = await prisma.product.count({ where: { supplierId: entityId } });
       if (productCount > 0) throw new Error(`Cannot permanently delete supplier: ${productCount} product(s) still reference it (some may be active or have sales history).`);
-      await prisma.supplier.delete({ where: { id: entityId } });
+      try {
+        await prisma.supplier.delete({ where: { id: entityId } });
+      } catch (e: any) {
+        if (!isRecordNotFound(e)) throw e;
+      }
     } else {
       throw new Error('Unsupported entity type');
     }
