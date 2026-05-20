@@ -1,12 +1,12 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { authWithSession } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
