@@ -29,6 +29,7 @@ type DeletionRow = {
 export default function DeletionsPage() {
   const { data: session } = useSession();
   const canManage = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER';
+  const isAdmin = session?.user?.role === 'ADMIN';
 
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<DeletionRow[]>([]);
@@ -91,6 +92,23 @@ export default function DeletionsPage() {
     }
   };
 
+  const purgeAll = async () => {
+    if (!confirm('Permanently delete ALL soft-deleted items, categories, and suppliers now? This cannot be undone.')) return;
+    setWorkingId('purge-all');
+    try {
+      const res = await fetch('/api/deletions/purge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to purge');
+      const msg = `Purged: ${data.summary?.deleted ?? 0} deleted, ${data.summary?.failed ?? 0} failed`;
+      setToast({ type: 'success', message: msg });
+      await refresh();
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Failed to purge' });
+    } finally {
+      setWorkingId(null);
+    }
+  };
+
   const activeCount = useMemo(() => rows.filter((r) => r.status !== 'PERMANENT_DELETED').length, [rows]);
 
   const describeEntity = (r: DeletionRow) => {
@@ -128,10 +146,22 @@ export default function DeletionsPage() {
           </h1>
           <p className="text-muted-foreground mt-1">{rows.length} request(s) • {activeCount} active</p>
         </div>
-        <button onClick={refresh} disabled={loading} className="btn-secondary h-10 px-4 flex items-center gap-2">
-          <RefreshCcw className="w-4 h-4" />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={purgeAll}
+              disabled={workingId === 'purge-all' || loading}
+              className="btn-secondary h-10 px-4 flex items-center gap-2 disabled:opacity-40"
+            >
+              <Trash2 className="w-4 h-4" />
+              Purge All
+            </button>
+          )}
+          <button onClick={refresh} disabled={loading} className="btn-secondary h-10 px-4 flex items-center gap-2">
+            <RefreshCcw className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -161,7 +191,9 @@ export default function DeletionsPage() {
                   const canApprove =
                     r.status === 'SOFT_DELETED' &&
                     (session?.user?.role === 'ADMIN' || r.requestedById !== session?.user?.id);
-                  const canPermanent = r.status === 'APPROVED' && !locked;
+                  const canPermanent = isAdmin
+                    ? r.status !== 'PERMANENT_DELETED' && r.status !== 'CANCELLED'
+                    : r.status === 'APPROVED' && !locked;
 
                   const lockText = locked
                     ? (() => {
