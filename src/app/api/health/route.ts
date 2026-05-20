@@ -17,11 +17,21 @@ export async function GET() {
   };
 
   try {
-    const [branchCount, userCount] = await Promise.all([prisma.branch.count(), prisma.user.count()]);
+    const [branchCount, userCount, hasAdmin, hasOwner, hasCashier] = await Promise.all([
+      prisma.branch.count(),
+      prisma.user.count(),
+      prisma.user
+        .findUnique({ where: { email: 'superadmin@rosellastores.com' }, select: { id: true } })
+        .then(Boolean),
+      prisma.user.findUnique({ where: { email: 'admin@rosellastores.com' }, select: { id: true } }).then(Boolean),
+      prisma.user
+        .findUnique({ where: { email: 'cashier@rosellastores.com' }, select: { id: true } })
+        .then(Boolean),
+    ]);
     return NextResponse.json({
       ok: true,
       env,
-      db: { connected: true, branchCount, userCount },
+      db: { connected: true, branchCount, userCount, hasAdmin, hasOwner, hasCashier },
     });
   } catch (error: any) {
     return NextResponse.json({
@@ -32,4 +42,3 @@ export async function GET() {
     });
   }
 }
-
