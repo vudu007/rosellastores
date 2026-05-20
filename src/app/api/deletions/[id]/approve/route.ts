@@ -21,7 +21,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Deletion request is not awaiting approval' }, { status: 400 });
   }
   if (request.requestedById === session.user.id) {
-    return NextResponse.json({ error: 'A second authorized user must approve this deletion' }, { status: 400 });
+    if (session.user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'A second authorized user must approve this deletion' }, { status: 400 });
+    }
   }
 
   await prisma.deletionRequest.update({
@@ -41,4 +43,3 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
 
   return NextResponse.json({ ok: true });
 }
-
