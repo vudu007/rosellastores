@@ -89,14 +89,38 @@ export async function POST(req: NextRequest) {
       if (saleItemCount > 0) throw new Error(`Cannot permanently delete product: linked to ${saleItemCount} sale item(s).`);
       await prisma.product.delete({ where: { id: entityId } });
     } else if (entityType === 'CATEGORY') {
+      const softProducts = await prisma.product.findMany({
+        where: { categoryId: entityId, isActive: false, deletedAt: { not: null } },
+        select: { id: true },
+        take: 2000,
+      });
+      for (const p of softProducts) {
+        const saleItemCount = await prisma.saleItem.count({ where: { productId: p.id } });
+        if (saleItemCount === 0) {
+          await prisma.product.delete({ where: { id: p.id } });
+        }
+      }
+
       const productCount = await prisma.product.count({ where: { categoryId: entityId } });
-      if (productCount > 0) throw new Error(`Cannot permanently delete category: ${productCount} product(s) still reference it.`);
+      if (productCount > 0) throw new Error(`Cannot permanently delete category: ${productCount} product(s) still reference it (some may be active or have sales history).`);
       const childCount = await prisma.category.count({ where: { parentId: entityId } });
       if (childCount > 0) throw new Error(`Cannot permanently delete category: ${childCount} sub-category(ies) still reference it.`);
       await prisma.category.delete({ where: { id: entityId } });
     } else if (entityType === 'SUPPLIER') {
+      const softProducts = await prisma.product.findMany({
+        where: { supplierId: entityId, isActive: false, deletedAt: { not: null } },
+        select: { id: true },
+        take: 2000,
+      });
+      for (const p of softProducts) {
+        const saleItemCount = await prisma.saleItem.count({ where: { productId: p.id } });
+        if (saleItemCount === 0) {
+          await prisma.product.delete({ where: { id: p.id } });
+        }
+      }
+
       const productCount = await prisma.product.count({ where: { supplierId: entityId } });
-      if (productCount > 0) throw new Error(`Cannot permanently delete supplier: ${productCount} product(s) still reference it.`);
+      if (productCount > 0) throw new Error(`Cannot permanently delete supplier: ${productCount} product(s) still reference it (some may be active or have sales history).`);
       await prisma.supplier.delete({ where: { id: entityId } });
     } else {
       throw new Error('Unsupported entity type');
@@ -120,33 +144,40 @@ export async function POST(req: NextRequest) {
     });
   };
 
-  for (const r of existingRequests) {
-    try {
-      await runDelete(r.entityType as any, r.entityId, r.id, r.reason);
-      results.push({ entityType: r.entityType as any, entityId: r.entityId, deletionRequestId: r.id, ok: true });
-    } catch (e: any) {
-      results.push({
-        entityType: r.entityType as any,
-        entityId: r.entityId,
-        deletionRequestId: r.id,
-        ok: false,
-        error: e?.message || 'Failed',
-      });
-    }
-  }
+  const orderedTypes: PurgeResult['entityType'][] = ['PRODUCT', 'CATEGORY', 'SUPPLIER'];
+  for (const t of orderedTypes) {
+    if (!types.includes(t)) continue;
 
-  for (const o of orphanCandidates) {
-    try {
-      await runDelete(o.entityType, o.entityId, null, 'Orphan soft delete purge');
-      results.push({ entityType: o.entityType, entityId: o.entityId, deletionRequestId: null, ok: true });
-    } catch (e: any) {
-      results.push({
-        entityType: o.entityType,
-        entityId: o.entityId,
-        deletionRequestId: null,
-        ok: false,
-        error: e?.message || 'Failed',
-      });
+    const reqs = existingRequests.filter((r) => r.entityType === t);
+    for (const r of reqs) {
+      try {
+        await runDelete(r.entityType as any, r.entityId, r.id, r.reason);
+        results.push({ entityType: r.entityType as any, entityId: r.entityId, deletionRequestId: r.id, ok: true });
+      } catch (e: any) {
+        results.push({
+          entityType: r.entityType as any,
+          entityId: r.entityId,
+          deletionRequestId: r.id,
+          ok: false,
+          error: e?.message || 'Failed',
+        });
+      }
+    }
+
+    const orphans = orphanCandidates.filter((o) => o.entityType === t);
+    for (const o of orphans) {
+      try {
+        await runDelete(o.entityType, o.entityId, null, 'Orphan soft delete purge');
+        results.push({ entityType: o.entityType, entityId: o.entityId, deletionRequestId: null, ok: true });
+      } catch (e: any) {
+        results.push({
+          entityType: o.entityType,
+          entityId: o.entityId,
+          deletionRequestId: null,
+          ok: false,
+          error: e?.message || 'Failed',
+        });
+      }
     }
   }
 
@@ -159,4 +190,3 @@ export async function POST(req: NextRequest) {
     results,
   });
 }
-
