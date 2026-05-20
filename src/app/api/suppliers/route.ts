@@ -1,16 +1,20 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { authWithSession } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const includeInactive = searchParams.get('includeInactive') === 'true';
+
     const suppliers = await prisma.supplier.findMany({
+      where: includeInactive ? {} : { isActive: true },
       include: {
         _count: { select: { products: true } },
       },
@@ -26,7 +30,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -51,7 +55,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -77,7 +81,7 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -89,15 +93,46 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Supplier ID is required' }, { status: 400 });
     }
 
-    // Check if supplier has products
-    const productCount = await prisma.product.count({ where: { supplierId: id } });
-    if (productCount > 0) {
-      return NextResponse.json({ error: `Cannot delete supplier with ${productCount} linked products. Reassign them first.` }, { status: 400 });
+    const body = await req.json().catch(() => null);
+    const reason = (body?.reason as string | undefined)?.trim();
+    if (!reason) {
+      return NextResponse.json({ error: 'Deletion reason is required' }, { status: 400 });
     }
 
-    await prisma.supplier.delete({ where: { id } });
+    const existing = await prisma.supplier.findUnique({ where: { id } });
+    if (!existing) return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
 
-    return NextResponse.json({ message: 'Supplier deleted' });
+    const alreadyDeleted = existing.isActive === false;
+    if (!alreadyDeleted) {
+      await prisma.supplier.update({
+        where: { id },
+        data: { isActive: false, deletedAt: new Date(), deletedById: session.user.id },
+      });
+    }
+
+    const earliestPermanentAt = new Date(Date.now() + 72 * 60 * 60_000);
+
+    const request = await prisma.deletionRequest.create({
+      data: {
+        entityType: 'SUPPLIER',
+        entityId: id,
+        reason,
+        earliestPermanentAt,
+        requestedById: session.user.id,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: 'SOFT_DELETE',
+        entity: 'Supplier',
+        entityId: id,
+        newValue: JSON.stringify({ reason, deletionRequestId: request.id }),
+      },
+    });
+
+    return NextResponse.json({ message: 'Supplier soft-deleted', deletionRequestId: request.id });
   } catch (error) {
     console.error('Error deleting supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
