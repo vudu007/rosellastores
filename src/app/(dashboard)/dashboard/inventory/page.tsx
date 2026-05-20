@@ -63,6 +63,7 @@ export default function InventoryPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [editBarcodeInput, setEditBarcodeInput] = useState('');
+  const canDelete = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER';
 
   const downloadTemplate = () => {
     const headers = ['name', 'sku', 'barcodes', 'categoryId', 'supplierId', 'retailPrice', 'stockQty', 'lowStockThreshold', 'unit'];
@@ -322,16 +323,23 @@ export default function InventoryPage() {
   };
 
   const handleDeleteProduct = async (product: Product) => {
-    if (!confirm(`Deactivate "${product.name}"? It will be hidden from inventory.`)) return;
+    if (!canDelete) return;
+    const reason = prompt(`Reason for deleting "${product.name}" (required):`)?.trim();
+    if (!reason) return;
     setDeletingProductId(product.id);
     try {
-      const res = await fetch(`/api/products/${product.id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to deactivate');
-      setToast({ type: 'success', message: `"${product.name}" deactivated` });
+      const res = await fetch(`/api/products/${product.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Failed to delete');
+      setToast({ type: 'success', message: `"${product.name}" deleted (soft)` });
       const prods = await (await fetch(`/api/inventory?${lowStockOnly ? 'lowStockOnly=true' : ''}`)).json();
       setProducts(prods);
     } catch (err: any) {
-      setToast({ type: 'error', message: err.message || 'Failed to deactivate product' });
+      setToast({ type: 'error', message: err.message || 'Failed to delete product' });
     } finally {
       setDeletingProductId(null);
     }
@@ -493,9 +501,11 @@ export default function InventoryPage() {
                               <button onClick={() => openEditProduct(product)} className="p-2 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors" title="Edit">
                                 <Edit className="w-4 h-4" />
                               </button>
-                              <button onClick={() => handleDeleteProduct(product)} disabled={deletingProductId === product.id} className="p-2 hover:bg-destructive/10 text-destructive rounded-lg disabled:opacity-40" title="Deactivate">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              {canDelete && (
+                                <button onClick={() => handleDeleteProduct(product)} disabled={deletingProductId === product.id} className="p-2 hover:bg-destructive/10 text-destructive rounded-lg disabled:opacity-40" title="Delete">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                             <div className="hidden md:block md:group-hover:hidden">
                               <MoreHorizontal className="w-5 h-5 text-muted-foreground ml-auto" />
@@ -553,7 +563,9 @@ export default function InventoryPage() {
                       <div className="flex gap-1">
                         <button onClick={() => setRestockProduct(product)} className="p-1.5 hover:bg-green-100 text-green-600 rounded-md transition-colors" title="Restock"><PackagePlus className="w-3.5 h-3.5" /></button>
                         <button onClick={() => openEditProduct(product)} className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-md transition-colors" title="Edit"><Edit className="w-3.5 h-3.5" /></button>
-                        <button onClick={() => handleDeleteProduct(product)} disabled={deletingProductId === product.id} className="p-1.5 hover:bg-destructive/10 text-destructive rounded-md transition-colors disabled:opacity-40" title="Deactivate"><Trash2 className="w-3.5 h-3.5" /></button>
+                        {canDelete && (
+                          <button onClick={() => handleDeleteProduct(product)} disabled={deletingProductId === product.id} className="p-1.5 hover:bg-destructive/10 text-destructive rounded-md transition-colors disabled:opacity-40" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                        )}
                       </div>
                     </div>
                   </div>
