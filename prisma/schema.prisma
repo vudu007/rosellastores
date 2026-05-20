@@ -34,6 +34,19 @@ enum PriceTagStatus {
   PRINTED
 }
 
+enum DeletionEntityType {
+  CATEGORY
+  PRODUCT
+  SUPPLIER
+}
+
+enum DeletionStatus {
+  SOFT_DELETED
+  APPROVED
+  PERMANENT_DELETED
+  CANCELLED
+}
+
 model User {
   id        String    @id @default(auto()) @map("_id") @db.ObjectId
   name      String
@@ -49,6 +62,12 @@ model User {
   sales     Sale[]
   expenses  Expense[]
   auditLogs AuditLog[]
+  sessions  UserSession[]
+  revokedSessions UserSession[] @relation("RevokedBy")
+  loginEvents LoginEvent[]
+  deletionRequests DeletionRequest[] @relation("DeletionRequestedBy")
+  deletionApprovals DeletionRequest[] @relation("DeletionApprovedBy")
+  deletionExecutions DeletionRequest[] @relation("DeletionExecutedBy")
 
   @@index([branchId])
 }
@@ -91,6 +110,8 @@ model Product {
   unit              String    @default("pcs")
   minOrderQty       Int       @default(1)
   isActive          Boolean   @default(true)
+  deletedAt         DateTime?
+  deletedById       String?   @db.ObjectId
   isTaxable         Boolean   @default(true)
   taxInclusive      Boolean   @default(false)
   createdAt         DateTime  @default(now())
@@ -129,12 +150,16 @@ model Category {
   parentId  String?    @db.ObjectId
   parent    Category?  @relation("CategoryToParent", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   children  Category[] @relation("CategoryToParent")
+  isActive  Boolean    @default(true)
+  deletedAt DateTime?
+  deletedById String?  @db.ObjectId
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
   products Product[]
 
   @@index([parentId])
+  @@index([isActive])
 }
 
 model Supplier {
@@ -144,12 +169,79 @@ model Supplier {
   email     String?
   phone     String
   address   String?
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+  deletedById String? @db.ObjectId
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   products Product[]
 
   @@index([email])
+  @@index([isActive])
+}
+
+model UserSession {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String    @db.ObjectId
+  user       User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ip         String?
+  userAgent  String?
+  device     String?
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  revokedById String?  @db.ObjectId
+  revokedBy  User?     @relation("RevokedBy", fields: [revokedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  revokeReason String?
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([lastSeenAt])
+  @@index([revokedAt])
+}
+
+model LoginEvent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  user      User?    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  email     String
+  success   Boolean
+  error     String?
+  ip        String?
+  userAgent String?
+  device    String?
+  sessionId String?  @db.ObjectId
+  timestamp DateTime @default(now())
+
+  @@index([email])
+  @@index([timestamp])
+  @@index([success])
+}
+
+model DeletionRequest {
+  id          String            @id @default(auto()) @map("_id") @db.ObjectId
+  entityType  DeletionEntityType
+  entityId    String            @db.ObjectId
+  reason      String
+  requestedAt DateTime          @default(now())
+  earliestPermanentAt DateTime
+  status      DeletionStatus    @default(SOFT_DELETED)
+  requestedById String          @db.ObjectId
+  requestedBy User             @relation("DeletionRequestedBy", fields: [requestedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approvedById String?          @db.ObjectId
+  approvedBy User?             @relation("DeletionApprovedBy", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approvedAt DateTime?
+  executedById String?          @db.ObjectId
+  executedBy User?             @relation("DeletionExecutedBy", fields: [executedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  executedAt DateTime?
+
+  @@index([entityType])
+  @@index([entityId])
+  @@index([status])
+  @@index([requestedAt])
+  @@index([earliestPermanentAt])
 }
 
 model Customer {
