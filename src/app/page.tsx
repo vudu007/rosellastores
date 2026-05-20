@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation';
-import { auth } from '@/lib/auth';
+import { authWithSession } from '@/lib/authz';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const session = await auth();
+  const session = await authWithSession();
   if (!session?.user) {
     redirect('/login');
   }
