@@ -56,7 +56,7 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
   } else if (requestRow.entityType === 'CATEGORY') {
     if (session.user.role === 'ADMIN') {
       const softProducts = await prisma.product.findMany({
-        where: { categoryId: requestRow.entityId, isActive: false, deletedAt: { not: null } },
+        where: { categoryId: requestRow.entityId },
         select: { id: true },
         take: 2000,
       });
@@ -91,7 +91,7 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
   } else if (requestRow.entityType === 'SUPPLIER') {
     if (session.user.role === 'ADMIN') {
       const softProducts = await prisma.product.findMany({
-        where: { supplierId: requestRow.entityId, isActive: false, deletedAt: { not: null } },
+        where: { supplierId: requestRow.entityId },
         select: { id: true },
         take: 2000,
       });
