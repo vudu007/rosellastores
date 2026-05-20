@@ -1,13 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { authWithSession } from '@/lib/authz';
 import { generateEODReport, generateEODPDF, sendEODReport } from '@/lib/eod';
 import { prisma } from '@/lib/prisma';
 import { getEmailConfigError } from '@/lib/email';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
