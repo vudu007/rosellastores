@@ -21,13 +21,19 @@ interface Product {
   unit?: string;
   categoryId?: string;
   supplierId?: string;
-  category: { name: string };
+  category?: { name: string } | null;
+  supplier?: { name: string } | null;
   isTaxable: boolean;
   taxInclusive: boolean;
 }
 
 interface CategoryOption { id: string; name: string; }
 interface SupplierOption { id: string; name: string; }
+
+interface InventoryResponse {
+  products: Product[];
+  pagination: { page: number; limit: number; total: number; pages: number };
+}
 
 const emptyProductForm = {
   name: '', sku: '', barcodes: [] as string[], categoryId: '', supplierId: '',
@@ -41,7 +47,12 @@ export default function InventoryPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
+  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 1 });
+  const [reloadKey, setReloadKey] = useState(0);
   const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => {
     if (typeof window === 'undefined') return 'table';
     return window.matchMedia('(max-width: 767px)').matches ? 'grid' : 'table';
@@ -104,11 +115,8 @@ export default function InventoryPage() {
             }
             
             setToast({ type: 'success', message: `${data.message}` });
-            
-            const params = new URLSearchParams();
-            if (lowStockOnly) params.append('lowStockOnly', 'true');
-            const prods = await (await fetch(`/api/inventory?${params}`)).json();
-            setProducts(prods);
+            setPage(1);
+            setReloadKey((k) => k + 1);
           } catch (err: any) {
             setToast({ type: 'error', message: err.message || 'Import failed' });
           } finally {
@@ -127,6 +135,15 @@ export default function InventoryPage() {
   useEffect(() => {
     if (toast) { const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); }
   }, [toast]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, lowStockOnly, limit]);
 
   // Fetch categories and suppliers for the Add Product form
   useEffect(() => {
@@ -151,9 +168,12 @@ export default function InventoryPage() {
       setToast({ type: 'success', message: data.message });
       setRestockProduct(null);
       setRestockQty('');
-      // Refresh product list
-      const products = await (await fetch(`/api/inventory?${lowStockOnly ? 'lowStockOnly=true' : ''}`)).json();
-      setProducts(products);
+      const updated = data.product as Partial<Product> | undefined;
+      if (updated?.id && typeof updated.stockQty === 'number') {
+        setProducts((prev) =>
+          prev.map((p) => (p.id === updated.id ? { ...p, stockQty: updated.stockQty as number } : p))
+        );
+      }
     } catch (err: any) {
       setToast({ type: 'error', message: err.message || 'Restock failed' });
     } finally {
@@ -162,29 +182,50 @@ export default function InventoryPage() {
   };
 
   useEffect(() => {
+    let isCancelled = false;
     const fetchProducts = async () => {
       try {
+        setLoading(true);
         const params = new URLSearchParams();
-        if (lowStockOnly) {
-          params.append('lowStockOnly', 'true');
-        }
+        if (lowStockOnly) params.append('lowStockOnly', 'true');
+        if (debouncedSearch) params.append('search', debouncedSearch);
+        params.append('page', String(page));
+        params.append('limit', String(limit));
+
         const response = await fetch(`/api/inventory?${params}`);
-        const data = await response.json();
-        setProducts(data);
+        const data: InventoryResponse = await response.json();
+
+        if (!response.ok) {
+          const msg = (data as any)?.error || 'Failed to fetch inventory';
+          throw new Error(msg);
+        }
+
+        if (isCancelled) return;
+
+        setProducts(Array.isArray((data as any)) ? (data as any) : (data.products ?? []));
+        if (data.pagination) {
+          setPagination(data.pagination);
+          if (typeof data.pagination.page === 'number' && data.pagination.page !== page) {
+            setPage(data.pagination.page);
+          }
+        }
       } catch (error) {
         console.error('Error fetching products:', error);
       } finally {
-        setLoading(false);
+        if (!isCancelled) setLoading(false);
       }
     };
 
     fetchProducts();
-  }, [lowStockOnly]);
+    return () => {
+      isCancelled = true;
+    };
+  }, [lowStockOnly, debouncedSearch, page, limit, reloadKey]);
 
-  const filteredProducts = products.filter((product) =>
-    product.name.toLowerCase().includes(search.toLowerCase()) ||
-    product.sku.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredProducts = products;
+
+  const startItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
+  const endItem = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + products.length;
 
   const getStockStatus = (current: number, threshold: number) => {
     if (current === 0) return { label: 'Out of Stock', color: 'text-destructive bg-destructive/10 border-destructive/20', icon: <AlertCircle className="w-3 h-3" /> };
@@ -234,9 +275,8 @@ export default function InventoryPage() {
       setToast({ type: 'success', message: `"${f.name}" added to inventory` });
       setShowAddProduct(false);
       setProductForm(emptyProductForm);
-      // Refresh inventory
-      const prods = await (await fetch(`/api/inventory?${lowStockOnly ? 'lowStockOnly=true' : ''}`)).json();
-      setProducts(prods);
+      setPage(1);
+      setReloadKey((k) => k + 1);
     } catch (err: any) {
       setToast({ type: 'error', message: err.message || 'Failed to add product' });
     } finally {
@@ -313,8 +353,7 @@ export default function InventoryPage() {
       }
       setToast({ type: 'success', message: `"${f.name}" updated` });
       setEditingProduct(null);
-      const prods = await (await fetch(`/api/inventory?${lowStockOnly ? 'lowStockOnly=true' : ''}`)).json();
-      setProducts(prods);
+      setReloadKey((k) => k + 1);
     } catch (err: any) {
       setToast({ type: 'error', message: err.message || 'Failed to update product' });
     } finally {
@@ -336,8 +375,7 @@ export default function InventoryPage() {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d.error || 'Failed to delete');
       setToast({ type: 'success', message: `"${product.name}" deleted (soft)` });
-      const prods = await (await fetch(`/api/inventory?${lowStockOnly ? 'lowStockOnly=true' : ''}`)).json();
-      setProducts(prods);
+      setReloadKey((k) => k + 1);
     } catch (err: any) {
       setToast({ type: 'error', message: err.message || 'Failed to delete product' });
     } finally {
@@ -464,7 +502,7 @@ export default function InventoryPage() {
                           </td>
                           <td className="px-4 md:px-6 py-4">
                             <span className="text-xs font-semibold px-2 py-1 rounded-md bg-muted text-muted-foreground">
-                              {product.category.name}
+                              {product.category?.name ?? 'Uncategorized'}
                             </span>
                           </td>
                           <td className="px-4 md:px-6 py-4">
@@ -558,7 +596,7 @@ export default function InventoryPage() {
 
                     <div className="pt-4 flex items-center justify-between">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">
-                        {product.category.name}
+                        {product.category?.name ?? 'Uncategorized'}
                       </span>
                       <div className="flex gap-1">
                         <button onClick={() => setRestockProduct(product)} className="p-1.5 hover:bg-green-100 text-green-600 rounded-md transition-colors" title="Restock"><PackagePlus className="w-3.5 h-3.5" /></button>
@@ -573,6 +611,40 @@ export default function InventoryPage() {
               })}
             </div>
           )}
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              Showing {startItem}-{endItem} of {pagination.total}
+            </p>
+            <div className="flex items-center gap-2">
+              <select
+                value={limit}
+                onChange={(e) => setLimit(parseInt(e.target.value, 10))}
+                className="input-base h-9 py-0"
+              >
+                <option value="25">25 / page</option>
+                <option value="50">50 / page</option>
+                <option value="100">100 / page</option>
+              </select>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={pagination.page <= 1}
+                className="btn-secondary h-9 px-3 disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                Page {pagination.page} / {pagination.pages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
+                disabled={pagination.page >= pagination.pages}
+                className="btn-secondary h-9 px-3 disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </>
       )}
       {/* Edit Product Modal */}
@@ -635,7 +707,7 @@ export default function InventoryPage() {
               <div>
                 <label className="text-sm font-medium text-foreground">Category</label>
                 <select value={editProductForm.categoryId} onChange={(e) => setEditProductForm({...editProductForm, categoryId: e.target.value})} className="input-base mt-1">
-                  <option value="">Keep current ({editingProduct.category.name})</option>
+                  <option value="">Keep current ({editingProduct.category?.name ?? 'Uncategorized'})</option>
                   {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
