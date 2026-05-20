@@ -26,15 +26,21 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
   });
 
   if (!requestRow) return NextResponse.json({ error: 'Deletion request not found' }, { status: 404 });
-  if (requestRow.status !== 'APPROVED') {
-    return NextResponse.json({ error: 'Deletion request is not approved' }, { status: 400 });
+  if (session.user.role === 'ADMIN') {
+    if (!['SOFT_DELETED', 'APPROVED'].includes(requestRow.status)) {
+      return NextResponse.json({ error: 'Deletion request cannot be permanently deleted' }, { status: 400 });
+    }
+  } else {
+    if (requestRow.status !== 'APPROVED') {
+      return NextResponse.json({ error: 'Deletion request is not approved' }, { status: 400 });
+    }
   }
   if (session.user.role !== 'ADMIN') {
     if (!requestRow.approvedById || requestRow.approvedById === requestRow.requestedById) {
       return NextResponse.json({ error: 'Second-user approval is required' }, { status: 400 });
     }
   }
-  if (new Date() < requestRow.earliestPermanentAt) {
+  if (session.user.role !== 'ADMIN' && new Date() < requestRow.earliestPermanentAt) {
     return NextResponse.json({ error: 'Permanent deletion is locked for 72 hours after soft delete' }, { status: 400 });
   }
 
