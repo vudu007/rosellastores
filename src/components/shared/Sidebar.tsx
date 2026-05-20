@@ -8,7 +8,7 @@ import {
   LayoutDashboard, ShoppingBag, Package, Tag,
   Tags,
   Users, Truck, BarChart2, Users2, CreditCard,
-  Settings, ShoppingCart
+  Settings, ShoppingCart, Shield, Trash2
 } from 'lucide-react';
 
 const menuItems = [
@@ -21,7 +21,9 @@ const menuItems = [
   { href: '/dashboard/suppliers',  label: 'Suppliers',   icon: Truck,           roles: ['ADMIN', 'OWNER', 'MANAGER'] },
   { href: '/dashboard/expenses',   label: 'Expenses',    icon: CreditCard,      roles: ['ADMIN', 'OWNER', 'MANAGER'] },
   { href: '/dashboard/reports',    label: 'Reports',     icon: BarChart2,       roles: ['ADMIN', 'OWNER', 'MANAGER'] },
+  { href: '/dashboard/deletions', label: 'Deletions',   icon: Trash2,          roles: ['ADMIN', 'OWNER'] },
   { href: '/dashboard/staff',      label: 'Staff',       icon: Users2,          roles: ['ADMIN'] },
+  { href: '/dashboard/admin/sessions', label: 'Login Monitor', icon: Shield,   roles: ['ADMIN'] },
   { href: '/dashboard/settings',   label: 'Settings',    icon: Settings,        roles: ['ADMIN', 'OWNER', 'MANAGER'] },
 ];
 
