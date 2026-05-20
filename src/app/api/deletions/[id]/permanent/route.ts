@@ -3,6 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authWithSession } from '@/lib/authz';
 
+const isRecordNotFound = (err: any) => {
+  const code = (err as any)?.code as string | undefined;
+  if (code === 'P2025') return true;
+  const msg = String((err as any)?.message || '');
+  return msg.includes('Record to delete does not exist') || msg.includes('required but not found');
+};
+
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const session = await authWithSession();
   if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
@@ -52,7 +59,11 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
         { status: 400 }
       );
     }
-    await prisma.product.delete({ where: { id: requestRow.entityId } });
+    try {
+      await prisma.product.delete({ where: { id: requestRow.entityId } });
+    } catch (e: any) {
+      if (!isRecordNotFound(e)) throw e;
+    }
   } else if (requestRow.entityType === 'CATEGORY') {
     if (session.user.role === 'ADMIN') {
       const softProducts = await prisma.product.findMany({
@@ -63,7 +74,11 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
       for (const p of softProducts) {
         const saleItemCount = await prisma.saleItem.count({ where: { productId: p.id } });
         if (saleItemCount === 0) {
-          await prisma.product.delete({ where: { id: p.id } });
+          try {
+            await prisma.product.delete({ where: { id: p.id } });
+          } catch (e: any) {
+            if (!isRecordNotFound(e)) throw e;
+          }
         }
       }
     }
@@ -87,7 +102,11 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
         { status: 400 }
       );
     }
-    await prisma.category.delete({ where: { id: requestRow.entityId } });
+    try {
+      await prisma.category.delete({ where: { id: requestRow.entityId } });
+    } catch (e: any) {
+      if (!isRecordNotFound(e)) throw e;
+    }
   } else if (requestRow.entityType === 'SUPPLIER') {
     if (session.user.role === 'ADMIN') {
       const softProducts = await prisma.product.findMany({
@@ -98,7 +117,11 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
       for (const p of softProducts) {
         const saleItemCount = await prisma.saleItem.count({ where: { productId: p.id } });
         if (saleItemCount === 0) {
-          await prisma.product.delete({ where: { id: p.id } });
+          try {
+            await prisma.product.delete({ where: { id: p.id } });
+          } catch (e: any) {
+            if (!isRecordNotFound(e)) throw e;
+          }
         }
       }
     }
@@ -115,7 +138,11 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
         { status: 400 }
       );
     }
-    await prisma.supplier.delete({ where: { id: requestRow.entityId } });
+    try {
+      await prisma.supplier.delete({ where: { id: requestRow.entityId } });
+    } catch (e: any) {
+      if (!isRecordNotFound(e)) throw e;
+    }
   } else {
     return NextResponse.json({ error: 'Unsupported entity type' }, { status: 400 });
   }
