@@ -1,16 +1,20 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { authWithSession } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const includeInactive = searchParams.get('includeInactive') === 'true';
+
     const categories = await prisma.category.findMany({
+      where: includeInactive ? {} : { isActive: true },
       include: {
         _count: { select: { products: true } },
         parent: { select: { id: true, name: true } },
@@ -27,7 +31,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -61,7 +65,7 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -100,7 +104,7 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -112,19 +116,46 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Category ID is required' }, { status: 400 });
     }
 
-    const productCount = await prisma.product.count({ where: { categoryId: id } });
-    if (productCount > 0) {
-      return NextResponse.json({ error: `Cannot delete: ${productCount} products are in this category. Move them first.` }, { status: 400 });
+    const body = await req.json().catch(() => null);
+    const reason = (body?.reason as string | undefined)?.trim();
+    if (!reason) {
+      return NextResponse.json({ error: 'Deletion reason is required' }, { status: 400 });
     }
 
-    const childCount = await prisma.category.count({ where: { parentId: id } });
-    if (childCount > 0) {
-      return NextResponse.json({ error: `Cannot delete: this category has ${childCount} sub-categories. Delete them first.` }, { status: 400 });
+    const existing = await prisma.category.findUnique({ where: { id } });
+    if (!existing) return NextResponse.json({ error: 'Category not found' }, { status: 404 });
+
+    const alreadyDeleted = existing.isActive === false;
+    if (!alreadyDeleted) {
+      await prisma.category.update({
+        where: { id },
+        data: { isActive: false, deletedAt: new Date(), deletedById: session.user.id },
+      });
     }
 
-    await prisma.category.delete({ where: { id } });
+    const earliestPermanentAt = new Date(Date.now() + 72 * 60 * 60_000);
 
-    return NextResponse.json({ message: 'Category deleted' });
+    const request = await prisma.deletionRequest.create({
+      data: {
+        entityType: 'CATEGORY',
+        entityId: id,
+        reason,
+        earliestPermanentAt,
+        requestedById: session.user.id,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: 'SOFT_DELETE',
+        entity: 'Category',
+        entityId: id,
+        newValue: JSON.stringify({ reason, deletionRequestId: request.id }),
+      },
+    });
+
+    return NextResponse.json({ message: 'Category soft-deleted', deletionRequestId: request.id });
   } catch (error) {
     console.error('Error deleting category:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
