@@ -1,0 +1,190 @@
+export const dynamic = 'force-dynamic';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { authWithSession } from '@/lib/authz';
+import { prisma } from '@/lib/prisma';
+
+const schema = z.object({
+  dryRun: z.boolean().optional().default(false),
+  maxProducts: z.number().int().positive().optional().default(10000),
+  maxEntities: z.number().int().positive().optional().default(2000),
+});
+
+const isRecordNotFound = (err: any) => {
+  const code = (err as any)?.code as string | undefined;
+  if (code === 'P2025') return true;
+  const msg = String((err as any)?.message || '');
+  return msg.includes('Record to delete does not exist') || msg.includes('required but not found');
+};
+
+const chunk = <T,>(arr: T[], size: number) => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+};
+
+export async function POST(req: NextRequest) {
+  const session = await authWithSession();
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const { dryRun, maxProducts, maxEntities } = schema.parse(body);
+  const branchId = session.user.branchId ?? undefined;
+
+  const supplierPatterns = ['E2E', 'Imported'];
+  const categoryPatterns = ['E2E'];
+  const productNamePatterns = ['E2E'];
+  const productSkuPrefixes = ['IMP-'];
+
+  const supplierWhere: any = {
+    OR: supplierPatterns.map((p) => ({ name: { startsWith: p, mode: 'insensitive' as const } })),
+  };
+  const categoryWhere: any = {
+    OR: categoryPatterns.map((p) => ({ name: { startsWith: p, mode: 'insensitive' as const } })),
+  };
+
+  const [suppliers, categories] = await Promise.all([
+    prisma.supplier.findMany({ where: supplierWhere, select: { id: true, name: true }, take: maxEntities }),
+    prisma.category.findMany({ where: categoryWhere, select: { id: true, name: true, parentId: true }, take: maxEntities }),
+  ]);
+
+  const supplierIds = suppliers.map((s) => s.id);
+  const categoryIds = categories.map((c) => c.id);
+
+  const productWhere: any = {
+    OR: [
+      ...(supplierIds.length ? [{ supplierId: { in: supplierIds } }] : []),
+      ...(categoryIds.length ? [{ categoryId: { in: categoryIds } }] : []),
+      ...productSkuPrefixes.map((p) => ({ sku: { startsWith: p, mode: 'insensitive' as const } })),
+      ...productNamePatterns.map((p) => ({ name: { startsWith: p, mode: 'insensitive' as const } })),
+    ],
+  };
+  if (branchId) productWhere.branchId = branchId;
+
+  const products = await prisma.product.findMany({
+    where: productWhere,
+    select: { id: true },
+    take: maxProducts,
+  });
+
+  const productIds = products.map((p) => p.id);
+
+  const saleItems = productIds.length
+    ? await prisma.saleItem.findMany({ where: { productId: { in: productIds } }, select: { productId: true } })
+    : [];
+  const protectedProductIds = new Set(saleItems.map((s) => s.productId));
+  const deletableProductIds = productIds.filter((id) => !protectedProductIds.has(id));
+
+  const deleted: any = {
+    products: 0,
+    priceTags: 0,
+    categories: 0,
+    suppliers: 0,
+  };
+
+  if (!dryRun && deletableProductIds.length) {
+    for (const ids of chunk(deletableProductIds, 500)) {
+      const pt = await prisma.priceTag.deleteMany({ where: { productId: { in: ids } } });
+      deleted.priceTags += pt.count;
+      const pr = await prisma.product.deleteMany({ where: { id: { in: ids } } });
+      deleted.products += pr.count;
+    }
+  }
+
+  const blocked: any = {
+    productsWithSales: protectedProductIds.size,
+    categoriesWithProducts: [] as Array<{ id: string; name: string; productCount: number }>,
+    categoriesWithChildren: [] as Array<{ id: string; name: string; childCount: number }>,
+    suppliersWithProducts: [] as Array<{ id: string; name: string; productCount: number }>,
+  };
+
+  const categoriesById = new Map(categories.map((c) => [c.id, c]));
+  const suppliersById = new Map(suppliers.map((s) => [s.id, s]));
+
+  if (!dryRun && categories.length) {
+    const pending = new Set(categories.map((c) => c.id));
+    for (let pass = 0; pass < 10 && pending.size > 0; pass++) {
+      let progress = 0;
+      for (const id of Array.from(pending)) {
+        const productCount = await prisma.product.count({ where: { categoryId: id } });
+        if (productCount > 0) continue;
+        const childCount = await prisma.category.count({ where: { parentId: id } });
+        if (childCount > 0) continue;
+        try {
+          await prisma.category.delete({ where: { id } });
+        } catch (e: any) {
+          if (!isRecordNotFound(e)) throw e;
+        }
+        pending.delete(id);
+        deleted.categories += 1;
+        progress += 1;
+      }
+      if (progress === 0) break;
+    }
+
+    for (const id of Array.from(pending)) {
+      const c = categoriesById.get(id);
+      const productCount = await prisma.product.count({ where: { categoryId: id } });
+      const childCount = await prisma.category.count({ where: { parentId: id } });
+      if (productCount > 0 && c) blocked.categoriesWithProducts.push({ id, name: c.name, productCount });
+      if (childCount > 0 && c) blocked.categoriesWithChildren.push({ id, name: c.name, childCount });
+    }
+  }
+
+  if (!dryRun && suppliers.length) {
+    for (const s of suppliers) {
+      const productCount = await prisma.product.count({ where: { supplierId: s.id } });
+      if (productCount > 0) {
+        blocked.suppliersWithProducts.push({ id: s.id, name: s.name, productCount });
+        continue;
+      }
+      try {
+        await prisma.supplier.delete({ where: { id: s.id } });
+      } catch (e: any) {
+        if (!isRecordNotFound(e)) throw e;
+      }
+      deleted.suppliers += 1;
+    }
+  }
+
+  if (dryRun) {
+    return NextResponse.json({
+      ok: true,
+      dryRun: true,
+      matched: {
+        suppliers: suppliers.length,
+        categories: categories.length,
+        products: productIds.length,
+      },
+      wouldDelete: {
+        products: deletableProductIds.length,
+        productsBlockedBySales: protectedProductIds.size,
+      },
+      blocked,
+    });
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      userId: session.user.id,
+      action: 'PERMANENT_DELETE',
+      entity: 'DUMMY_PURGE',
+      entityId: session.user.branchId ?? 'GLOBAL',
+      newValue: JSON.stringify({
+        deleted,
+        matched: { suppliers: suppliers.length, categories: categories.length, products: productIds.length },
+        blocked,
+      }),
+    },
+  });
+
+  return NextResponse.json({
+    ok: true,
+    deleted,
+    matched: { suppliers: suppliers.length, categories: categories.length, products: productIds.length },
+    blocked,
+  });
+}
+
