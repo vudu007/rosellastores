@@ -26,10 +26,11 @@ export default function SuppliersPage() {
   const [editing, setEditing] = useState<Supplier | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [form, setForm] = useState({ name: '', contact: '', email: '', phone: '', address: '' });
+  const canDelete = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER';
 
   const fetchSuppliers = async () => {
     try {
-      const res = await fetch('/api/suppliers');
+      const res = await fetch('/api/suppliers?includeInactive=true');
       const data = await res.json();
       setSuppliers(data);
     } catch {
@@ -81,11 +82,17 @@ export default function SuppliersPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete supplier "${name}"? This cannot be undone.`)) return;
+    if (!canDelete) return;
+    const reason = prompt(`Reason for deleting "${name}" (required):`)?.trim();
+    if (!reason) return;
     try {
-      const res = await fetch(`/api/suppliers?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/suppliers?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-      setToast({ type: 'success', message: `${name} deleted` });
+      setToast({ type: 'success', message: `${name} deleted (soft)` });
       fetchSuppliers();
     } catch (err: any) {
       setToast({ type: 'error', message: err.message || 'Failed to delete' });
@@ -157,7 +164,7 @@ export default function SuppliersPage() {
                     <button onClick={() => openEdit(supplier)} className="p-2 rounded-lg hover:bg-muted/50 transition-colors" title="Edit">
                       <Edit className="w-4 h-4 text-muted-foreground" />
                     </button>
-                    {session?.user.role === 'OWNER' && (
+                    {canDelete && (
                       <button onClick={() => handleDelete(supplier.id, supplier.name)} className="p-2 rounded-lg hover:bg-red-50 transition-colors" title="Delete">
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </button>
