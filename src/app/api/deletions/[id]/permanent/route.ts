@@ -54,10 +54,29 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     }
     await prisma.product.delete({ where: { id: requestRow.entityId } });
   } else if (requestRow.entityType === 'CATEGORY') {
+    if (session.user.role === 'ADMIN') {
+      const softProducts = await prisma.product.findMany({
+        where: { categoryId: requestRow.entityId, isActive: false, deletedAt: { not: null } },
+        select: { id: true },
+        take: 2000,
+      });
+      for (const p of softProducts) {
+        const saleItemCount = await prisma.saleItem.count({ where: { productId: p.id } });
+        if (saleItemCount === 0) {
+          await prisma.product.delete({ where: { id: p.id } });
+        }
+      }
+    }
+
     const productCount = await prisma.product.count({ where: { categoryId: requestRow.entityId } });
     if (productCount > 0) {
       return NextResponse.json(
-        { error: `Cannot permanently delete category: ${productCount} product(s) still reference it.` },
+        {
+          error:
+            session.user.role === 'ADMIN'
+              ? `Cannot permanently delete category: ${productCount} product(s) still reference it (some may be active or have sales history).`
+              : `Cannot permanently delete category: ${productCount} product(s) still reference it.`,
+        },
         { status: 400 }
       );
     }
@@ -70,10 +89,29 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     }
     await prisma.category.delete({ where: { id: requestRow.entityId } });
   } else if (requestRow.entityType === 'SUPPLIER') {
+    if (session.user.role === 'ADMIN') {
+      const softProducts = await prisma.product.findMany({
+        where: { supplierId: requestRow.entityId, isActive: false, deletedAt: { not: null } },
+        select: { id: true },
+        take: 2000,
+      });
+      for (const p of softProducts) {
+        const saleItemCount = await prisma.saleItem.count({ where: { productId: p.id } });
+        if (saleItemCount === 0) {
+          await prisma.product.delete({ where: { id: p.id } });
+        }
+      }
+    }
+
     const productCount = await prisma.product.count({ where: { supplierId: requestRow.entityId } });
     if (productCount > 0) {
       return NextResponse.json(
-        { error: `Cannot permanently delete supplier: ${productCount} product(s) still reference it.` },
+        {
+          error:
+            session.user.role === 'ADMIN'
+              ? `Cannot permanently delete supplier: ${productCount} product(s) still reference it (some may be active or have sales history).`
+              : `Cannot permanently delete supplier: ${productCount} product(s) still reference it.`,
+        },
         { status: 400 }
       );
     }
