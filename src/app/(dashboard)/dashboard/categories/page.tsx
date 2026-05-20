@@ -24,6 +24,7 @@ export default function CategoriesPage() {
   const [editing, setEditing] = useState<Category | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [form, setForm] = useState({ name: '', parentId: '' });
+  const canDelete = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER';
 
   useEffect(() => { fetchCategories(); }, []);
   useEffect(() => {
@@ -32,7 +33,7 @@ export default function CategoriesPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/categories');
+      const res = await fetch('/api/categories?includeInactive=true');
       const data = await res.json();
       setCategories(data);
     } catch {
@@ -77,11 +78,17 @@ export default function CategoriesPage() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete category "${name}"? This cannot be undone.`)) return;
+    if (!canDelete) return;
+    const reason = prompt(`Reason for deleting "${name}" (required):`)?.trim();
+    if (!reason) return;
     try {
-      const res = await fetch(`/api/categories?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/categories?id=${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
       if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-      setToast({ type: 'success', message: `"${name}" deleted` });
+      setToast({ type: 'success', message: `"${name}" deleted (soft)` });
       fetchCategories();
     } catch (err: any) {
       setToast({ type: 'error', message: err.message || 'Failed to delete' });
@@ -170,7 +177,7 @@ export default function CategoriesPage() {
                     <button onClick={() => openEdit(category)} className="p-2 rounded-lg hover:bg-muted/50 transition-colors" title="Edit">
                       <Edit className="w-4 h-4 text-muted-foreground" />
                     </button>
-                    {session?.user.role === 'OWNER' && (
+                    {canDelete && (
                       <button onClick={() => handleDelete(category.id, category.name)} className="p-2 rounded-lg hover:bg-red-50 transition-colors" title="Delete">
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </button>
@@ -191,7 +198,7 @@ export default function CategoriesPage() {
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => openEdit(child)} className="p-1.5 rounded-lg hover:bg-muted/50"><Edit className="w-3.5 h-3.5 text-muted-foreground" /></button>
-                          {session?.user.role === 'OWNER' && (
+                          {canDelete && (
                             <button onClick={() => handleDelete(child.id, child.name)} className="p-1.5 rounded-lg hover:bg-red-50"><Trash2 className="w-3.5 h-3.5 text-red-500" /></button>
                           )}
                         </div>
