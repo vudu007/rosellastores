@@ -113,10 +113,28 @@ export default function DeletionsPage() {
     if (!confirm('Permanently delete dummy suppliers/categories/products (E2E / Imported / IMP-)? This cannot be undone.')) return;
     setWorkingId('purge-dummy');
     try {
-      const res = await fetch('/api/admin/purge-dummy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to delete dummy data');
-      const msg = `Deleted dummy: ${data.deleted?.products ?? 0} products, ${data.deleted?.categories ?? 0} categories, ${data.deleted?.suppliers ?? 0} suppliers`;
+      let cursor: string | null = null;
+      const totals = { products: 0, categories: 0, suppliers: 0, priceTags: 0 };
+
+      for (let i = 0; i < 200; i++) {
+        const res = await fetch('/api/admin/purge-dummy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cursor, batchSize: 300 }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to delete dummy data');
+
+        totals.products += data.deleted?.products ?? 0;
+        totals.categories += data.deleted?.categories ?? 0;
+        totals.suppliers += data.deleted?.suppliers ?? 0;
+        totals.priceTags += data.deleted?.priceTags ?? 0;
+
+        cursor = (data.nextCursor as string | null | undefined) ?? null;
+        if (data.done) break;
+      }
+
+      const msg = `Deleted dummy: ${totals.products} products, ${totals.categories} categories, ${totals.suppliers} suppliers`;
       setToast({ type: 'success', message: msg });
       await refresh();
     } catch (e: any) {
