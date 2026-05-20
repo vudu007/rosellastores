@@ -1,12 +1,12 @@
 'use server';
 
-import { auth } from '@/lib/auth';
+import { authWithSession } from '@/lib/authz';
 import { CustomerService } from '@/services/customer.service';
 import { CustomerCreateInput } from '@/types';
 import { revalidatePath } from 'next/cache';
 
 export async function createCustomerAction(data: CustomerCreateInput) {
-  const session = await auth();
+  const session = await authWithSession();
   if (!session || !['CASHIER', 'MANAGER', 'OWNER'].includes(session.user.role)) {
     throw new Error('Unauthorized');
   }
@@ -21,7 +21,7 @@ export async function createCustomerAction(data: CustomerCreateInput) {
 }
 
 export async function updateCustomerAction(id: string, data: Partial<CustomerCreateInput>) {
-  const session = await auth();
+  const session = await authWithSession();
   if (!session || !['MANAGER', 'OWNER'].includes(session.user.role)) {
     throw new Error('Unauthorized');
   }
@@ -32,7 +32,7 @@ export async function updateCustomerAction(id: string, data: Partial<CustomerCre
 }
 
 export async function deleteCustomerAction(id: string) {
-  const session = await auth();
+  const session = await authWithSession();
   if (!session || !['MANAGER', 'OWNER'].includes(session.user.role)) {
     throw new Error('Unauthorized');
   }
