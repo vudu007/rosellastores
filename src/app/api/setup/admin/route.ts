@@ -6,6 +6,7 @@
  * GET  /api/setup/admin  → creates the admin user
  */
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
@@ -14,14 +15,21 @@ export const dynamic = 'force-dynamic';
 const ADMIN_EMAIL    = 'superadmin@rosellastores.com';
 const ADMIN_PASSWORD = 'admin123';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const resetToken = req.nextUrl.searchParams.get('token');
+    const setupToken = process.env.SETUP_ADMIN_TOKEN ?? null;
+
     const existing = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
     if (existing) {
-      return NextResponse.json(
-        { error: 'Admin already exists. Use the Admin account to manage staff and settings.' },
-        { status: 409 }
-      );
+      if (!setupToken || resetToken !== setupToken) {
+        return NextResponse.json(
+          { error: 'Admin already exists. Use the Admin account to manage staff and settings.' },
+          { status: 409 }
+        );
+      }
+
+      await prisma.user.delete({ where: { email: ADMIN_EMAIL } });
     }
 
     // Find first branch
