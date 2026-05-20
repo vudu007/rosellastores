@@ -158,7 +158,9 @@ export default function DeletionsPage() {
                   const now = Date.now();
                   const unlockAt = new Date(r.earliestPermanentAt).getTime();
                   const locked = now < unlockAt;
-                  const canApprove = r.status === 'SOFT_DELETED' && r.requestedById !== session?.user?.id;
+                  const canApprove =
+                    r.status === 'SOFT_DELETED' &&
+                    (session?.user?.role === 'ADMIN' || r.requestedById !== session?.user?.id);
                   const canPermanent = r.status === 'APPROVED' && !locked;
 
                   const lockText = locked
@@ -245,4 +247,3 @@ export default function DeletionsPage() {
     </div>
   );
 }
-
