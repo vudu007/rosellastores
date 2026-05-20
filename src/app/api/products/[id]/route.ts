@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { authWithSession } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -21,7 +21,7 @@ const updateProductSchema = z.object({
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -48,8 +48,8 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
-    if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
+    const session = await authWithSession();
+    if (!session || !['ADMIN', 'OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -104,8 +104,8 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
-    if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
+    const session = await authWithSession();
+    if (!session || !['ADMIN', 'OWNER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -118,9 +118,38 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
+    const body = await req.json().catch(() => null);
+    const reason = (body?.reason as string | undefined)?.trim();
+    if (!reason) {
+      return NextResponse.json({ error: 'Deletion reason is required' }, { status: 400 });
+    }
+
     await prisma.product.update({
       where: { id },
-      data: { isActive: false },
+      data: { isActive: false, deletedAt: new Date(), deletedById: session.user.id },
+    });
+
+    const earliestPermanentAt = new Date(Date.now() + 72 * 60 * 60_000);
+
+    const request = await prisma.deletionRequest.create({
+      data: {
+        entityType: 'PRODUCT',
+        entityId: id,
+        reason,
+        earliestPermanentAt,
+        requestedById: session.user.id,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: 'SOFT_DELETE',
+        entity: 'Product',
+        entityId: id,
+        oldValue: JSON.stringify({ isActive: product.isActive }),
+        newValue: JSON.stringify({ reason, deletionRequestId: request.id }),
+      },
     });
 
     return NextResponse.json({ success: true });
