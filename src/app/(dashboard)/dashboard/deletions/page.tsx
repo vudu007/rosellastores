@@ -109,6 +109,23 @@ export default function DeletionsPage() {
     }
   };
 
+  const purgeDummy = async () => {
+    if (!confirm('Permanently delete dummy suppliers/categories/products (E2E / Imported / IMP-)? This cannot be undone.')) return;
+    setWorkingId('purge-dummy');
+    try {
+      const res = await fetch('/api/admin/purge-dummy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete dummy data');
+      const msg = `Deleted dummy: ${data.deleted?.products ?? 0} products, ${data.deleted?.categories ?? 0} categories, ${data.deleted?.suppliers ?? 0} suppliers`;
+      setToast({ type: 'success', message: msg });
+      await refresh();
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Failed to delete dummy data' });
+    } finally {
+      setWorkingId(null);
+    }
+  };
+
   const activeCount = useMemo(() => rows.filter((r) => r.status !== 'PERMANENT_DELETED').length, [rows]);
 
   const describeEntity = (r: DeletionRow) => {
@@ -155,6 +172,16 @@ export default function DeletionsPage() {
             >
               <Trash2 className="w-4 h-4" />
               Purge All
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={purgeDummy}
+              disabled={workingId === 'purge-dummy' || loading}
+              className="btn-secondary h-10 px-4 flex items-center gap-2 disabled:opacity-40"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Dummy
             </button>
           )}
           <button onClick={refresh} disabled={loading} className="btn-secondary h-10 px-4 flex items-center gap-2">
