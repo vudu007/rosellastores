@@ -13,6 +13,8 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
   const { data: session } = useSession();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const userId = session?.user?.id;
+  const hasUser = !!session?.user;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -24,6 +26,35 @@ export default function Navbar({ onMenuToggle }: NavbarProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const ping = async () => {
+      if (!hasUser) return;
+      if (cancelled) return;
+      try {
+        const res = await fetch('/api/sessions/ping', { method: 'POST' });
+        if (res.status === 401) {
+          await signOut({ callbackUrl: '/login' });
+        }
+      } catch {}
+    };
+
+    ping();
+
+    const interval = window.setInterval(ping, 60_000);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') ping();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [hasUser, userId]);
 
   if (!session) return null;
 
