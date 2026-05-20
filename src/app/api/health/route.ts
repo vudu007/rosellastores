@@ -17,6 +17,11 @@ export async function GET() {
   };
 
   try {
+    const vercel = {
+      env: process.env.VERCEL_ENV ?? null,
+      gitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+    };
+
     const [branchCount, userCount, hasAdmin, hasOwner, hasCashier] = await Promise.all([
       prisma.branch.count(),
       prisma.user.count(),
@@ -30,6 +35,7 @@ export async function GET() {
     ]);
     return NextResponse.json({
       ok: true,
+      vercel,
       env,
       db: { connected: true, branchCount, userCount, hasAdmin, hasOwner, hasCashier },
     });
