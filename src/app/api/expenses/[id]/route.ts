@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { authWithSession } from '@/lib/authz';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -13,7 +13,7 @@ const updateExpenseSchema = z.object({
 
 export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -45,7 +45,7 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
+    const session = await authWithSession();
     if (!session || !['OWNER', 'MANAGER'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
