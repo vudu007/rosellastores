@@ -27,6 +27,14 @@ enum SaleStatus {
   COMPLETED
   VOIDED
   HELD
+  RETURNED
+}
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  COMPLETED
+  REJECTED
 }
 
 enum PriceTagStatus {
@@ -68,6 +76,11 @@ model User {
   deletionRequests DeletionRequest[] @relation("DeletionRequestedBy")
   deletionApprovals DeletionRequest[] @relation("DeletionApprovedBy")
   deletionExecutions DeletionRequest[] @relation("DeletionExecutedBy")
+  returnRequests ReturnRequest[] @relation("ReturnRequestedBy")
+  returnOwnerApprovals ReturnRequest[] @relation("ReturnOwnerApprovedBy")
+  returnAdminApprovals ReturnRequest[] @relation("ReturnAdminApprovedBy")
+  returnExecutions ReturnRequest[] @relation("ReturnExecutedBy")
+  returnRejections ReturnRequest[] @relation("ReturnRejectedBy")
 
   @@index([branchId])
 }
@@ -87,6 +100,7 @@ model Branch {
   customers Customer[]
   expenses  Expense[]
   priceTags PriceTag[]
+  returns   ReturnRequest[]
 
   @@index([isActive])
 }
@@ -244,6 +258,40 @@ model DeletionRequest {
   @@index([earliestPermanentAt])
 }
 
+model ReturnRequest {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  saleId    String       @unique @db.ObjectId
+  sale      Sale         @relation(fields: [saleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branchId  String       @db.ObjectId
+  branch    Branch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reason    String
+  status    ReturnStatus @default(REQUESTED)
+  requestedAt DateTime   @default(now())
+
+  requestedById String   @db.ObjectId
+  requestedBy   User     @relation("ReturnRequestedBy", fields: [requestedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  ownerApprovedById String? @db.ObjectId
+  ownerApprovedBy   User?   @relation("ReturnOwnerApprovedBy", fields: [ownerApprovedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  ownerApprovedAt   DateTime?
+
+  adminApprovedById String? @db.ObjectId
+  adminApprovedBy   User?   @relation("ReturnAdminApprovedBy", fields: [adminApprovedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  adminApprovedAt   DateTime?
+
+  executedById String? @db.ObjectId
+  executedBy   User?   @relation("ReturnExecutedBy", fields: [executedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  executedAt   DateTime?
+
+  rejectedById String? @db.ObjectId
+  rejectedBy   User?   @relation("ReturnRejectedBy", fields: [rejectedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  rejectedAt   DateTime?
+
+  @@index([branchId])
+  @@index([status])
+  @@index([requestedAt])
+}
+
 model Customer {
   id          String       @id @default(auto()) @map("_id") @db.ObjectId
   name        String
@@ -280,6 +328,7 @@ model Sale {
   updatedAt     DateTime      @updatedAt
 
   items SaleItem[]
+  returnRequest ReturnRequest?
 
   @@index([customerId])
   @@index([cashierId])
