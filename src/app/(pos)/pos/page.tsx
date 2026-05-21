@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import {
   Search, ShoppingCart, User, CreditCard, Banknote,
   Smartphone, Trash2, Plus, Minus, CheckCircle,
-  ChevronRight, Package, AlertCircle, ArrowLeft, Printer, Info, X
+  ChevronRight, Package, AlertCircle, ArrowLeft, Printer, Info, X, Clock, Wifi, Layers
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -79,6 +80,11 @@ export default function POSPage() {
     }
   });
   const [syncingPendingSales, setSyncingPendingSales] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+  const [customerLookup, setCustomerLookup] = useState('');
+  const customerLookupRef = useRef<HTMLInputElement | null>(null);
+  const [heldBillCount, setHeldBillCount] = useState(0);
+  const HELD_BILL_KEY = 'meka_held_bill_v1';
 
   // QZ Tray thermal printer — saved name comes from Settings page via localStorage
   const [thermalPrinter, setThermalPrinter] = useState<string>(() => {
@@ -302,6 +308,51 @@ export default function POSPage() {
       return;
     }
 
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setCart([]);
+      setSuccessMessage('Cart cleared');
+      setTimeout(() => setSuccessMessage(null), 1200);
+      return;
+    }
+
+    if (e.key === 'F2') {
+      e.preventDefault();
+      customerLookupRef.current?.focus();
+      return;
+    }
+
+    if (e.key === 'F4') {
+      e.preventDefault();
+      if (cart.length === 0) return;
+      try {
+        const payload = {
+          heldAt: new Date().toISOString(),
+          customerId: selectedCustomer?.id ?? null,
+          cart,
+        };
+        localStorage.setItem(HELD_BILL_KEY, JSON.stringify(payload));
+        setHeldBillCount(cart.length);
+        setCart([]);
+        setSelectedCustomer(null);
+        setSuccessMessage('Bill held');
+        setTimeout(() => setSuccessMessage(null), 1800);
+      } catch {
+        setSuccessMessage('Failed to hold bill');
+        setTimeout(() => setSuccessMessage(null), 1800);
+      }
+      return;
+    }
+
+    if (e.key === ' ' || e.code === 'Space') {
+      if (cart.length > 0) {
+        e.preventDefault();
+        setPaymentMethod('CASH');
+        setShowPaymentModal(true);
+      }
+      return;
+    }
+
     const currentTime = e.timeStamp;
 
     if (currentTime - lastScanTime > 80) {
@@ -321,17 +372,101 @@ export default function POSPage() {
         }
         setBarcodeBuffer('');
       }
-    } else if (e.key.length === 1) {
+    } else if (e.key.length === 1 && /^[0-9A-Za-z]$/.test(e.key)) {
       setBarcodeBuffer(prev => prev + e.key);
     }
 
     setLastScanTime(currentTime);
-  }, [barcodeBuffer, lastScanTime, products, addToCart]);
+  }, [addToCart, barcodeBuffer, cart, lastScanTime, products, selectedCustomer]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const refreshHeldBillCount = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(HELD_BILL_KEY);
+      if (!raw) {
+        setHeldBillCount(0);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      setHeldBillCount(Array.isArray(parsed?.cart) ? parsed.cart.length : 0);
+    } catch {
+      setHeldBillCount(0);
+    }
+  }, [HELD_BILL_KEY]);
+
+  useEffect(() => {
+    refreshHeldBillCount();
+  }, [refreshHeldBillCount]);
+
+  const holdBill = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (cart.length === 0) return;
+    try {
+      const payload = {
+        heldAt: new Date().toISOString(),
+        customerId: selectedCustomer?.id ?? null,
+        cart,
+      };
+      localStorage.setItem(HELD_BILL_KEY, JSON.stringify(payload));
+      setHeldBillCount(cart.length);
+      setCart([]);
+      setSelectedCustomer(null);
+      setSuccessMessage('Bill held');
+      setTimeout(() => setSuccessMessage(null), 1800);
+    } catch {
+      setSuccessMessage('Failed to hold bill');
+      setTimeout(() => setSuccessMessage(null), 1800);
+    }
+  }, [HELD_BILL_KEY, cart, selectedCustomer]);
+
+  const recallHeldBill = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = localStorage.getItem(HELD_BILL_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const heldCart = Array.isArray(parsed?.cart) ? (parsed.cart as CartItem[]) : [];
+      if (heldCart.length === 0) return;
+      if (cart.length > 0) {
+        const ok = confirm('Replace the current ticket with the held ticket?');
+        if (!ok) return;
+      }
+      setCart(heldCart);
+      const customerId = parsed?.customerId as string | null | undefined;
+      if (customerId) {
+        const c = customers.find((x) => x.id === customerId) || null;
+        setSelectedCustomer(c);
+      } else {
+        setSelectedCustomer(null);
+      }
+      try {
+        localStorage.removeItem(HELD_BILL_KEY);
+      } catch {}
+      setHeldBillCount(0);
+      setSuccessMessage('Held ticket loaded');
+      setTimeout(() => setSuccessMessage(null), 1800);
+    } catch {
+      setSuccessMessage('Failed to load held ticket');
+      setTimeout(() => setSuccessMessage(null), 1800);
+    }
+  }, [HELD_BILL_KEY, cart.length, customers]);
+
+  const quickAddFirst = useCallback(() => {
+    const candidate = filteredProducts[0];
+    if (!candidate) return;
+    addToCart(candidate);
+    setSearchQuery('');
+  }, [addToCart, filteredProducts]);
 
   const removeFromCart = useCallback((productId: string) => {
     setCart((prevCart) => prevCart.filter((item) => item.productId !== productId));
@@ -1039,38 +1174,128 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
   })();
 
   return (
-    <div className="flex min-h-[calc(100vh-64px)] h-[calc(100dvh-64px)] overflow-hidden bg-background text-foreground transition-all duration-300 relative">
-      {/* Product Catalog Section */}
-      <div className={`flex-col p-4 md:p-6 space-y-4 md:space-y-6 overflow-hidden flex-1 ${showMobileCart ? 'hidden md:flex' : 'flex'}`}>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Scan barcode or search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input-base pl-10 h-12 bg-card text-lg"
-              autoFocus
-              data-testid="pos-search"
-            />
+    <div className="min-h-[calc(100vh-64px)] h-[calc(100dvh-64px)] overflow-hidden bg-background text-foreground transition-all duration-300 relative flex flex-col">
+      <div className="h-14 md:h-16 px-4 md:px-6 bg-gradient-to-b from-slate-950 to-slate-900 text-white flex items-center justify-between border-b border-white/10">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+            <Package className="w-5 h-5 text-emerald-400" />
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <p className="font-black tracking-tight text-sm md:text-base truncate">
+                {storeSettings?.businessName || 'Rosella Stores POS'}
+              </p>
+              <span className="hidden md:inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-white/80">
+                <Layers className="w-3 h-3" />
+                Terminal
+              </span>
+            </div>
+            <p className="text-[10px] text-white/60 font-semibold truncate">
+              {session?.user?.name ? `${session.user.name} • ${session.user.role}` : 'Signed in'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 md:gap-3">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className="text-xs font-bold text-white/90">Scanner Active</span>
+          </div>
+
+          <div
+            className={[
+              'flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold',
+              isOnline ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-200' : 'bg-red-500/10 border-red-500/25 text-red-200',
+            ].join(' ')}
+            title={isOnline ? 'Terminal Online' : 'Terminal Offline'}
+          >
+            <Wifi className="w-4 h-4" />
+            <span className="hidden md:inline">{isOnline ? 'Online' : 'Offline'}</span>
+            {pendingSalesCount > 0 && <span className="text-white/80">• {pendingSalesCount}</span>}
+          </div>
+
+          <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
+            <Clock className="w-4 h-4 text-white/70" />
+            <div className="leading-none">
+              <p className="text-xs font-black">{now.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })}</p>
+              <p className="text-[10px] text-white/60 font-semibold">
+                {now.toLocaleDateString('en-NG', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        <div className={`flex-col p-4 md:p-6 space-y-4 md:space-y-5 overflow-hidden flex-1 ${showMobileCart ? 'hidden md:flex' : 'flex'}`}>
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr,340px] gap-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Scan barcode or type product name/SKU... (Press Enter to quick-add)"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      quickAddFirst();
+                    }
+                  }}
+                  className="input-base pl-10 h-12 bg-card text-sm md:text-base"
+                  autoFocus
+                  data-testid="pos-search"
+                />
+              </div>
+              <button
+                onClick={quickAddFirst}
+                disabled={filteredProducts.length === 0}
+                className="h-12 px-4 rounded-xl font-black text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:grayscale whitespace-nowrap"
+                title="Quick add first match (Enter)"
+              >
+                ADD [ENTER]
+              </button>
+            </div>
+
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                ref={customerLookupRef}
+                value={customerLookup}
+                onChange={(e) => setCustomerLookup(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const q = customerLookup.trim().toLowerCase();
+                    if (!q) return;
+                    const hit = customers.find((c) => c.name.toLowerCase().includes(q)) || null;
+                    setSelectedCustomer(hit);
+                    setCustomerLookup('');
+                  }
+                }}
+                className="input-base pl-10 h-12 bg-card text-sm md:text-base"
+                placeholder="Customer phone / name (Enter to select)"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
             <button
               onClick={() => setSelectedCategory('')}
-              className={`px-6 py-2 rounded-xl border text-sm font-semibold transition-all ${
+              className={`px-4 py-2 rounded-xl border text-xs md:text-sm font-bold transition-all flex items-center gap-2 ${
                 !selectedCategory
                   ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20'
                   : 'bg-card text-muted-foreground hover:bg-muted'
               }`}
             >
-              All Items
+              <Layers className="w-4 h-4" />
+              All Categories
             </button>
             {categories.map((category) => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`px-6 py-2 rounded-xl border text-sm font-semibold whitespace-nowrap transition-all ${
+                className={`px-4 py-2 rounded-xl border text-xs md:text-sm font-bold whitespace-nowrap transition-all ${
                   selectedCategory === category
                     ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20'
                     : 'bg-card text-muted-foreground hover:bg-muted'
@@ -1080,49 +1305,65 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               </button>
             ))}
           </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 flex-1 overflow-y-auto pr-2 content-start">
+            {filteredProducts.map((product) => {
+              const stockLabel =
+                product.stockQty === 0 ? 'Out of stock' : `${product.stockQty} left`;
+              return (
+                <button
+                  key={product.id}
+                  onClick={() => addToCart(product)}
+                  disabled={product.stockQty === 0}
+                  className="card-premium p-3 flex flex-col text-left group relative disabled:opacity-40 hover:border-primary/60 transition-all min-h-[120px]"
+                  data-testid={`pos-product-${product.sku}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-muted/60 border border-border flex items-center justify-center text-xs font-black text-muted-foreground shrink-0 overflow-hidden">
+                        {product.imageUrl ? (
+                          <Image src={product.imageUrl} alt={product.name} width={40} height={40} className="w-full h-full object-cover" />
+                        ) : (
+                          <span>{(product.name || '?').slice(0, 1).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-black text-[12px] leading-tight text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                          {product.name}
+                        </h4>
+                        <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide truncate">
+                          {product.sku}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={[
+                        'text-[10px] font-black px-2 py-1 rounded-full border leading-none whitespace-nowrap',
+                        product.stockQty === 0
+                          ? 'bg-red-500/10 border-red-500/20 text-red-600'
+                          : product.stockQty < 10
+                          ? 'bg-amber-500/10 border-amber-500/20 text-amber-700'
+                          : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700',
+                      ].join(' ')}
+                      title={stockLabel}
+                    >
+                      {product.stockQty === 0 ? 'OUT' : `${product.stockQty} left`}
+                    </span>
+                  </div>
+
+                  <div className="mt-auto pt-3 flex items-end justify-between border-t border-border/50">
+                    <p className="font-black text-sm text-primary leading-none">
+                      {formatCurrency(getProductPrice(product))}
+                    </p>
+                    <p className="text-[10px] font-bold text-muted-foreground">
+                      {product.category?.name || 'General'}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2 flex-1 overflow-y-auto pr-2 content-start">
-          {filteredProducts.map((product) => (
-            <button
-              key={product.id}
-              onClick={() => addToCart(product)}
-              disabled={product.stockQty === 0}
-              className="card-premium p-2.5 flex flex-col text-left group relative disabled:opacity-40 hover:border-primary/60 transition-all min-h-[88px]"
-              data-testid={`pos-product-${product.sku}`}
-            >
-              {/* Stock status badge — top right */}
-              <div className="absolute top-1.5 right-1.5">
-                {product.stockQty === 0 ? (
-                  <span className="text-[8px] font-black bg-red-100 text-red-500 px-1 py-0.5 rounded leading-none">OUT</span>
-                ) : product.stockQty < 10 ? (
-                  <AlertCircle className="w-2.5 h-2.5 text-orange-400" />
-                ) : null}
-              </div>
-
-              {/* Product name */}
-              <h4 className="font-semibold text-[11px] leading-tight text-foreground group-hover:text-primary transition-colors line-clamp-2 pr-4 mb-1">
-                {product.name}
-              </h4>
-
-              {/* SKU */}
-              <p className="text-[9px] text-muted-foreground/70 uppercase tracking-wide mb-auto truncate">
-                {product.sku}
-              </p>
-
-              {/* Price + stock row */}
-              <div className="flex items-end justify-between mt-2 pt-1.5 border-t border-border/50">
-                <p className="font-black text-xs text-primary leading-none">
-                  {formatCurrency(getProductPrice(product))}
-                </p>
-                <p className={`text-[9px] font-bold leading-none ${product.stockQty < 10 ? 'text-orange-500' : 'text-muted-foreground'}`}>
-                  {product.stockQty}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Cart Section — full-screen on mobile when active, fixed panel on desktop */}
       <div
@@ -1145,15 +1386,26 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <ShoppingCart className={`w-5 h-5 text-primary ${cartPulse ? 'animate-cart-bump' : ''}`} />
-              Current Order
+              Current Ticket
             </h3>
-            <button
-              onClick={() => setCart([])}
-              className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
-              aria-label="Clear cart"
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              {heldBillCount > 0 && (
+                <button
+                  onClick={recallHeldBill}
+                  className="px-3 py-2 rounded-xl bg-muted/40 hover:bg-muted transition-colors text-xs font-black text-muted-foreground"
+                  title="Load held ticket"
+                >
+                  Held ({heldBillCount})
+                </button>
+              )}
+              <button
+                onClick={() => setCart([])}
+                className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
+                aria-label="Clear cart"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           <div className="relative group flex items-center justify-between gap-2">
@@ -1281,7 +1533,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
             )}
 
             <div className="flex justify-between items-end pt-2 border-t">
-              <span className="text-base font-bold text-muted-foreground">Total Payable</span>
+              <span className="text-base font-bold text-muted-foreground">Grand Total</span>
               <span className={`text-3xl font-black text-primary tracking-tighter ${cartPulse ? 'animate-cart-bump' : ''}`} data-testid="pos-total">
                 {formatCurrency(total)}
               </span>
@@ -1343,16 +1595,26 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               )}
             </div>
             <button
+              onClick={holdBill}
+              disabled={cart.length === 0}
+              className="col-span-1 bg-muted text-foreground h-14 rounded-xl font-black text-sm hover:bg-muted/70 transition-colors disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2"
+              title="Hold ticket (F4)"
+            >
+              Hold Bill [F4]
+            </button>
+            <button
               onClick={() => setShowPaymentModal(true)}
               disabled={cart.length === 0}
-              className="col-span-2 bg-primary text-primary-foreground h-14 rounded-xl font-bold text-lg shadow-lg shadow-primary/30 hover:shadow-primary/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:grayscale disabled:shadow-none flex items-center justify-center gap-2"
+              className="col-span-1 bg-primary text-primary-foreground h-14 rounded-xl font-black text-sm shadow-lg shadow-primary/30 hover:shadow-primary/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:grayscale disabled:shadow-none flex items-center justify-center gap-2"
               data-testid="pos-checkout"
+              title="Pay ticket (Space)"
             >
               <CheckCircle className="w-5 h-5" />
-              Finalize Transaction
+              Pay Ticket [Space]
             </button>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Mobile floating cart button */}
@@ -1371,6 +1633,26 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
           )}
         </button>
       )}
+
+      <div className="hidden md:flex h-10 px-4 md:px-6 bg-slate-950 text-white border-t border-white/10 items-center justify-between text-[11px] font-bold">
+        <div className="flex items-center gap-3">
+          <span className="text-white/70">Space</span>
+          <span className="text-white/90">Pay</span>
+          <span className="text-white/40">•</span>
+          <span className="text-white/70">Esc</span>
+          <span className="text-white/90">Clear Cart</span>
+          <span className="text-white/40">•</span>
+          <span className="text-white/70">F2</span>
+          <span className="text-white/90">Customer</span>
+          <span className="text-white/40">•</span>
+          <span className="text-white/70">F4</span>
+          <span className="text-white/90">Hold</span>
+        </div>
+        <div className="flex items-center gap-2 text-white/70">
+          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          Terminal {isOnline ? 'Online' : 'Offline'}
+        </div>
+      </div>
 
       {/* Transaction status overlay */}
       {successMessage && (
