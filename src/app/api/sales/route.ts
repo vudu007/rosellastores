@@ -37,62 +37,81 @@ export async function GET(req: NextRequest) {
     const endDate = searchParams.get('endDate');
     const qRaw = searchParams.get('q') || '';
 
-    const where: any = {
+    const baseWhere: any = {
       branchId: session.user.branchId ?? undefined,
     };
 
     if (session.user.role === 'CASHIER') {
-      where.cashierId = session.user.id;
+      baseWhere.cashierId = session.user.id;
     }
 
     if (status) {
-      where.status = status;
+      baseWhere.status = status;
     }
 
     if (paymentMethod) {
-      where.paymentMethod = paymentMethod;
+      baseWhere.paymentMethod = paymentMethod;
     }
 
     if (startDate || endDate) {
-      where.createdAt = {};
+      baseWhere.createdAt = {};
       if (startDate) {
-        where.createdAt.gte = new Date(startDate);
+        baseWhere.createdAt.gte = new Date(startDate);
       }
       if (endDate) {
-        where.createdAt.lte = new Date(endDate);
+        baseWhere.createdAt.lte = new Date(endDate);
       }
     }
 
     const q = qRaw.trim();
+    const include = {
+      customer: true,
+      cashier: { select: { id: true, name: true, email: true } },
+      items: { include: { product: true } },
+    } as const;
+
     if (q) {
       const qStripped = q.replace(/^R-/i, '').trim();
-      const suffix = qStripped.toLowerCase();
-      const or: any[] = [];
-      if (qStripped.length >= 20) {
-        or.push({ id: qStripped });
-      }
-      if (suffix.length >= 3) {
-        or.push({ id: { endsWith: suffix } });
-      }
-      if (q.length >= 3) {
-        or.push({ clientSaleId: { contains: q, mode: 'insensitive' } });
-      }
-      if (or.length) where.OR = or;
+      const wantExactId = /^[a-fA-F0-9]{24}$/.test(qStripped);
+      const qLower = qStripped.toLowerCase();
+      const sample = await prisma.sale.findMany({
+        where: baseWhere,
+        include,
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      });
+
+      const filtered = sample.filter((s) => {
+        const id = String(s.id || '').toLowerCase();
+        const client = String((s as any).clientSaleId || '').toLowerCase();
+        if (wantExactId && id === qLower) return true;
+        if (qLower.length >= 3 && id.endsWith(qLower)) return true;
+        if (qLower.length >= 3 && client.includes(qLower)) return true;
+        return false;
+      });
+
+      const total = filtered.length;
+      const paged = filtered.slice((page - 1) * limit, (page - 1) * limit + limit);
+      return NextResponse.json({
+        sales: paged,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
     }
 
     const [sales, total] = await Promise.all([
       prisma.sale.findMany({
-        where,
-        include: {
-          customer: true,
-          cashier: { select: { id: true, name: true, email: true } },
-          items: { include: { product: true } },
-        },
+        where: baseWhere,
+        include,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      prisma.sale.count({ where }),
+      prisma.sale.count({ where: baseWhere }),
     ]);
 
     return NextResponse.json({
