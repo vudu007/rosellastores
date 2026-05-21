@@ -649,8 +649,8 @@ export default function InventoryPage() {
       )}
       {/* Edit Product Modal */}
       {editingProduct && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-5 animate-slide-up max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-5 animate-slide-up my-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <Edit className="w-5 h-5 text-primary" /> Edit Product
@@ -795,8 +795,8 @@ export default function InventoryPage() {
 
       {/* Add Product Modal */}
       {showAddProduct && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-5 animate-slide-up max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-5 animate-slide-up my-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <Plus className="w-5 h-5 text-primary" /> Add New Product
@@ -955,8 +955,8 @@ export default function InventoryPage() {
 
       {/* Restock Modal */}
       {restockProduct && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 animate-slide-up">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5 animate-slide-up my-6">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <PackagePlus className="w-5 h-5 text-green-600" /> Restock Product
