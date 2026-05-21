@@ -37,6 +37,32 @@ function normalisePrivateKey(rawKey: string): string {
   return rawKey;
 }
 
+function normaliseCertificate(rawCert: string): string {
+  if (!rawCert) return '';
+  let cert = rawCert.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim();
+
+  if (!cert.includes('BEGIN CERTIFICATE')) return cert;
+
+  if (!cert.includes('\n') || cert.split('\n').some(l => l.length > 80 && !l.startsWith('---'))) {
+    const m = cert
+      .replace(/\s+/g, ' ')
+      .match(/-----BEGIN CERTIFICATE-----\s*(.+?)\s*-----END CERTIFICATE-----/);
+    if (m) {
+      const body = m[1].replace(/\s/g, '').match(/.{1,64}/g)?.join('\n') ?? m[1];
+      cert = `-----BEGIN CERTIFICATE-----\n${body}\n-----END CERTIFICATE-----\n`;
+    }
+  }
+
+  return cert;
+}
+
+function keyMatchesCertificate(privateKeyPem: string, certificatePem: string): boolean {
+  const priv = crypto.createPrivateKey(privateKeyPem);
+  const pubFromPriv = crypto.createPublicKey(priv).export({ type: 'spki', format: 'der' }) as Buffer;
+  const pubFromCert = new crypto.X509Certificate(certificatePem).publicKey.export({ type: 'spki', format: 'der' }) as Buffer;
+  return Buffer.compare(pubFromPriv, pubFromCert) === 0;
+}
+
 function signRequest(toSign: string, rawKey: string): string {
   const privateKey = crypto.createPrivateKey(rawKey);
   const sign = crypto.createSign('RSA-SHA512');
@@ -49,6 +75,18 @@ async function handleSign(toSign: string) {
 
   const rawKey = normalisePrivateKey(process.env.QZ_PRIVATE_KEY ?? '');
   if (!rawKey) return new NextResponse('QZ_PRIVATE_KEY env var is not set', { status: 500 });
+
+  const rawCert = normaliseCertificate(process.env.QZ_CERTIFICATE ?? '');
+  if (rawCert) {
+    try {
+      if (!keyMatchesCertificate(rawKey, rawCert)) {
+        return new NextResponse('Signing failed: QZ_PRIVATE_KEY does not match QZ_CERTIFICATE', { status: 500 });
+      }
+    } catch (err: any) {
+      const message = String(err?.message ?? err);
+      return new NextResponse(`Signing failed: Unable to validate key/cert pair. ${message}`, { status: 500 });
+    }
+  }
 
   try {
     const signature = signRequest(toSign, rawKey);
