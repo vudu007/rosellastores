@@ -41,6 +41,10 @@ export async function GET(req: NextRequest) {
       branchId: session.user.branchId ?? undefined,
     };
 
+    if (session.user.role === 'CASHIER') {
+      where.cashierId = session.user.id;
+    }
+
     if (status) {
       where.status = status;
     }

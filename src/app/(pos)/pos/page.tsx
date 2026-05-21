@@ -57,6 +57,12 @@ export default function POSPage() {
   const [splitAmounts, setSplitAmounts] = useState({ cash: 0, card: 0, transfer: 0, mobile: 0 });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historySales, setHistorySales] = useState<any[]>([]);
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [historyReprintingId, setHistoryReprintingId] = useState<string | null>(null);
   const [returnSource, setReturnSource] = useState<'LAST' | 'RECEIPT'>(() => 'RECEIPT');
   const [returnLookup, setReturnLookup] = useState('');
   const [returnReason, setReturnReason] = useState('');
@@ -781,6 +787,95 @@ export default function POSPage() {
       setTimeout(() => setSuccessMessage(null), 3000);
     } finally {
       setIsSubmittingReturn(false);
+    }
+  };
+
+  const computeInclusiveVat = (items: Array<{ total: number; isTaxable: boolean; taxInclusive: boolean }>) => {
+    const TAX_RATE = 0.075;
+    return items.reduce((acc, item) => {
+      if (!item.isTaxable) return acc;
+      if (!item.taxInclusive) return acc;
+      return acc + (Number(item.total) || 0) * TAX_RATE / (1 + TAX_RATE);
+    }, 0);
+  };
+
+  const formatDateTimeShort = (iso: string) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString('en-NG', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const openHistory = async () => {
+    setShowHistoryModal(true);
+    setHistoryError(null);
+    setHistoryQuery('');
+    setHistorySales([]);
+    setHistoryLoading(true);
+    try {
+      const res = await fetch('/api/sales?limit=50&page=1');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      setHistorySales(Array.isArray(data?.sales) ? data.sales : []);
+    } catch (e: any) {
+      setHistoryError(e?.message || 'Failed to load transactions');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const refreshHistory = async (q?: string) => {
+    if (historyLoading) return;
+    setHistoryError(null);
+    setHistoryLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('limit', '50');
+      params.set('page', '1');
+      const query = typeof q === 'string' ? q.trim() : historyQuery.trim();
+      if (query) params.set('q', query);
+      const res = await fetch(`/api/sales?${params.toString()}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      setHistorySales(Array.isArray(data?.sales) ? data.sales : []);
+    } catch (e: any) {
+      setHistoryError(e?.message || 'Failed to load transactions');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const reprintFromHistory = async (saleRow: any) => {
+    if (!saleRow?.id) return;
+    if (historyReprintingId) return;
+    setHistoryReprintingId(String(saleRow.id));
+    try {
+      const items = Array.isArray(saleRow.items) ? saleRow.items : [];
+      const receiptItems = items.map((it: any) => ({
+        productId: String(it.productId),
+        name: String(it.product?.name ?? 'Item'),
+        quantity: Number(it.qty) || 0,
+        unitPrice: Number(it.unitPrice) || 0,
+        discount: Number(it.discount) || 0,
+        total: Number(it.total) || 0,
+        isTaxable: Boolean(it.product?.isTaxable ?? true),
+        taxInclusive: Boolean(it.product?.taxInclusive ?? false),
+      }));
+      const saleForReceipt = {
+        id: String(saleRow.id),
+        clientSaleId: saleRow.clientSaleId ?? undefined,
+        customerName: saleRow.customer?.name ?? 'Walk-In Customer',
+        paymentMethod: saleRow.paymentMethod,
+        notes: saleRow.notes ?? undefined,
+        items: receiptItems,
+        subtotal: Number(saleRow.subtotal) || 0,
+        tax: Number(saleRow.tax) || 0,
+        taxInclusive: computeInclusiveVat(receiptItems),
+        total: Number(saleRow.total) || 0,
+        date: saleRow.createdAt ?? new Date().toISOString(),
+      };
+      await printReceipt(saleForReceipt);
+    } finally {
+      setTimeout(() => setHistoryReprintingId(null), 800);
     }
   };
 
@@ -1754,6 +1849,16 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 Item Return
               </button>
             )}
+            {(session?.user as any)?.role === 'CASHIER' && (
+              <button
+                onClick={openHistory}
+                className="col-span-2 bg-muted text-foreground h-12 rounded-xl font-black text-sm hover:bg-muted-foreground/10 transition-colors flex items-center justify-center gap-2"
+                title="View transaction history"
+              >
+                <Clock className="w-5 h-5" />
+                Transaction History
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -2051,6 +2156,116 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               >
                 {isSubmittingReturn ? 'Submitting…' : 'Submit'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+          <div className="bg-card rounded-2xl p-6 max-w-2xl w-full shadow-2xl animate-slide-up border border-white/10">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground">Transaction History</h2>
+                <p className="text-muted-foreground text-sm">Your recent transactions (this branch).</p>
+              </div>
+              <button
+                onClick={() => { setShowHistoryModal(false); setHistorySales([]); setHistoryQuery(''); setHistoryError(null); }}
+                className="p-2 rounded-xl hover:bg-muted transition-colors"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <input
+                value={historyQuery}
+                onChange={(e) => setHistoryQuery(e.target.value)}
+                className="input-base flex-1"
+                placeholder="Search by receipt no (R-xxxx) or sale id…"
+              />
+              <button
+                onClick={() => refreshHistory(historyQuery)}
+                disabled={historyLoading}
+                className="btn-secondary h-10 px-4 disabled:opacity-50"
+              >
+                {historyLoading ? 'Loading…' : 'Search'}
+              </button>
+              <button
+                onClick={() => refreshHistory('')}
+                disabled={historyLoading}
+                className="btn-secondary h-10 px-4 disabled:opacity-50"
+              >
+                Refresh
+              </button>
+            </div>
+
+            {historyError && (
+              <div className="mb-4 p-3 rounded-xl bg-destructive/10 text-destructive font-bold text-sm">
+                {historyError}
+              </div>
+            )}
+
+            <div className="max-h-[520px] overflow-y-auto rounded-2xl border border-border">
+              <table className="w-full text-left">
+                <thead className="bg-muted/40 text-muted-foreground text-xs font-bold uppercase tracking-wider sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Receipt</th>
+                    <th className="px-4 py-3 text-right">Total</th>
+                    <th className="px-4 py-3 text-center">Status</th>
+                    <th className="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {historySales.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground font-bold">
+                        {historyLoading ? 'Loading…' : 'No transactions found.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    historySales.map((s) => {
+                      const receiptSuffixSource = String(s?.id || s?.clientSaleId || '');
+                      const receiptSuffix = receiptSuffixSource ? receiptSuffixSource.slice(-8).toUpperCase() : 'NA';
+                      const receiptNo = `R-${receiptSuffix}`;
+                      const isPrinting = historyReprintingId === String(s.id);
+                      return (
+                        <tr key={s.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-3 text-sm font-bold text-foreground">{formatDateTimeShort(s.createdAt)}</td>
+                          <td className="px-4 py-3 text-sm font-mono font-bold text-muted-foreground">{receiptNo}</td>
+                          <td className="px-4 py-3 text-sm font-black text-right text-foreground">{formatCurrency(Number(s.total) || 0)}</td>
+                          <td className="px-4 py-3 text-center text-xs font-black text-muted-foreground">{String(s.status || '').toUpperCase()}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setShowReturnModal(true);
+                                  setReturnSource('RECEIPT');
+                                  setReturnLookup(String(s.id));
+                                  setReturnReason('');
+                                  setReturnItems([]);
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-black bg-amber-500/15 text-amber-800 hover:bg-amber-500/20 transition-colors"
+                              >
+                                Return
+                              </button>
+                              <button
+                                onClick={() => reprintFromHistory(s)}
+                                disabled={isPrinting}
+                                className="px-3 py-1.5 rounded-lg text-xs font-black bg-primary/10 text-primary hover:bg-primary/15 transition-colors disabled:opacity-50"
+                              >
+                                {isPrinting ? 'Printing…' : 'Reprint'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
