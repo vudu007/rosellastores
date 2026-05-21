@@ -50,7 +50,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await authWithSession();
-    if (!session || session.user.role !== 'CASHIER') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session || !['CASHIER', 'OWNER', 'ADMIN'].includes(session.user.role)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const branchId = session.user.branchId ?? undefined;
     if (!branchId) return NextResponse.json({ error: 'User does not belong to a branch' }, { status: 400 });
@@ -84,6 +86,9 @@ export async function POST(req: NextRequest) {
     const existing = await prisma.returnRequest.findUnique({ where: { saleId } });
     if (existing) return NextResponse.json({ error: 'A return request already exists for this sale' }, { status: 400 });
 
+    const isAuto = session.user.role === 'OWNER' || session.user.role === 'ADMIN';
+    const now = new Date();
+
     const requestRow = await prisma.returnRequest.create({
       data: {
         saleId,
@@ -91,7 +96,14 @@ export async function POST(req: NextRequest) {
         reason: reason.trim(),
         ...(normalizedItems ? { items: normalizedItems as any } : {}),
         requestedById: session.user.id,
-        status: 'REQUESTED',
+        status: isAuto ? 'COMPLETED' : 'REQUESTED',
+        ...(session.user.role === 'OWNER'
+          ? { ownerApprovedById: session.user.id, ownerApprovedAt: now }
+          : {}),
+        ...(session.user.role === 'ADMIN'
+          ? { adminApprovedById: session.user.id, adminApprovedAt: now }
+          : {}),
+        ...(isAuto ? { executedById: session.user.id, executedAt: now } : {}),
       },
     });
 
@@ -102,6 +114,45 @@ export async function POST(req: NextRequest) {
         entity: 'Sale',
         entityId: saleId,
         newValue: JSON.stringify({ returnRequestId: requestRow.id, reason: reason.trim(), items: normalizedItems }),
+      },
+    });
+
+    if (!isAuto) return NextResponse.json(requestRow, { status: 201 });
+
+    const returnItems = normalizedItems ?? Array.from(saleItemByProductId.entries()).map(([productId, qty]) => ({ productId, qty }));
+    for (const item of returnItems) {
+      await prisma.product.update({
+        where: { id: item.productId },
+        data: { stockQty: { increment: item.qty } },
+      });
+    }
+
+    const isFullReturn = (() => {
+      if (normalizedItems) {
+        if (normalizedItems.length !== sale.items.length) return false;
+        const saleMap = new Map<string, number>();
+        for (const it of sale.items) saleMap.set(String(it.productId), Number(it.qty) || 0);
+        for (const it of normalizedItems) {
+          if (!saleMap.has(it.productId)) return false;
+          if ((saleMap.get(it.productId) ?? 0) !== it.qty) return false;
+        }
+        return true;
+      }
+      return true;
+    })();
+
+    await prisma.sale.update({
+      where: { id: saleId },
+      data: { status: isFullReturn ? 'RETURNED' : 'PARTIALLY_RETURNED' },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: session.user.id,
+        action: 'RETURN_COMPLETED',
+        entity: 'Sale',
+        entityId: saleId,
+        newValue: JSON.stringify({ returnRequestId: requestRow.id }),
       },
     });
 

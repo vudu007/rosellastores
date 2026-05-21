@@ -719,8 +719,9 @@ export default function POSPage() {
 
   const handleRaiseReturn = async () => {
     if (isSubmittingReturn) return;
-    if ((session?.user as any)?.role !== 'CASHIER') {
-      setSuccessMessage('Only cashiers can raise returns.');
+    const role = (session?.user as any)?.role as string | undefined;
+    if (!role || !['CASHIER', 'OWNER', 'ADMIN'].includes(role)) {
+      setSuccessMessage('Unauthorized.');
       setTimeout(() => setSuccessMessage(null), 2500);
       return;
     }
@@ -780,7 +781,7 @@ export default function POSPage() {
       setReturnLookup('');
       setReturnReason('');
       setReturnItems([]);
-      setSuccessMessage('Return request raised. Waiting for Owner/Admin approval.');
+      setSuccessMessage(role === 'CASHIER' ? 'Return request raised. Waiting for Owner/Admin approval.' : 'Return completed.');
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (e: any) {
       setSuccessMessage(e?.message || 'Failed to raise return');
@@ -1815,7 +1816,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               <CheckCircle className="w-5 h-5" />
               Payment [Space]
             </button>
-            {(session?.user as any)?.role === 'CASHIER' && (
+            {['CASHIER', 'OWNER', 'ADMIN'].includes((session?.user as any)?.role ?? '') && (
               <button
                 onClick={() => {
                   const canUseLast =
@@ -1843,13 +1844,13 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   }
                 }}
                 className="col-span-2 bg-amber-500/15 text-amber-800 h-12 rounded-xl font-black text-sm hover:bg-amber-500/20 transition-colors flex items-center justify-center gap-2"
-                title="Raise a return request (cashier)"
+                title="Return items"
               >
                 <RotateCcw className="w-5 h-5" />
                 Item Return
               </button>
             )}
-            {(session?.user as any)?.role === 'CASHIER' && (
+            {['CASHIER', 'OWNER', 'ADMIN'].includes((session?.user as any)?.role ?? '') && (
               <button
                 onClick={openHistory}
                 className="col-span-2 bg-muted text-foreground h-12 rounded-xl font-black text-sm hover:bg-muted-foreground/10 transition-colors flex items-center justify-center gap-2"
