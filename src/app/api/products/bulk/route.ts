@@ -24,40 +24,124 @@ export async function POST(req: NextRequest) {
 
     const errors: string[] = [];
     const skuCounts = new Map<string, number>();
-    const normalized = products.map((p, index) => {
-      const name = p?.name;
-      const sku = p?.sku;
-      const categoryId = p?.categoryId;
-      const supplierId = p?.supplierId;
-      const retailPriceRaw = p?.retailPrice;
+    const needsCategoryNames: string[] = [];
 
-      if (!name || !sku || !categoryId || !supplierId || retailPriceRaw === undefined) {
+    const pickString = (obj: any, keys: string[]) => {
+      for (const k of keys) {
+        const v = obj?.[k];
+        if (typeof v === 'string' && v.trim()) return v.trim();
+      }
+      return '';
+    };
+
+    const pickNumber = (obj: any, keys: string[]) => {
+      for (const k of keys) {
+        const v = obj?.[k];
+        if (v === undefined || v === null) continue;
+        const s = String(v).trim();
+        if (!s) continue;
+        const n = Number.parseFloat(s);
+        if (Number.isFinite(n)) return n;
+      }
+      return null;
+    };
+
+    const pickInt = (obj: any, keys: string[]) => {
+      for (const k of keys) {
+        const v = obj?.[k];
+        if (v === undefined || v === null) continue;
+        const s = String(v).trim();
+        if (!s) continue;
+        const n = Number.parseInt(s, 10);
+        if (Number.isFinite(n)) return n;
+      }
+      return null;
+    };
+
+    const parseYesNo = (v: any) => {
+      const s = String(v ?? '').trim().toLowerCase();
+      if (!s) return null;
+      if (['yes', 'y', 'true', '1'].includes(s)) return true;
+      if (['no', 'n', 'false', '0'].includes(s)) return false;
+      return null;
+    };
+
+    const getCategoryName = (p: any) =>
+      pickString(p, ['category_class', 'categoryClass', 'categoryName', 'category', 'Category', 'CATEGORY']) ||
+      'General';
+
+    const getSupplierIdRaw = (p: any) =>
+      pickString(p, ['supplierId', 'supplier_id', 'supplier', 'Supplier', 'SUPPLIER']);
+
+    const getRetailPrice = (p: any) => pickNumber(p, ['retailPrice', 'retail_price', 'price', 'Price']) ?? 0;
+    const getStockQty = (p: any) => pickInt(p, ['stockQty', 'stock_qty', 'qty', 'quantity']) ?? 0;
+    const getLowStock = (p: any) =>
+      pickInt(p, ['lowStockThreshold', 'low_stock_threshold', 'lowStock', 'threshold']) ?? 10;
+    const getUnit = (p: any) => pickString(p, ['unit', 'Unit']) || 'pcs';
+
+    const getBarcodes = (p: any) => {
+      if (Array.isArray(p?.barcodes)) return p.barcodes.map((x: any) => String(x).trim()).filter(Boolean);
+      const fromBarcodes = pickString(p, ['barcodes', 'Barcodes']);
+      if (fromBarcodes) return fromBarcodes.split(',').map((x) => x.trim()).filter(Boolean);
+      const single = pickString(p, ['barcode', 'Barcode', 'bar_code']);
+      return single ? [single] : [];
+    };
+
+    const getName = (p: any) => pickString(p, ['name', 'Name', 'NAME']);
+    const getSku = (p: any) => pickString(p, ['sku', 'SKU', 'Sku']);
+
+    const getIsTaxable = (p: any) => {
+      const v = p?.isTaxable ?? p?.taxable ?? p?.Taxable ?? p?.TAXABLE;
+      const yn = parseYesNo(v);
+      return yn ?? true;
+    };
+
+    const defaultSupplierName = 'Imported Supplier';
+    const defaultSupplier = await prisma.supplier.findFirst({
+      where: { name: { equals: defaultSupplierName, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    const defaultSupplierId =
+      defaultSupplier?.id ??
+      (await prisma.supplier.create({
+        data: { name: defaultSupplierName, contact: 'Import', phone: '0000000000' },
+        select: { id: true },
+      })).id;
+
+    const normalized = products.map((p, index) => {
+      const name = getName(p);
+      const sku = getSku(p);
+      const categoryId = pickString(p, ['categoryId', 'category_id', 'CategoryId']);
+      const categoryName = categoryId ? '' : getCategoryName(p);
+      const supplierIdRaw = getSupplierIdRaw(p);
+      const supplierId = supplierIdRaw || defaultSupplierId;
+      const retailPrice = getRetailPrice(p);
+
+      if (!name || !sku) {
         errors.push(`Row ${index + 1} (${name || sku || 'Unknown'}): Missing required fields`);
         return null;
       }
 
-      const skuStr = String(sku).trim();
+      const skuStr = sku.trim();
       skuCounts.set(skuStr, (skuCounts.get(skuStr) ?? 0) + 1);
 
-      const retailPrice = Number.parseFloat(String(retailPriceRaw));
-      if (!Number.isFinite(retailPrice) || retailPrice <= 0) {
-        errors.push(`Row ${index + 1} (${name || skuStr || 'Unknown'}): Invalid retailPrice`);
-        return null;
-      }
+      if (!categoryId) needsCategoryNames.push(categoryName);
 
       return {
         index,
         data: {
-          name: String(name),
+          name,
           sku: skuStr,
-          barcodes: p.barcodes ? (Array.isArray(p.barcodes) ? p.barcodes : [p.barcodes]) : [],
-          categoryId: String(categoryId),
-          supplierId: String(supplierId),
+          barcodes: getBarcodes(p),
+          categoryId: categoryId || categoryName,
+          supplierId,
           branchId,
           retailPrice,
-          stockQty: Number.parseInt(String(p.stockQty ?? ''), 10) || 0,
-          lowStockThreshold: Number.parseInt(String(p.lowStockThreshold ?? ''), 10) || 10,
-          unit: p.unit || 'pcs'
+          stockQty: getStockQty(p),
+          lowStockThreshold: getLowStock(p),
+          unit: getUnit(p),
+          isTaxable: getIsTaxable(p),
+          taxInclusive: false,
         },
       };
     });
@@ -92,8 +176,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const usedCategoryNames = Array.from(
+      new Set(
+        candidates
+          .map((c) => String(c.data.categoryId))
+          .filter((x) => x && !/^[a-f0-9]{24}$/i.test(x))
+      )
+    );
+
+    if (usedCategoryNames.length > 0) {
+      await prisma.category.createMany({
+        data: usedCategoryNames.map((name) => ({ name })),
+        skipDuplicates: true,
+      });
+    }
+
+    const categoryRows = usedCategoryNames.length
+      ? await prisma.category.findMany({
+          where: { name: { in: usedCategoryNames } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const categoryMap = new Map(categoryRows.map((c) => [c.name, c.id]));
+
+    const createData = candidates.map((c) => ({
+      ...c.data,
+      categoryId: /^[a-f0-9]{24}$/i.test(String(c.data.categoryId))
+        ? c.data.categoryId
+        : categoryMap.get(String(c.data.categoryId)) ?? categoryMap.get('General') ?? c.data.categoryId,
+    }));
+
     await prisma.product.createMany({
-      data: candidates.map((c) => c.data),
+      data: createData,
     });
 
     return NextResponse.json({
