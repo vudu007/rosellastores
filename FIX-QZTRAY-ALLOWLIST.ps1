@@ -6,15 +6,58 @@
 $qzDir = Join-Path $env:APPDATA "qz"
 $allowedFile = Join-Path $qzDir "allowed.dat"
 
-# Certificate data (SHA-1 fingerprint + details matching digital-certificate.txt)
-$fingerprint = "23fe3fdfe332b1fd2570570b056b43cbb75dbd3e"
-$cn          = "QZ Tray Demo Cert"
-$org         = "QZ Industries, LLC"
-$validFrom   = "2026-04-20T19:58:24Z"
-$validTo     = "2046-04-20T19:58:24Z"
-$trusted     = "false"
+function Get-QZCertText {
+    $baseUrl = $env:ROSELLA_SITE
+    if (-not $baseUrl) { $baseUrl = "https://rosellastores.vercel.app" }
+    $baseUrl = $baseUrl.TrimEnd("/")
 
-$entry = "$fingerprint`t$cn`t$org`t$validFrom`t$validTo`t$trusted"
+    try {
+        $res = Invoke-WebRequest -Uri "$baseUrl/api/qz/certificate" -UseBasicParsing -TimeoutSec 10
+        if ($res.StatusCode -ge 200 -and $res.StatusCode -lt 300 -and $res.Content) {
+            return [string]$res.Content
+        }
+    } catch {}
+
+    $candidates = @(
+        (Join-Path $PSScriptRoot ".secrets\qz\qz-certificate.pem"),
+        (Join-Path $PSScriptRoot "digital-certificate.txt")
+    )
+    $path = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($path) {
+        return Get-Content -Path $path -Raw
+    }
+
+    throw "Unable to load QZ certificate. Set ROSELLA_SITE to your domain, or ensure digital-certificate.txt exists."
+}
+
+function Get-QZAllowedEntryFromPem([string]$pemText) {
+    $m = [regex]::Match($pemText, "-----BEGIN CERTIFICATE-----\s*(?<b64>[\s\S]+?)\s*-----END CERTIFICATE-----", "Singleline")
+    if (-not $m.Success) { throw "Invalid certificate PEM (missing BEGIN/END CERTIFICATE)" }
+
+    $b64 = ($m.Groups["b64"].Value -replace "\s", "")
+    $der = [Convert]::FromBase64String($b64)
+
+    $sha1 = [System.Security.Cryptography.SHA1]::Create()
+    $fingerprint = ([BitConverter]::ToString($sha1.ComputeHash($der)) -replace "-", "").ToLowerInvariant()
+
+    $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($der)
+    $subject = $cert.Subject
+    $cn = if ($subject -match "CN=([^,]+)") { $Matches[1].Trim() } else { "Unknown" }
+    $org = if ($subject -match "O=([^,]+)") { $Matches[1].Trim() } else { "Unknown" }
+    $validFrom = $cert.NotBefore.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $validTo = $cert.NotAfter.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $trusted = "false"
+
+    return @{
+        Fingerprint = $fingerprint
+        Entry = "$fingerprint`t$cn`t$org`t$validFrom`t$validTo`t$trusted"
+    }
+}
+
+$pemText = Get-QZCertText
+$data = Get-QZAllowedEntryFromPem $pemText
+$fingerprint = $data.Fingerprint
+$entry = $data.Entry
 
 # Create qz dir if it doesn't exist
 if (-not (Test-Path $qzDir)) {
