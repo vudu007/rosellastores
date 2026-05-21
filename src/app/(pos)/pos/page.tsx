@@ -56,6 +56,7 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [splitAmounts, setSplitAmounts] = useState({ cash: 0, card: 0, transfer: 0, mobile: 0 });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
@@ -537,6 +538,8 @@ export default function POSPage() {
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
+    if (isCheckingOut) return;
+    setIsCheckingOut(true);
 
     const clientSaleId =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : null;
@@ -544,6 +547,7 @@ export default function POSPage() {
     if (!clientSaleId) {
       setSuccessMessage('This device cannot generate a sale ID (crypto.randomUUID unavailable).');
       setTimeout(() => setSuccessMessage(null), 4000);
+      setIsCheckingOut(false);
       return;
     }
 
@@ -652,6 +656,8 @@ export default function POSPage() {
       setShowPaymentModal(false);
       printReceipt(completedSale);
       setTimeout(() => setSuccessMessage(null), 5000);
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -704,10 +710,11 @@ export default function POSPage() {
   // that div visible, call window.print(), then clean up.
   const printViaIframe = (html: string) => {
     // Prevent double-prints — guard lives on window to survive re-renders
-    if (printingRef.current) {
+    if ((window as any).__mekaPrinting || printingRef.current) {
       console.log('[Rosella Stores] Print already in progress — skipping duplicate.');
       return;
     }
+    (window as any).__mekaPrinting = true;
     printingRef.current = true;
 
     // Strip any old auto-print scripts embedded in the HTML
@@ -739,18 +746,18 @@ export default function POSPage() {
     const styleTag = document.createElement('style');
     styleTag.id = '__meka_receipt_style__';
     styleTag.innerHTML = `
+      @page { size: 80mm auto; margin: 2mm 3mm; }
       @media print {
-        @page { size: 80mm auto; margin: 2mm 3mm; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        body * { visibility: hidden !important; }
+        html, body { margin: 0 !important; padding: 0 !important; height: auto !important; }
+        body > :not(#__meka_receipt__) { display: none !important; }
         #__meka_receipt__ {
-          visibility: visible !important;
-          position: fixed !important;
-          top: 0 !important; left: 0 !important;
+          display: block !important;
+          position: static !important;
           width: 74mm !important;
           background: #fff !important;
         }
-        #__meka_receipt__ * { visibility: visible !important; color: #000 !important; }
+        #__meka_receipt__ * { color: #000 !important; }
         ${rcptCSS}
       }
     `;
@@ -761,6 +768,7 @@ export default function POSPage() {
       document.getElementById('__meka_receipt__')?.remove();
       document.getElementById('__meka_receipt_style__')?.remove();
       printingRef.current = false;
+      (window as any).__mekaPrinting = false;
       console.log('[Rosella Stores] Print overlay cleaned up.');
     };
     window.addEventListener('afterprint', releaseLock, { once: true });
@@ -1782,16 +1790,20 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
             <div className="flex gap-4 mt-8">
               <button
                 onClick={() => setShowPaymentModal(false)}
-                className="flex-1 h-12 rounded-xl font-bold bg-muted hover:bg-muted-foreground/10 transition-colors"
+                disabled={isCheckingOut}
+                className="flex-1 h-12 rounded-xl font-bold bg-muted hover:bg-muted-foreground/10 transition-colors disabled:opacity-50"
               >
                 Go Back
               </button>
               <button 
                 onClick={handleCheckout} 
-                disabled={paymentMethod === 'SPLIT' && Math.abs((splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile) - total) > 0.01}
+                disabled={
+                  isCheckingOut ||
+                  (paymentMethod === 'SPLIT' && Math.abs((splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile) - total) > 0.01)
+                }
                 className="flex-1 bg-primary text-primary-foreground h-12 rounded-xl font-bold shadow-lg shadow-primary/20 disabled:opacity-50"
               >
-                Confirm Payment
+                {isCheckingOut ? 'Processing…' : 'Confirm Payment'}
               </button>
             </div>
           </div>
