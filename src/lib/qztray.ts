@@ -100,6 +100,10 @@ export async function connectQZ(): Promise<void> {
         .catch(err => reject(err));
     });
 
+    if (typeof qz.security?.setSignatureAlgorithm === 'function') {
+      qz.security.setSignatureAlgorithm('SHA512');
+    }
+
     qz.security.setSignaturePromise((toSign: string) => {
       return (resolve: Function, reject: Function) => {
         fetch('/api/qz/sign', {
