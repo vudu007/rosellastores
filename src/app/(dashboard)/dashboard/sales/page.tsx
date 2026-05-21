@@ -62,7 +62,7 @@ export default function SalesPage() {
   const { data: session } = useSession();
   const canVoid = ['OWNER', 'MANAGER'].includes(session?.user.role ?? '');
   const canApproveReturns = ['OWNER', 'ADMIN'].includes(session?.user.role ?? '');
-  const canRequestReturn = !!session?.user?.role;
+  const canRequestReturn = (session?.user.role ?? '') === 'CASHIER';
 
   const [sales, setSales] = useState<Sale[]>([]);
   const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
@@ -537,7 +537,7 @@ export default function SalesPage() {
                               <button
                                 onClick={() => { setReturnSaleId(sale.id); setReturnReason(''); setShowReturnModal(true); }}
                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-500/15 hover:bg-amber-500/20 rounded-lg transition-colors"
-                                title="Request a return (requires Owner + Admin approval)"
+                                title="Request a return (requires Owner or Admin approval)"
                               >
                                 <RotateCcw className="w-3.5 h-3.5" />
                                 Return
@@ -555,15 +555,14 @@ export default function SalesPage() {
                           const ownerOk = !!req.ownerApprovedById;
                           const adminOk = !!req.adminApprovedById;
                           const role = session?.user.role ?? '';
+                          const approverLabel = ownerOk ? 'Owner' : adminOk ? 'Admin' : '';
 
                           return (
                             <div className="flex items-center justify-center gap-2 flex-wrap">
-                              <span className="text-[11px] font-bold text-muted-foreground">
-                                Owner {ownerOk ? '✓' : '—'} • Admin {adminOk ? '✓' : '—'}
-                              </span>
+                              <span className="text-[11px] font-bold text-muted-foreground">{(ownerOk || adminOk) ? `Approved by ${approverLabel}` : 'Pending approval'}</span>
                               {canApproveReturns && (
                                 <>
-                                  {role === 'OWNER' && !ownerOk && (
+                                  {role === 'OWNER' && !ownerOk && !adminOk && (
                                     <button
                                       onClick={() => handleApproveReturn(req.id, 'APPROVE')}
                                       disabled={approvingReturnId === req.id}
@@ -573,7 +572,7 @@ export default function SalesPage() {
                                       Approve
                                     </button>
                                   )}
-                                  {role === 'ADMIN' && !adminOk && (
+                                  {role === 'ADMIN' && !adminOk && !ownerOk && (
                                     <button
                                       onClick={() => handleApproveReturn(req.id, 'APPROVE')}
                                       disabled={approvingReturnId === req.id}

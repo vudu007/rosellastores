@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-background text-foreground">
         <SessionProvider>{children}</SessionProvider>
         <Script id="sw-register" strategy="afterInteractive">
-          {`if ("serviceWorker" in navigator) { window.addEventListener("load", function () { navigator.serviceWorker.register("/sw.js").catch(function () {}); }); }`}
+          {`if ("serviceWorker" in navigator) { window.addEventListener("load", function () { navigator.serviceWorker.register("/sw.js?v=2").catch(function () {}); }); }`}
         </Script>
       </body>
     </html>

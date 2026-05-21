@@ -49,9 +49,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await authWithSession();
-    if (!session || !['CASHIER', 'MANAGER', 'OWNER', 'ADMIN'].includes(session.user.role)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!session || session.user.role !== 'CASHIER') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const branchId = session.user.branchId ?? undefined;
     if (!branchId) return NextResponse.json({ error: 'User does not belong to a branch' }, { status: 400 });
@@ -98,4 +96,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react';
 import {
   Search, ShoppingCart, User, CreditCard, Banknote,
   Smartphone, Trash2, Plus, Minus, CheckCircle,
-  ChevronRight, Package, AlertCircle, ArrowLeft, Printer, Info, X, Clock, Wifi, Layers
+  ChevronRight, Package, AlertCircle, ArrowLeft, Printer, Info, X, Clock, Wifi, Layers, RotateCcw
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -56,6 +56,10 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [splitAmounts, setSplitAmounts] = useState({ cash: 0, card: 0, transfer: 0, mobile: 0 });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnLookup, setReturnLookup] = useState('');
+  const [returnReason, setReturnReason] = useState('');
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -703,6 +707,56 @@ export default function POSPage() {
     setSuccessMessage('Reprinting last receipt');
   };
 
+  const handleRaiseReturn = async () => {
+    if (isSubmittingReturn) return;
+    if ((session?.user as any)?.role !== 'CASHIER') {
+      setSuccessMessage('Only cashiers can raise returns.');
+      setTimeout(() => setSuccessMessage(null), 2500);
+      return;
+    }
+    const lookup = returnLookup.trim();
+    const reason = returnReason.trim();
+    if (lookup.length < 3 || reason.length < 3) return;
+
+    setIsSubmittingReturn(true);
+    try {
+      const salesRes = await fetch(`/api/sales?limit=10&page=1&q=${encodeURIComponent(lookup)}`);
+      if (!salesRes.ok) {
+        const err = await salesRes.json().catch(() => ({}));
+        throw new Error(err?.error || 'Failed to lookup sale');
+      }
+      const salesData = await salesRes.json().catch(() => ({}));
+      const sales = Array.isArray(salesData?.sales) ? salesData.sales : [];
+      const sale = sales[0];
+      if (!sale?.id) {
+        setSuccessMessage('Sale not found for that receipt number.');
+        setTimeout(() => setSuccessMessage(null), 2500);
+        return;
+      }
+
+      const returnRes = await fetch('/api/returns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ saleId: sale.id, reason }),
+      });
+      if (!returnRes.ok) {
+        const err = await returnRes.json().catch(() => ({}));
+        throw new Error(err?.error || 'Failed to raise return');
+      }
+
+      setShowReturnModal(false);
+      setReturnLookup('');
+      setReturnReason('');
+      setSuccessMessage('Return request raised. Waiting for Owner/Admin approval.');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (e: any) {
+      setSuccessMessage(e?.message || 'Failed to raise return');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } finally {
+      setIsSubmittingReturn(false);
+    }
+  };
+
 
   // ── Print via main-window overlay ────────────────────────────────────────
   // window.print() on the main window is what --kiosk-printing was built for.
@@ -738,6 +792,10 @@ export default function POSPage() {
     overlay.style.cssText = 'position:fixed;top:-99999px;left:-99999px;width:74mm;';
     document.body.appendChild(overlay);
 
+    const pxToMm = (px: number) => (px * 25.4) / 96;
+    const measuredHeightMm = pxToMm(overlay.scrollHeight || 0);
+    const pageHeightMm = Math.min(Math.max(Math.ceil(measuredHeightMm + 12), 60), 600);
+
     // Inject print styles:
     //  - "body * { visibility:hidden }" hides EVERYTHING in the app
     //  - then we make only #__meka_receipt__ and its children visible
@@ -746,16 +804,17 @@ export default function POSPage() {
     const styleTag = document.createElement('style');
     styleTag.id = '__meka_receipt_style__';
     styleTag.innerHTML = `
-      @page { size: 80mm auto; margin: 2mm 3mm; }
+      @page { size: 80mm ${pageHeightMm}mm; margin: 2mm 3mm; }
       @media print {
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        html, body { margin: 0 !important; padding: 0 !important; height: auto !important; }
+        html, body { margin: 0 !important; padding: 0 !important; height: auto !important; width: 80mm !important; }
         body > :not(#__meka_receipt__) { display: none !important; }
         #__meka_receipt__ {
           display: block !important;
           position: static !important;
           width: 74mm !important;
           background: #fff !important;
+          page-break-after: avoid !important;
         }
         #__meka_receipt__ * { color: #000 !important; }
         ${rcptCSS}
@@ -1634,6 +1693,16 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               <CheckCircle className="w-5 h-5" />
               Payment [Space]
             </button>
+            {(session?.user as any)?.role === 'CASHIER' && (
+              <button
+                onClick={() => { setShowReturnModal(true); setReturnLookup(''); setReturnReason(''); }}
+                className="col-span-2 bg-amber-500/15 text-amber-800 h-12 rounded-xl font-black text-sm hover:bg-amber-500/20 transition-colors flex items-center justify-center gap-2"
+                title="Raise a return request (cashier)"
+              >
+                <RotateCcw className="w-5 h-5" />
+                Item Return
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1804,6 +1873,54 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 className="flex-1 bg-primary text-primary-foreground h-12 rounded-xl font-bold shadow-lg shadow-primary/20 disabled:opacity-50"
               >
                 {isCheckingOut ? 'Processing…' : 'Confirm Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReturnModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+          <div className="bg-card rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-slide-up border border-white/10">
+            <h2 className="text-xl font-bold tracking-tight mb-1 text-foreground">Item Return</h2>
+            <p className="text-muted-foreground text-sm mb-5">Enter the receipt number and reason to raise a return request.</p>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Receipt # / Sale ID</label>
+                <input
+                  value={returnLookup}
+                  onChange={(e) => setReturnLookup(e.target.value)}
+                  className="input-base mt-1"
+                  placeholder="e.g. R-1A2B3C4D"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-muted-foreground uppercase">Reason</label>
+                <textarea
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  className="input-base mt-1 min-h-[96px]"
+                  placeholder="Why is this being returned?"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => { setShowReturnModal(false); setReturnLookup(''); setReturnReason(''); }}
+                className="flex-1 btn-secondary py-2 h-10"
+                disabled={isSubmittingReturn}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRaiseReturn}
+                className="flex-1 btn-primary py-2 h-10 disabled:opacity-50"
+                disabled={isSubmittingReturn || returnLookup.trim().length < 3 || returnReason.trim().length < 3}
+              >
+                {isSubmittingReturn ? 'Submitting…' : 'Submit'}
               </button>
             </div>
           </div>

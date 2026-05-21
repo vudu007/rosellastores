@@ -58,13 +58,15 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       return NextResponse.json(updated);
     }
 
+    if (requestRow.ownerApprovedById || requestRow.adminApprovedById) {
+      return NextResponse.json({ error: 'Return request is already approved' }, { status: 400 });
+    }
+
     const patch: any = {};
     if (role === 'OWNER') {
-      if (requestRow.ownerApprovedById) return NextResponse.json({ error: 'Already approved by OWNER' }, { status: 400 });
       patch.ownerApprovedById = session.user.id;
       patch.ownerApprovedAt = new Date();
     } else {
-      if (requestRow.adminApprovedById) return NextResponse.json({ error: 'Already approved by ADMIN' }, { status: 400 });
       patch.adminApprovedById = session.user.id;
       patch.adminApprovedAt = new Date();
     }
@@ -83,13 +85,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         newValue: JSON.stringify({ returnRequestId: id }),
       },
     });
-
-    const ownerApproved = !!updated.ownerApprovedById;
-    const adminApproved = !!updated.adminApprovedById;
-
-    if (!ownerApproved || !adminApproved) {
-      return NextResponse.json(updated);
-    }
 
     if (!requestRow.sale) return NextResponse.json({ error: 'Sale not found for return request' }, { status: 404 });
     if (requestRow.sale.status !== 'COMPLETED') {
@@ -136,4 +131,3 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

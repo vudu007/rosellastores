@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
     const paymentMethod = searchParams.get('paymentMethod');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const qRaw = searchParams.get('q') || '';
 
     const where: any = {
       branchId: session.user.branchId ?? undefined,
@@ -56,6 +57,23 @@ export async function GET(req: NextRequest) {
       if (endDate) {
         where.createdAt.lte = new Date(endDate);
       }
+    }
+
+    const q = qRaw.trim();
+    if (q) {
+      const qStripped = q.replace(/^R-/i, '').trim();
+      const suffix = qStripped.toLowerCase();
+      const or: any[] = [];
+      if (qStripped.length >= 20) {
+        or.push({ id: qStripped });
+      }
+      if (suffix.length >= 3) {
+        or.push({ id: { endsWith: suffix } });
+      }
+      if (q.length >= 3) {
+        or.push({ clientSaleId: { contains: q, mode: 'insensitive' } });
+      }
+      if (or.length) where.OR = or;
     }
 
     const [sales, total] = await Promise.all([
