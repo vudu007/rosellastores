@@ -5,6 +5,7 @@ echo Looking for Chrome or Edge...
 
 set "CHROME="
 set "BROWSER_NAME="
+set "POS_URL=https://wholesale-rp.vercel.app/pos"
 
 :: Search common Chrome locations
 for %%P in (
@@ -48,7 +49,8 @@ set "SHORTCUT=%USERPROFILE%\Desktop\MekaERP POS.lnk"
 echo $ws = New-Object -ComObject WScript.Shell
 echo $s = $ws.CreateShortcut('%SHORTCUT%'^)
 echo $s.TargetPath = '%CHROME%'
-echo $s.Arguments = '--kiosk-printing --app=https://wholesale-rp.vercel.app/pos'
+echo $posUrl = '%POS_URL%'
+echo $s.Arguments = ('--kiosk-printing --disable-print-preview --app="' + $posUrl + '"'^)
 echo $s.Description = 'MekaERP POS Silent Print'
 echo $s.Save(^)
 echo Write-Host "Done"
