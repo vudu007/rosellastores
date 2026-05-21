@@ -212,7 +212,7 @@ export default function POSPage() {
         ];
         const cats = (uniqueCategories as string[]).sort((a, b) => a.localeCompare(b));
         setCategories(cats);
-        setSelectedCategory((prev) => (prev && cats.includes(prev) ? prev : cats[0] || ''));
+        setSelectedCategory((prev) => (prev && cats.includes(prev) ? prev : ''));
       } catch (error) {
         try {
           const cachedProducts = JSON.parse(localStorage.getItem('meka_cache_products_v1') || '[]');
@@ -226,7 +226,7 @@ export default function POSPage() {
           ];
           const cats = (uniqueCategories as string[]).sort((a, b) => a.localeCompare(b));
           setCategories(cats);
-          setSelectedCategory((prev) => (prev && cats.includes(prev) ? prev : cats[0] || ''));
+          setSelectedCategory((prev) => (prev && cats.includes(prev) ? prev : ''));
         } catch {
         }
       } finally {
@@ -244,7 +244,7 @@ export default function POSPage() {
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.sku.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = selectedCategory ? product.category.name === selectedCategory : true;
+      const matchesCategory = searchQuery ? true : !selectedCategory || product.category.name === selectedCategory;
       return matchesSearch && matchesCategory;
     });
   }, [products, searchQuery, selectedCategory]);
@@ -375,9 +375,15 @@ export default function POSPage() {
           setTimeout(() => setSuccessMessage(null), 1500);
         }
         setBarcodeBuffer('');
+        setSearchQuery('');
       }
     } else if (e.key.length === 1 && /^[0-9A-Za-z]$/.test(e.key)) {
-      setBarcodeBuffer(prev => prev + e.key);
+      setSelectedCategory('');
+      setBarcodeBuffer(prev => {
+        const next = prev + e.key;
+        setSearchQuery(next);
+        return next;
+      });
     }
 
     setLastScanTime(currentTime);
@@ -1241,7 +1247,11 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   type="text"
                   placeholder="Scan barcode or type product name/SKU... (Press Enter to quick-add)"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setSearchQuery(next);
+                    if (next.trim()) setSelectedCategory('');
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -1285,6 +1295,16 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            <button
+              onClick={() => setSelectedCategory('')}
+              className={`px-4 py-2 rounded-xl border text-xs md:text-sm font-bold whitespace-nowrap transition-all ${
+                !selectedCategory
+                  ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20'
+                  : 'bg-card/60 backdrop-blur-xl text-muted-foreground hover:bg-muted border-white/10'
+              }`}
+            >
+              All Items
+            </button>
             {categories.map((category) => (
               <button
                 key={category}
