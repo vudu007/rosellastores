@@ -28,6 +28,7 @@ enum SaleStatus {
   VOIDED
   HELD
   RETURNED
+  PARTIALLY_RETURNED
 }
 
 enum ReturnStatus {
@@ -265,6 +266,7 @@ model ReturnRequest {
   branchId  String       @db.ObjectId
   branch    Branch       @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   reason    String
+  items     Json?
   status    ReturnStatus @default(REQUESTED)
   requestedAt DateTime   @default(now())
 

@@ -91,16 +91,36 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Sale is not eligible for return' }, { status: 400 });
     }
 
-    for (const item of requestRow.sale.items) {
+    const requestedItemsRaw: any = (requestRow as any).items;
+    const requestedItems: Array<{ productId: string; qty: number }> | null =
+      Array.isArray(requestedItemsRaw) && requestedItemsRaw.length > 0
+        ? requestedItemsRaw.map((x: any) => ({ productId: String(x?.productId ?? ''), qty: Number(x?.qty ?? 0) }))
+        : null;
+
+    const saleItems = requestRow.sale.items.map((it) => ({ productId: String(it.productId), qty: Number(it.qty) || 0 }));
+    const returnItems = requestedItems ?? saleItems;
+
+    for (const item of returnItems) {
       await prisma.product.update({
         where: { id: item.productId },
         data: { stockQty: { increment: item.qty } },
       });
     }
 
+    const isFullReturn = (() => {
+      if (returnItems.length !== saleItems.length) return false;
+      const saleMap = new Map<string, number>();
+      for (const it of saleItems) saleMap.set(it.productId, it.qty);
+      for (const it of returnItems) {
+        if (!saleMap.has(it.productId)) return false;
+        if ((saleMap.get(it.productId) ?? 0) !== it.qty) return false;
+      }
+      return true;
+    })();
+
     await prisma.sale.update({
       where: { id: requestRow.saleId },
-      data: { status: 'RETURNED' },
+      data: { status: isFullReturn ? 'RETURNED' : 'PARTIALLY_RETURNED' },
     });
 
     const completed = await prisma.returnRequest.update({

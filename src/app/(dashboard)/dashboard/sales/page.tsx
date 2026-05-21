@@ -48,6 +48,7 @@ const STATUS_BADGE: Record<string, string> = {
   VOIDED: 'badge-danger',
   HELD: 'badge-warning',
   RETURNED: 'badge-muted',
+  PARTIALLY_RETURNED: 'badge-muted',
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -510,7 +511,7 @@ export default function SalesPage() {
                       </td>
                     </tr>
                   ) : sales.map((sale) => (
-                    <tr key={sale.id} className={sale.status === 'VOIDED' || sale.status === 'RETURNED' ? 'opacity-60' : ''}>
+                    <tr key={sale.id} className={sale.status === 'VOIDED' || sale.status === 'RETURNED' || sale.status === 'PARTIALLY_RETURNED' ? 'opacity-60' : ''}>
                       <td>
                         <p className="font-medium text-foreground">{formatDate(sale.createdAt)}</p>
                         <p className="text-xs text-muted-foreground font-mono mt-0.5">#{sale.id.slice(-8).toUpperCase()}</p>
@@ -547,6 +548,9 @@ export default function SalesPage() {
 
                           if (req.status === 'COMPLETED' || sale.status === 'RETURNED') {
                             return <span className="badge-muted">Returned</span>;
+                          }
+                          if (sale.status === 'PARTIALLY_RETURNED') {
+                            return <span className="badge-muted">Partially Returned</span>;
                           }
                           if (req.status === 'REJECTED') {
                             return <span className="badge-danger">Rejected</span>;

@@ -57,8 +57,10 @@ export default function POSPage() {
   const [splitAmounts, setSplitAmounts] = useState({ cash: 0, card: 0, transfer: 0, mobile: 0 });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnSource, setReturnSource] = useState<'LAST' | 'RECEIPT'>(() => 'RECEIPT');
   const [returnLookup, setReturnLookup] = useState('');
   const [returnReason, setReturnReason] = useState('');
+  const [returnItems, setReturnItems] = useState<Array<{ productId: string; name: string; maxQty: number; qty: number; selected: boolean }>>([]);
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -591,6 +593,7 @@ export default function POSPage() {
           paymentMethod,
           notes: savedSale?.notes ?? payload.notes,
           items: cart.map((item) => ({
+            productId: item.productId,
             name: item.name,
             quantity: item.quantity,
             unitPrice: item.unitPrice,
@@ -636,6 +639,7 @@ export default function POSPage() {
         paymentMethod,
         notes: payload.notes,
         items: cart.map((item) => ({
+          productId: item.productId,
           name: item.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
@@ -714,30 +718,52 @@ export default function POSPage() {
       setTimeout(() => setSuccessMessage(null), 2500);
       return;
     }
-    const lookup = returnLookup.trim();
     const reason = returnReason.trim();
-    if (lookup.length < 3 || reason.length < 3) return;
+    if (reason.length < 3) return;
 
     setIsSubmittingReturn(true);
     try {
-      const salesRes = await fetch(`/api/sales?limit=10&page=1&q=${encodeURIComponent(lookup)}`);
-      if (!salesRes.ok) {
-        const err = await salesRes.json().catch(() => ({}));
-        throw new Error(err?.error || 'Failed to lookup sale');
-      }
-      const salesData = await salesRes.json().catch(() => ({}));
-      const sales = Array.isArray(salesData?.sales) ? salesData.sales : [];
-      const sale = sales[0];
-      if (!sale?.id) {
-        setSuccessMessage('Sale not found for that receipt number.');
-        setTimeout(() => setSuccessMessage(null), 2500);
-        return;
+      let saleId: string | null = null;
+      let itemsPayload: Array<{ productId: string; qty: number }> | undefined;
+
+      if (returnSource === 'LAST') {
+        if (!lastCompletedSale?.id || lastCompletedSale?.offline) {
+          setSuccessMessage('Last sale is offline or unavailable. Use receipt lookup instead.');
+          setTimeout(() => setSuccessMessage(null), 3000);
+          return;
+        }
+        saleId = String(lastCompletedSale.id);
+        const selected = returnItems.filter((x) => x.selected && x.qty > 0);
+        if (selected.length === 0) {
+          setSuccessMessage('Select at least one item to return.');
+          setTimeout(() => setSuccessMessage(null), 2500);
+          return;
+        }
+        itemsPayload = selected.map((x) => ({ productId: x.productId, qty: x.qty }));
+      } else {
+        const lookup = returnLookup.trim();
+        if (lookup.length < 3) return;
+
+        const salesRes = await fetch(`/api/sales?limit=10&page=1&q=${encodeURIComponent(lookup)}`);
+        if (!salesRes.ok) {
+          const err = await salesRes.json().catch(() => ({}));
+          throw new Error(err?.error || 'Failed to lookup sale');
+        }
+        const salesData = await salesRes.json().catch(() => ({}));
+        const sales = Array.isArray(salesData?.sales) ? salesData.sales : [];
+        const sale = sales[0];
+        if (!sale?.id) {
+          setSuccessMessage('Sale not found for that receipt number.');
+          setTimeout(() => setSuccessMessage(null), 2500);
+          return;
+        }
+        saleId = String(sale.id);
       }
 
       const returnRes = await fetch('/api/returns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ saleId: sale.id, reason }),
+        body: JSON.stringify({ saleId, reason, ...(itemsPayload ? { items: itemsPayload } : {}) }),
       });
       if (!returnRes.ok) {
         const err = await returnRes.json().catch(() => ({}));
@@ -747,6 +773,7 @@ export default function POSPage() {
       setShowReturnModal(false);
       setReturnLookup('');
       setReturnReason('');
+      setReturnItems([]);
       setSuccessMessage('Return request raised. Waiting for Owner/Admin approval.');
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (e: any) {
@@ -1695,7 +1722,31 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
             </button>
             {(session?.user as any)?.role === 'CASHIER' && (
               <button
-                onClick={() => { setShowReturnModal(true); setReturnLookup(''); setReturnReason(''); }}
+                onClick={() => {
+                  const canUseLast =
+                    !!lastCompletedSale?.id &&
+                    !lastCompletedSale?.offline &&
+                    Array.isArray(lastCompletedSale?.items) &&
+                    lastCompletedSale.items.some((x: any) => !!x?.productId);
+                  const source: 'LAST' | 'RECEIPT' = canUseLast ? 'LAST' : 'RECEIPT';
+                  setReturnSource(source);
+                  setShowReturnModal(true);
+                  setReturnLookup('');
+                  setReturnReason('');
+                  if (source === 'LAST') {
+                    setReturnItems(
+                      (lastCompletedSale.items || []).map((x: any) => ({
+                        productId: String(x.productId),
+                        name: String(x.name || 'Item'),
+                        maxQty: Number(x.quantity) || 1,
+                        qty: Number(x.quantity) || 1,
+                        selected: true,
+                      }))
+                    );
+                  } else {
+                    setReturnItems([]);
+                  }
+                }}
                 className="col-span-2 bg-amber-500/15 text-amber-800 h-12 rounded-xl font-black text-sm hover:bg-amber-500/20 transition-colors flex items-center justify-center gap-2"
                 title="Raise a return request (cashier)"
               >
@@ -1883,19 +1934,92 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
           <div className="bg-card rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-slide-up border border-white/10">
             <h2 className="text-xl font-bold tracking-tight mb-1 text-foreground">Item Return</h2>
-            <p className="text-muted-foreground text-sm mb-5">Enter the receipt number and reason to raise a return request.</p>
+            <p className="text-muted-foreground text-sm mb-5">Return items from the last receipt, or lookup by receipt number.</p>
 
             <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-muted-foreground uppercase">Receipt # / Sale ID</label>
-                <input
-                  value={returnLookup}
-                  onChange={(e) => setReturnLookup(e.target.value)}
-                  className="input-base mt-1"
-                  placeholder="e.g. R-1A2B3C4D"
-                  autoFocus
-                />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setReturnSource('LAST')}
+                  disabled={!lastCompletedSale?.id || !!lastCompletedSale?.offline}
+                  className={`flex-1 h-10 rounded-xl font-black text-sm transition-colors ${
+                    returnSource === 'LAST'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground hover:bg-muted-foreground/10'
+                  } disabled:opacity-50`}
+                >
+                  Last Receipt
+                </button>
+                <button
+                  onClick={() => setReturnSource('RECEIPT')}
+                  className={`flex-1 h-10 rounded-xl font-black text-sm transition-colors ${
+                    returnSource === 'RECEIPT'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground hover:bg-muted-foreground/10'
+                  }`}
+                >
+                  Lookup Receipt
+                </button>
               </div>
+
+              {returnSource === 'RECEIPT' && (
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground uppercase">Receipt # / Sale ID</label>
+                  <input
+                    value={returnLookup}
+                    onChange={(e) => setReturnLookup(e.target.value)}
+                    className="input-base mt-1"
+                    placeholder="e.g. R-1A2B3C4D"
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              {returnSource === 'LAST' && (
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground uppercase">Items</label>
+                  <div className="mt-2 max-h-[240px] overflow-y-auto rounded-xl border border-border bg-muted/20 p-3 space-y-3">
+                    {returnItems.length === 0 ? (
+                      <div className="text-sm text-muted-foreground font-bold">No eligible last receipt found.</div>
+                    ) : (
+                      returnItems.map((it) => (
+                        <div key={it.productId} className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={it.selected}
+                            onChange={(e) => {
+                              const nextSelected = e.target.checked;
+                              setReturnItems((prev) =>
+                                prev.map((x) =>
+                                  x.productId === it.productId
+                                    ? { ...x, selected: nextSelected, qty: nextSelected ? Math.min(Math.max(x.qty, 1), x.maxQty) : x.qty }
+                                    : x
+                                )
+                              );
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-bold text-foreground truncate">{it.name}</div>
+                            <div className="text-[11px] font-bold text-muted-foreground">Max: {it.maxQty}</div>
+                          </div>
+                          <input
+                            type="number"
+                            min={1}
+                            max={it.maxQty}
+                            value={it.qty}
+                            disabled={!it.selected}
+                            onChange={(e) => {
+                              const raw = Number(e.target.value);
+                              const nextQty = Math.min(Math.max(Number.isFinite(raw) ? raw : 1, 1), it.maxQty);
+                              setReturnItems((prev) => prev.map((x) => (x.productId === it.productId ? { ...x, qty: nextQty } : x)));
+                            }}
+                            className="input-base w-20 py-1 px-2 text-sm"
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-bold text-muted-foreground uppercase">Reason</label>
                 <textarea
@@ -1909,7 +2033,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => { setShowReturnModal(false); setReturnLookup(''); setReturnReason(''); }}
+                onClick={() => { setShowReturnModal(false); setReturnSource('RECEIPT'); setReturnLookup(''); setReturnReason(''); setReturnItems([]); }}
                 className="flex-1 btn-secondary py-2 h-10"
                 disabled={isSubmittingReturn}
               >
@@ -1918,7 +2042,12 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               <button
                 onClick={handleRaiseReturn}
                 className="flex-1 btn-primary py-2 h-10 disabled:opacity-50"
-                disabled={isSubmittingReturn || returnLookup.trim().length < 3 || returnReason.trim().length < 3}
+                disabled={
+                  isSubmittingReturn ||
+                  returnReason.trim().length < 3 ||
+                  (returnSource === 'RECEIPT' && returnLookup.trim().length < 3) ||
+                  (returnSource === 'LAST' && !returnItems.some((x) => x.selected && x.qty > 0))
+                }
               >
                 {isSubmittingReturn ? 'Submitting…' : 'Submit'}
               </button>

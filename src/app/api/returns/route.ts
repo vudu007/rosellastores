@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 const createReturnSchema = z.object({
   saleId: z.string().min(1),
   reason: z.string().min(3),
+  items: z.array(z.object({ productId: z.string().min(1), qty: z.number().int().positive() })).optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
     if (!branchId) return NextResponse.json({ error: 'User does not belong to a branch' }, { status: 400 });
 
     const body = await req.json();
-    const { saleId, reason } = createReturnSchema.parse(body);
+    const { saleId, reason, items } = createReturnSchema.parse(body);
 
     const sale = await prisma.sale.findUnique({
       where: { id: saleId },
@@ -63,6 +64,22 @@ export async function POST(req: NextRequest) {
     });
     if (!sale || sale.branchId !== branchId) return NextResponse.json({ error: 'Sale not found' }, { status: 404 });
     if (sale.status !== 'COMPLETED') return NextResponse.json({ error: 'Only COMPLETED sales can be returned' }, { status: 400 });
+
+    const saleItemByProductId = new Map<string, number>();
+    for (const it of sale.items) saleItemByProductId.set(String(it.productId), Number(it.qty) || 0);
+
+    const normalizedItems =
+      Array.isArray(items) && items.length > 0
+        ? items.map((x) => ({ productId: String(x.productId), qty: Number(x.qty) }))
+        : null;
+
+    if (normalizedItems) {
+      for (const it of normalizedItems) {
+        const soldQty = saleItemByProductId.get(it.productId) ?? 0;
+        if (!soldQty) return NextResponse.json({ error: 'Return item not found in sale' }, { status: 400 });
+        if (it.qty > soldQty) return NextResponse.json({ error: 'Return qty cannot exceed sold qty' }, { status: 400 });
+      }
+    }
 
     const existing = await prisma.returnRequest.findUnique({ where: { saleId } });
     if (existing) return NextResponse.json({ error: 'A return request already exists for this sale' }, { status: 400 });
@@ -72,6 +89,7 @@ export async function POST(req: NextRequest) {
         saleId,
         branchId,
         reason: reason.trim(),
+        ...(normalizedItems ? { items: normalizedItems as any } : {}),
         requestedById: session.user.id,
         status: 'REQUESTED',
       },
@@ -83,7 +101,7 @@ export async function POST(req: NextRequest) {
         action: 'RETURN_REQUESTED',
         entity: 'Sale',
         entityId: saleId,
-        newValue: JSON.stringify({ returnRequestId: requestRow.id, reason: reason.trim() }),
+        newValue: JSON.stringify({ returnRequestId: requestRow.id, reason: reason.trim(), items: normalizedItems }),
       },
     });
 
