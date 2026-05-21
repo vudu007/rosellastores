@@ -91,21 +91,33 @@ export async function connectQZ(): Promise<void> {
     // decision" works — tick it + Allow once and it never prompts again.
     qz.security.setCertificatePromise((resolve: Function, reject: Function) => {
       fetch('/api/qz/certificate', { cache: 'no-store' })
-        .then(r => r.ok ? r.text() : Promise.reject('Certificate endpoint error ' + r.status))
+        .then(async r => {
+          const body = await r.text();
+          if (!r.ok) throw new Error(`Certificate endpoint error ${r.status}: ${body}`);
+          return body;
+        })
         .then(text => resolve(text))
         .catch(err => reject(err));
     });
 
     qz.security.setSignaturePromise((toSign: string) => {
       return (resolve: Function, reject: Function) => {
-        fetch(`/api/qz/sign?request=${encodeURIComponent(toSign)}`, { cache: 'no-store' })
-          .then(r => r.ok ? r.text() : Promise.reject('Sign endpoint error ' + r.status))
+        fetch('/api/qz/sign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+          body: toSign,
+          cache: 'no-store',
+        })
+          .then(async r => {
+            const body = await r.text();
+            if (!r.ok) throw new Error(`Sign endpoint error ${r.status}: ${body}`);
+            return body;
+          })
           .then(sig => {
-            if (sig.trimStart().startsWith('<')) {
-              reject(new Error('Sign endpoint returned HTML — check Vercel env vars'));
-              return;
-            }
-            resolve(sig.trim());
+            const trimmed = sig.trim();
+            if (!trimmed) throw new Error('Sign endpoint returned an empty signature');
+            if (trimmed.startsWith('<')) throw new Error('Sign endpoint returned HTML');
+            resolve(trimmed);
           })
           .catch(err => reject(err));
       };
