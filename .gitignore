@@ -14,6 +14,8 @@ yarn-error.log*
 
 private-key.pem
 QZ-TRAY-ENV-VARS.txt
+.secrets/
+*.pem
 
 # Playwright
 /test-results/
