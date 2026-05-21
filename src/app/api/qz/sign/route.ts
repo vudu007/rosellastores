@@ -10,44 +10,65 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const toSign = searchParams.get('request');
-
-  if (!toSign) {
-    return new NextResponse('Missing ?request= parameter', { status: 400 });
-  }
-
-  let rawKey = process.env.QZ_PRIVATE_KEY ?? '';
+function normalisePrivateKey(rawKey: string): string {
   if (!rawKey) {
-    return new NextResponse('QZ_PRIVATE_KEY env var is not set', { status: 500 });
+    return '';
   }
 
   // Normalise newlines — Vercel may store them as literal \n depending on input method
   rawKey = rawKey.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim();
 
-  // Re-wrap key body if all newlines were stripped (pasted as single line)
-  if (!rawKey.includes('\n')) {
-    const m = rawKey.match(/^(-----[^-]+-----)(.+)(-----[^-]+-----)$/s);
-    if (m) {
-      const lines = m[2].replace(/\s/g, '').match(/.{1,64}/g)?.join('\n') ?? m[2];
-      rawKey = `${m[1]}\n${lines}\n${m[3]}`;
+  const m = rawKey
+    .replace(/\s+/g, ' ')
+    .match(/(-----BEGIN (?:RSA )?PRIVATE KEY-----)\s*(.+?)\s*(-----END (?:RSA )?PRIVATE KEY-----)/);
+  if (m) {
+    const body = m[2].replace(/\s/g, '').match(/.{1,64}/g)?.join('\n') ?? m[2];
+    rawKey = `${m[1]}\n${body}\n${m[3]}\n`;
+  } else if (!rawKey.includes('\n')) {
+    const m2 = rawKey.match(/^(-----[^-]+-----)(.+)(-----[^-]+-----)$/s);
+    if (m2) {
+      const lines = m2[2].replace(/\s/g, '').match(/.{1,64}/g)?.join('\n') ?? m2[2];
+      rawKey = `${m2[1]}\n${lines}\n${m2[3]}\n`;
     }
   }
 
-  try {
-    // Use createPrivateKey() to correctly parse PKCS#8 format
-    const privateKey = crypto.createPrivateKey(rawKey);
-    const sign = crypto.createSign('RSA-SHA512');
-    sign.update(toSign);
-    const signature = sign.sign(privateKey, 'base64');
+  return rawKey;
+}
 
+function signRequest(toSign: string, rawKey: string): string {
+  const privateKey = crypto.createPrivateKey(rawKey);
+  const sign = crypto.createSign('RSA-SHA512');
+  sign.update(toSign);
+  return sign.sign(privateKey, 'base64');
+}
+
+async function handleSign(toSign: string) {
+  if (!toSign) return new NextResponse('Missing signing payload', { status: 400 });
+
+  const rawKey = normalisePrivateKey(process.env.QZ_PRIVATE_KEY ?? '');
+  if (!rawKey) return new NextResponse('QZ_PRIVATE_KEY env var is not set', { status: 500 });
+
+  try {
+    const signature = signRequest(toSign, rawKey);
     return new NextResponse(signature, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     });
   } catch (err: any) {
-    console.error('[QZ Sign] Error:', err.message);
-    return new NextResponse('Signing failed: ' + err.message, { status: 500 });
+    const message = String(err?.message ?? err);
+    console.error('[QZ Sign] Error:', message);
+    return new NextResponse(`Signing failed: ${message}`, { status: 500 });
   }
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const toSign = searchParams.get('request') ?? '';
+  return handleSign(toSign);
+}
+
+export async function POST(request: Request) {
+  const toSign = await request.text();
+  return handleSign(toSign);
 }
