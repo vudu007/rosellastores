@@ -13,8 +13,22 @@
  * Download QZ Tray desktop app: https://qz.io/download/
  */
 
-const SHA256_CDN = 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/dependencies/sha-256.min.js';
-const QZTRAY_CDN = 'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js';
+const RSVP_SOURCES = [
+  'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/dependencies/rsvp-3.1.0.min.js',
+  'https://unpkg.com/qz-tray@2.2.4/dependencies/rsvp-3.1.0.min.js',
+  'https://cdn.jsdelivr.net/npm/rsvp@4.8.5/dist/rsvp.min.js',
+];
+
+const SHA256_SOURCES = [
+  'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/dependencies/sha-256.min.js',
+  'https://unpkg.com/qz-tray@2.2.4/dependencies/sha-256.min.js',
+  'https://cdn.jsdelivr.net/npm/js-sha256@0.11.0/build/sha256.min.js',
+];
+
+const QZTRAY_SOURCES = [
+  'https://cdn.jsdelivr.net/npm/qz-tray@2.2.4/qz-tray.js',
+  'https://unpkg.com/qz-tray@2.2.4/qz-tray.js',
+];
 
 /** Inject a <script> tag and wait for it to load */
 function injectScript(src: string, id: string): Promise<void> {
@@ -29,12 +43,31 @@ function injectScript(src: string, id: string): Promise<void> {
   });
 }
 
+async function injectScriptWithFallback(sources: string[], id: string): Promise<void> {
+  if (document.getElementById(id)) return;
+
+  const errors: string[] = [];
+  for (const src of sources) {
+    try {
+      await injectScript(src, id);
+      return;
+    } catch (err: any) {
+      errors.push(String(err?.message ?? err));
+      try {
+        document.getElementById(id)?.remove();
+      } catch {}
+    }
+  }
+  throw new Error(`Failed to load: ${id}. ${errors.join(' | ')}`);
+}
+
 /** Load SHA-256 then qz-tray from CDN (browser only) */
 async function loadQZ(): Promise<any> {
   if (typeof window === 'undefined') throw new Error('QZ Tray is browser-only.');
   if ((window as any).qz) return (window as any).qz;
-  await injectScript(SHA256_CDN, 'qz-sha256');
-  await injectScript(QZTRAY_CDN, 'qz-tray-script');
+  await injectScriptWithFallback(RSVP_SOURCES, 'qz-rsvp');
+  await injectScriptWithFallback(SHA256_SOURCES, 'qz-sha256');
+  await injectScriptWithFallback(QZTRAY_SOURCES, 'qz-tray-script');
   if (!(window as any).qz) throw new Error('QZ Tray loaded but window.qz is unavailable.');
   return (window as any).qz;
 }
