@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Ban, Download, ShoppingBag, ChevronLeft, ChevronRight, Printer } from 'lucide-react';
+import { Ban, Download, ShoppingBag, ChevronLeft, ChevronRight, Printer, Check, X, RotateCcw } from 'lucide-react';
 
 interface SaleItem {
   id: string;
@@ -28,10 +28,26 @@ interface Sale {
   items: SaleItem[];
 }
 
+interface ReturnRequest {
+  id: string;
+  saleId: string;
+  reason: string;
+  status: string;
+  requestedAt: string;
+  requestedBy: { id: string; name: string; email: string; role: string } | null;
+  ownerApprovedById: string | null;
+  ownerApprovedAt: string | null;
+  adminApprovedById: string | null;
+  adminApprovedAt: string | null;
+  executedAt: string | null;
+  rejectedAt: string | null;
+}
+
 const STATUS_BADGE: Record<string, string> = {
   COMPLETED: 'badge-success',
   VOIDED: 'badge-danger',
   HELD: 'badge-warning',
+  RETURNED: 'badge-muted',
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -45,15 +61,29 @@ const PAYMENT_LABELS: Record<string, string> = {
 export default function SalesPage() {
   const { data: session } = useSession();
   const canVoid = ['OWNER', 'MANAGER'].includes(session?.user.role ?? '');
+  const canApproveReturns = ['OWNER', 'ADMIN'].includes(session?.user.role ?? '');
+  const canRequestReturn = !!session?.user?.role;
 
   const [sales, setSales] = useState<Sale[]>([]);
+  const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState('');
   const [voidingId, setVoidingId] = useState<string | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
+  const [returningId, setReturningId] = useState<string | null>(null);
+  const [approvingReturnId, setApprovingReturnId] = useState<string | null>(null);
   const [storeSettings, setStoreSettings] = useState<Record<string, string>>({});
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnSaleId, setReturnSaleId] = useState<string | null>(null);
+
+  const returnBySaleId = useMemo(() => {
+    const map = new Map<string, ReturnRequest>();
+    for (const r of returnRequests) map.set(r.saleId, r);
+    return map;
+  }, [returnRequests]);
 
   const fetchSales = async (currentPage = page, currentStatus = status) => {
     setLoading(true);
@@ -74,6 +104,16 @@ export default function SalesPage() {
     }
   };
 
+  const fetchReturns = async () => {
+    try {
+      const res = await fetch('/api/returns?take=200');
+      if (!res.ok) return;
+      const data = await res.json();
+      setReturnRequests(Array.isArray(data.requests) ? data.requests : []);
+    } catch {
+    }
+  };
+
   useEffect(() => {
     fetch('/api/settings')
       .then(r => r.ok ? r.json() : {})
@@ -82,7 +122,7 @@ export default function SalesPage() {
   }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { fetchSales(page, status); }, [page, status]);
+  useEffect(() => { fetchSales(page, status); fetchReturns(); }, [page, status]);
 
   const exportCSV = () => {
     const headers = ['Date', 'Customer', 'Cashier', 'Amount (₦)', 'Payment', 'Status'];
@@ -118,6 +158,45 @@ export default function SalesPage() {
       console.error('Error voiding sale:', error);
     } finally {
       setVoidingId(null);
+    }
+  };
+
+  const handleRequestReturn = async () => {
+    if (!returnSaleId) return;
+    if (!returnReason.trim() || returnReason.trim().length < 3) return;
+    setReturningId(returnSaleId);
+    try {
+      const res = await fetch('/api/returns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ saleId: returnSaleId, reason: returnReason.trim() }),
+      });
+      if (res.ok) {
+        setShowReturnModal(false);
+        setReturnReason('');
+        setReturnSaleId(null);
+        await fetchReturns();
+        await fetchSales(page, status);
+      }
+    } finally {
+      setReturningId(null);
+    }
+  };
+
+  const handleApproveReturn = async (returnRequestId: string, decision: 'APPROVE' | 'REJECT') => {
+    setApprovingReturnId(returnRequestId);
+    try {
+      const res = await fetch(`/api/returns/${returnRequestId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision }),
+      });
+      if (res.ok) {
+        await fetchReturns();
+        await fetchSales(page, status);
+      }
+    } finally {
+      setApprovingReturnId(null);
     }
   };
 
@@ -314,6 +393,53 @@ export default function SalesPage() {
 
   return (
     <div className="p-6 md:p-8 space-y-6 animate-entrance">
+      {showReturnModal && (
+        <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto">
+          <div className="bg-card rounded-2xl p-6 max-w-lg w-full shadow-2xl mt-10 border border-white/10">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black tracking-tight">Request Return</h2>
+                <p className="text-sm text-muted-foreground">This must be approved by both Owner and Admin.</p>
+              </div>
+              <button
+                onClick={() => { setShowReturnModal(false); setReturnSaleId(null); setReturnReason(''); }}
+                className="p-2 rounded-lg hover:bg-muted transition-colors"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <label className="text-xs font-bold text-muted-foreground uppercase">Reason</label>
+              <textarea
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                className="input-base mt-2 min-h-[96px]"
+                placeholder="Why is this transaction being returned?"
+              />
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => { setShowReturnModal(false); setReturnSaleId(null); setReturnReason(''); }}
+                className="flex-1 btn-secondary py-2 h-10"
+                disabled={!!returningId}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRequestReturn}
+                className="flex-1 btn-primary py-2 h-10 disabled:opacity-50"
+                disabled={!!returningId || returnReason.trim().length < 3}
+              >
+                {returningId ? 'Submitting…' : 'Submit'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="page-header">
         <div>
@@ -331,7 +457,7 @@ export default function SalesPage() {
       {/* Toolbar */}
       <div className="toolbar">
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-          {(['', 'COMPLETED', 'VOIDED', 'HELD'] as const).map((s) => (
+          {(['', 'COMPLETED', 'VOIDED', 'HELD', 'RETURNED'] as const).map((s) => (
             <button
               key={s}
               onClick={() => { setStatus(s); setPage(1); }}
@@ -370,6 +496,7 @@ export default function SalesPage() {
                     <th className="text-right">Amount</th>
                     <th>Payment</th>
                     <th className="text-center">Status</th>
+                    <th className="text-center">Return</th>
                     <th className="text-center">Receipt</th>
                     {canVoid && <th className="text-center">Actions</th>}
                   </tr>
@@ -377,13 +504,13 @@ export default function SalesPage() {
                 <tbody>
                   {sales.length === 0 ? (
                     <tr>
-                      <td colSpan={canVoid ? 8 : 7} className="py-16 text-center text-muted-foreground">
+                      <td colSpan={canVoid ? 9 : 8} className="py-16 text-center text-muted-foreground">
                         <ShoppingBag className="w-8 h-8 mx-auto mb-2 opacity-30" />
                         <p className="font-medium">No sales found{status ? ` for "${status.toLowerCase()}" status` : ''}.</p>
                       </td>
                     </tr>
                   ) : sales.map((sale) => (
-                    <tr key={sale.id} className={sale.status === 'VOIDED' ? 'opacity-60' : ''}>
+                    <tr key={sale.id} className={sale.status === 'VOIDED' || sale.status === 'RETURNED' ? 'opacity-60' : ''}>
                       <td>
                         <p className="font-medium text-foreground">{formatDate(sale.createdAt)}</p>
                         <p className="text-xs text-muted-foreground font-mono mt-0.5">#{sale.id.slice(-8).toUpperCase()}</p>
@@ -400,6 +527,75 @@ export default function SalesPage() {
                         <span className={STATUS_BADGE[sale.status] ?? 'badge-muted'}>
                           {sale.status.charAt(0) + sale.status.slice(1).toLowerCase()}
                         </span>
+                      </td>
+                      <td className="text-center">
+                        {(() => {
+                          const req = returnBySaleId.get(sale.id);
+                          if (!req) {
+                            if (!canRequestReturn || sale.status !== 'COMPLETED') return <span className="text-muted-foreground">—</span>;
+                            return (
+                              <button
+                                onClick={() => { setReturnSaleId(sale.id); setReturnReason(''); setShowReturnModal(true); }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-500/15 hover:bg-amber-500/20 rounded-lg transition-colors"
+                                title="Request a return (requires Owner + Admin approval)"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                Return
+                              </button>
+                            );
+                          }
+
+                          if (req.status === 'COMPLETED' || sale.status === 'RETURNED') {
+                            return <span className="badge-muted">Returned</span>;
+                          }
+                          if (req.status === 'REJECTED') {
+                            return <span className="badge-danger">Rejected</span>;
+                          }
+
+                          const ownerOk = !!req.ownerApprovedById;
+                          const adminOk = !!req.adminApprovedById;
+                          const role = session?.user.role ?? '';
+
+                          return (
+                            <div className="flex items-center justify-center gap-2 flex-wrap">
+                              <span className="text-[11px] font-bold text-muted-foreground">
+                                Owner {ownerOk ? '✓' : '—'} • Admin {adminOk ? '✓' : '—'}
+                              </span>
+                              {canApproveReturns && (
+                                <>
+                                  {role === 'OWNER' && !ownerOk && (
+                                    <button
+                                      onClick={() => handleApproveReturn(req.id, 'APPROVE')}
+                                      disabled={approvingReturnId === req.id}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-500/15 hover:bg-emerald-500/20 rounded-lg transition-colors disabled:opacity-50"
+                                    >
+                                      <Check className="w-3 h-3" />
+                                      Approve
+                                    </button>
+                                  )}
+                                  {role === 'ADMIN' && !adminOk && (
+                                    <button
+                                      onClick={() => handleApproveReturn(req.id, 'APPROVE')}
+                                      disabled={approvingReturnId === req.id}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-500/15 hover:bg-emerald-500/20 rounded-lg transition-colors disabled:opacity-50"
+                                    >
+                                      <Check className="w-3 h-3" />
+                                      Approve
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleApproveReturn(req.id, 'REJECT')}
+                                    disabled={approvingReturnId === req.id}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-destructive bg-destructive/10 hover:bg-destructive/20 rounded-lg transition-colors disabled:opacity-50"
+                                  >
+                                    <X className="w-3 h-3" />
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="text-center">
                         <button
