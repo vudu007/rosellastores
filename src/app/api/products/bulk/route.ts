@@ -185,10 +185,20 @@ export async function POST(req: NextRequest) {
     );
 
     if (usedCategoryNames.length > 0) {
-      await prisma.category.createMany({
-        data: usedCategoryNames.map((name) => ({ name })),
-        skipDuplicates: true,
+      const existingCats = await prisma.category.findMany({
+        where: { name: { in: usedCategoryNames } },
+        select: { name: true },
       });
+      const existingNames = new Set(existingCats.map((c) => c.name));
+      const toCreate = usedCategoryNames.filter((name) => !existingNames.has(name));
+
+      for (const name of toCreate) {
+        try {
+          await prisma.category.create({ data: { name } });
+        } catch (e: any) {
+          if ((e as any)?.code !== 'P2002') throw e;
+        }
+      }
     }
 
     const categoryRows = usedCategoryNames.length
