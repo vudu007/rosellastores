@@ -96,9 +96,13 @@ export default function DeletionsPage() {
     if (!confirm('Permanently delete ALL soft-deleted items, categories, and suppliers now? This cannot be undone.')) return;
     setWorkingId('purge-all');
     try {
-      const res = await fetch('/api/deletions/purge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to purge');
+      const response: Response = await fetch('/api/deletions/purge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to purge');
       const msg = `Purged: ${data.summary?.deleted ?? 0} deleted, ${data.summary?.failed ?? 0} failed`;
       setToast({ type: 'success', message: msg });
       await refresh();
@@ -117,13 +121,13 @@ export default function DeletionsPage() {
       const totals = { products: 0, categories: 0, suppliers: 0, priceTags: 0 };
 
       for (let i = 0; i < 200; i++) {
-        const res = await fetch('/api/admin/purge-dummy', {
+        const response: Response = await fetch('/api/admin/purge-dummy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cursor, batchSize: 300 }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to delete dummy data');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to delete dummy data');
 
         totals.products += data.deleted?.products ?? 0;
         totals.categories += data.deleted?.categories ?? 0;
