@@ -210,7 +210,9 @@ export default function POSPage() {
         const uniqueCategories = [
           ...new Set((productsData.products || []).map((p: Product) => p.category?.name).filter(Boolean)),
         ];
-        setCategories(uniqueCategories as string[]);
+        const cats = (uniqueCategories as string[]).sort((a, b) => a.localeCompare(b));
+        setCategories(cats);
+        setSelectedCategory((prev) => (prev && cats.includes(prev) ? prev : cats[0] || ''));
       } catch (error) {
         try {
           const cachedProducts = JSON.parse(localStorage.getItem('meka_cache_products_v1') || '[]');
@@ -222,7 +224,9 @@ export default function POSPage() {
           const uniqueCategories = [
             ...new Set((cachedProducts || []).map((p: Product) => (p as any)?.category?.name).filter(Boolean)),
           ];
-          setCategories(uniqueCategories as string[]);
+          const cats = (uniqueCategories as string[]).sort((a, b) => a.localeCompare(b));
+          setCategories(cats);
+          setSelectedCategory((prev) => (prev && cats.includes(prev) ? prev : cats[0] || ''));
         } catch {
         }
       } finally {
@@ -240,7 +244,7 @@ export default function POSPage() {
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.sku.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = !selectedCategory || product.category.name === selectedCategory;
+      const matchesCategory = selectedCategory ? product.category.name === selectedCategory : true;
       return matchesSearch && matchesCategory;
     });
   }, [products, searchQuery, selectedCategory]);
@@ -1174,7 +1178,8 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
   })();
 
   return (
-    <div className="min-h-[calc(100vh-64px)] h-[calc(100dvh-64px)] overflow-hidden bg-background text-foreground transition-all duration-300 relative flex flex-col">
+    <div className="min-h-[calc(100vh-64px)] h-[calc(100dvh-64px)] overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-foreground transition-all duration-300 relative flex flex-col">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.18),transparent_55%),radial-gradient(circle_at_bottom,rgba(16,185,129,0.18),transparent_55%)]" />
       <div className="h-14 md:h-16 px-4 md:px-6 bg-gradient-to-b from-slate-950 to-slate-900 text-white flex items-center justify-between border-b border-white/10">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
@@ -1243,7 +1248,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                       quickAddFirst();
                     }
                   }}
-                  className="input-base pl-10 h-12 bg-card text-sm md:text-base"
+                  className="input-base pl-10 h-12 bg-card/70 backdrop-blur-xl text-sm md:text-base border border-white/10"
                   autoFocus
                   data-testid="pos-search"
                 />
@@ -1251,7 +1256,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               <button
                 onClick={quickAddFirst}
                 disabled={filteredProducts.length === 0}
-                className="h-12 px-4 rounded-xl font-black text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:grayscale whitespace-nowrap"
+                className="h-12 px-4 rounded-xl font-black text-xs bg-emerald-600/90 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:grayscale whitespace-nowrap shadow-lg shadow-emerald-500/20"
                 title="Quick add first match (Enter)"
               >
                 ADD [ENTER]
@@ -1273,24 +1278,13 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                     setCustomerLookup('');
                   }
                 }}
-                className="input-base pl-10 h-12 bg-card text-sm md:text-base"
+                className="input-base pl-10 h-12 bg-card/70 backdrop-blur-xl text-sm md:text-base border border-white/10"
                 placeholder="Customer phone / name (Enter to select)"
               />
             </div>
           </div>
 
           <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            <button
-              onClick={() => setSelectedCategory('')}
-              className={`px-4 py-2 rounded-xl border text-xs md:text-sm font-bold transition-all flex items-center gap-2 ${
-                !selectedCategory
-                  ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20'
-                  : 'bg-card text-muted-foreground hover:bg-muted'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              All Categories
-            </button>
             {categories.map((category) => (
               <button
                 key={category}
@@ -1298,7 +1292,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 className={`px-4 py-2 rounded-xl border text-xs md:text-sm font-bold whitespace-nowrap transition-all ${
                   selectedCategory === category
                     ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20'
-                    : 'bg-card text-muted-foreground hover:bg-muted'
+                    : 'bg-card/60 backdrop-blur-xl text-muted-foreground hover:bg-muted border-white/10'
                 }`}
               >
                 {category}
@@ -1315,7 +1309,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   key={product.id}
                   onClick={() => addToCart(product)}
                   disabled={product.stockQty === 0}
-                  className="card-premium p-3 flex flex-col text-left group relative disabled:opacity-40 hover:border-primary/60 transition-all min-h-[120px]"
+                  className="card-premium p-3 flex flex-col text-left group relative disabled:opacity-40 hover:border-primary/60 transition-all min-h-[150px] bg-card/60 backdrop-blur-xl border border-white/10"
                   data-testid={`pos-product-${product.sku}`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -1328,7 +1322,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                         )}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-black text-[12px] leading-tight text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                        <h4 className="font-black text-[14px] leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-3">
                           {product.name}
                         </h4>
                         <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide truncate">
@@ -1368,7 +1362,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
       {/* Cart Section — full-screen on mobile when active, fixed panel on desktop */}
       <div
         className={[
-          'bg-card/80 backdrop-blur-xl border-l flex-col shadow-2xl z-10 w-full md:w-[420px]',
+          'bg-card/70 backdrop-blur-xl border-l border-white/10 flex-col shadow-2xl z-10 w-full md:w-[420px]',
           'fixed inset-y-0 right-0 md:static md:translate-x-0 md:flex',
           'transform transition-transform duration-300 ease-out',
           showMobileCart ? 'translate-x-0 flex' : 'translate-x-full pointer-events-none md:pointer-events-auto md:translate-x-0 md:flex',
@@ -1607,10 +1601,10 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               disabled={cart.length === 0}
               className="col-span-1 bg-primary text-primary-foreground h-14 rounded-xl font-black text-sm shadow-lg shadow-primary/30 hover:shadow-primary/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:grayscale disabled:shadow-none flex items-center justify-center gap-2"
               data-testid="pos-checkout"
-              title="Pay ticket (Space)"
+              title="Payment (Space)"
             >
               <CheckCircle className="w-5 h-5" />
-              Pay Ticket [Space]
+              Payment [Space]
             </button>
           </div>
         </div>
@@ -1637,7 +1631,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
       <div className="hidden md:flex h-10 px-4 md:px-6 bg-slate-950 text-white border-t border-white/10 items-center justify-between text-[11px] font-bold">
         <div className="flex items-center gap-3">
           <span className="text-white/70">Space</span>
-          <span className="text-white/90">Pay</span>
+          <span className="text-white/90">Payment</span>
           <span className="text-white/40">•</span>
           <span className="text-white/70">Esc</span>
           <span className="text-white/90">Clear Cart</span>
