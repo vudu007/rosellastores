@@ -5,7 +5,7 @@ echo Looking for Chrome or Edge...
 
 set "CHROME="
 set "BROWSER_NAME="
-set "POS_URL=https://wholesale-rp.vercel.app/pos"
+set "POS_URL=https://rosellastores.vercel.app/pos"
 
 :: Search common Chrome locations
 for %%P in (
