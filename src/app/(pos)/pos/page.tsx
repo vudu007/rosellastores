@@ -268,6 +268,8 @@ export default function POSPage() {
 
   const addToCart = useCallback((product: Product) => {
     const price = product.retailPrice;
+    const isTaxable = product.isTaxable ?? true;
+    const taxInclusive = isTaxable ? (product.taxInclusive ?? false) : false;
     const existingItem = cart.find((item) => item.productId === product.id);
 
     if (existingItem) {
@@ -304,8 +306,8 @@ export default function POSPage() {
           unitPrice: price,
           discount: 0,
           total: price,
-          isTaxable: product.isTaxable ?? true,
-          taxInclusive: product.taxInclusive ?? false,
+          isTaxable,
+          taxInclusive,
         },
       ]);
       triggerCartPulse(product.id);
@@ -712,9 +714,8 @@ export default function POSPage() {
 
   const handleReprint = () => {
     if (!lastCompletedSale) return;
-    // Restore last sale into the success notification so all print buttons are available
-    setLastSale(lastCompletedSale);
-    setSuccessMessage('Reprinting last receipt');
+    setSuccessMessage('Reprinting…');
+    printReceipt(lastCompletedSale);
   };
 
   const handleRaiseReturn = async () => {
@@ -1027,7 +1028,7 @@ export default function POSPage() {
         : null;
 
     const itemRows = sale.items.map((item: any) => {
-      const name     = String(item.name).slice(0, 24);
+      const name     = String(item.name || '').trim();
       const taxTag   = !item.isTaxable ? '<span style="font-size:8px;color:#666"> [EX]</span>'
                      : item.taxInclusive ? '<span style="font-size:8px;color:#666"> [TI]</span>' : '';
       const unitP    = formatCurrency(item.unitPrice);
@@ -1036,11 +1037,11 @@ export default function POSPage() {
       return `
         <tr>
           <td style="padding:2px 0 1px;vertical-align:top">
-            <div style="font-weight:700;font-size:11px">${name}${taxTag}</div>
-            <div style="font-size:9.5px;color:#444;font-weight:600">${item.quantity} × ${unitP}</div>
+            <div style="font-weight:800;font-size:12px;word-break:break-word">${name}${taxTag}</div>
+            <div style="font-size:10.5px;color:#444;font-weight:700">${item.quantity} × ${unitP}</div>
             ${disc}
           </td>
-          <td style="text-align:right;vertical-align:top;padding:2px 0 1px;font-size:11px;font-weight:700;white-space:nowrap">${tot}</td>
+          <td style="text-align:right;vertical-align:top;padding:2px 0 1px;font-size:12px;font-weight:800;white-space:nowrap">${tot}</td>
         </tr>`;
     }).join('');
 
@@ -1071,42 +1072,43 @@ export default function POSPage() {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: 'Courier New', Courier, monospace;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
-      line-height: 1.4;
+      line-height: 1.45;
       width: 74mm;
       color: #000;
       background: #fff;
     }
+    td { word-break: break-word; }
     table { width: 100%; border-collapse: collapse; }
     img { max-width: 100%; height: auto; }
     .logo { display: flex; justify-content: center; margin-bottom: 4px; }
     .logo img { max-height: 18mm; object-fit: contain; }
     .biz-name {
-      font-size: 16px; font-weight: 900; letter-spacing: 2px;
+      font-size: 17px; font-weight: 900; letter-spacing: 1.5px;
       text-align: center; text-transform: uppercase; margin-bottom: 2px;
     }
-    .biz-info { font-size: 9.5px; font-weight: 600; text-align: center; line-height: 1.6; color: #222; }
+    .biz-info { font-size: 10.5px; font-weight: 700; text-align: center; line-height: 1.6; color: #222; }
     .dash  { border: none; border-top: 1px dashed #000; margin: 3px 0; }
     .solid { border: none; border-top: 2px solid  #000; margin: 3px 0; }
     .badge {
-      font-size: 10px; font-weight: 900; letter-spacing: 3px;
+      font-size: 11px; font-weight: 900; letter-spacing: 3px;
       text-align: center; padding: 2px 0;
     }
-    .meta td { font-size: 10px; font-weight: 600; padding: 1px 0; }
-    .meta td:last-child { text-align: right; font-weight: 700; }
+    .meta td { font-size: 11px; font-weight: 700; padding: 1px 0; }
+    .meta td:last-child { text-align: right; font-weight: 800; }
     .col-hdr {
-      font-size: 9px; font-weight: 900; letter-spacing: 1px;
+      font-size: 10px; font-weight: 900; letter-spacing: 1px;
       border-top: 1px solid #000; border-bottom: 1px solid #000;
       padding: 2px 0;
     }
     .col-hdr td:last-child { text-align: right; }
-    .totals td { padding: 1px 0; font-size: 10.5px; font-weight: 700; }
+    .totals td { padding: 1px 0; font-size: 11.5px; font-weight: 800; }
     .totals td:last-child { text-align: right; }
     .grand td { font-size: 14px; font-weight: 900; padding: 2px 0; }
     .grand td:last-child { text-align: right; }
-    .footer { text-align: center; font-size: 9.5px; font-weight: 600; color: #222; line-height: 1.7; margin-top: 3px; }
-    .rcpt-id { text-align: center; font-size: 9px; font-weight: 600; letter-spacing: 1px; margin-top: 2px; color: #444; }
+    .footer { text-align: center; font-size: 10.5px; font-weight: 700; color: #222; line-height: 1.7; margin-top: 3px; }
+    .rcpt-id { text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 1px; margin-top: 2px; color: #444; }
   </style>
 </head>
 <body>
@@ -1532,7 +1534,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                         )}
                       </div>
                       <div className="min-w-0">
-                        <h4 className="font-black text-[14px] leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-3">
+                        <h4 className="font-black text-[15px] leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">
                           {product.name}
                         </h4>
                         <p className="text-[10px] text-muted-foreground/70 uppercase tracking-wide truncate">
@@ -1665,7 +1667,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex-1 pr-4">
-                      <p className="font-bold text-sm leading-tight line-clamp-1">{item.name}</p>
+                      <p className="font-black text-[15px] leading-snug line-clamp-2">{item.name}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-xs text-muted-foreground">{formatCurrency(item.unitPrice)} / unit</p>
                       </div>
@@ -1919,23 +1921,6 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               <Info className="w-5 h-5 shrink-0" />
             )}
             <span className="font-bold tracking-tight text-sm">{successMessage}</span>
-            {lastSale && (
-              <div className="ml-2 flex gap-2 flex-wrap">
-                <button
-                  onClick={() => printReceipt()}
-                  className="bg-white text-emerald-700 px-4 py-1 rounded-full font-bold text-sm hover:bg-white/90 transition-colors flex items-center gap-2"
-                >
-                  <Printer className="w-4 h-4" />
-                  Print Again
-                </button>
-                <button
-                  onClick={generateInvoice}
-                  className="bg-green-800 text-white px-4 py-1 rounded-full font-bold text-sm hover:bg-green-900 transition-colors"
-                >
-                  Invoice PDF
-                </button>
-              </div>
-            )}
             {/* Dismiss button */}
             <button
               onClick={() => { setSuccessMessage(null); setLastSale(null); }}
