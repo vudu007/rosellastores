@@ -43,15 +43,18 @@ echo Found: %BROWSER_NAME% at %CHROME%
 
 :: Write a temporary PowerShell script to avoid escaping issues
 set "PS1=%TEMP%\make_pos_shortcut.ps1"
-set "SHORTCUT=%USERPROFILE%\Desktop\MekaERP POS.lnk"
+set "SHORTCUT=%USERPROFILE%\Desktop\Rosella Stores POS.lnk"
+set "PROFILE_DIR=%LOCALAPPDATA%\RosellaStores\ChromeKioskProfile"
 
 (
 echo $ws = New-Object -ComObject WScript.Shell
 echo $s = $ws.CreateShortcut('%SHORTCUT%'^)
 echo $s.TargetPath = '%CHROME%'
 echo $posUrl = '%POS_URL%'
-echo $s.Arguments = ('--kiosk-printing --disable-print-preview --app="' + $posUrl + '"'^)
-echo $s.Description = 'MekaERP POS Silent Print'
+echo $profileDir = '%PROFILE_DIR%'
+echo if (-not (Test-Path $profileDir^)) { New-Item -ItemType Directory -Force -Path $profileDir ^| Out-Null }
+echo $s.Arguments = ('--user-data-dir="' + $profileDir + '" --kiosk-printing --disable-print-preview --app="' + $posUrl + '"'^)
+echo $s.Description = 'Rosella Stores POS Silent Print'
 echo $s.Save(^)
 echo Write-Host "Done"
 ) > "%PS1%"
@@ -62,7 +65,7 @@ del "%PS1%" 2>nul
 if exist "%SHORTCUT%" (
   echo.
   echo ============================================================
-  echo  SUCCESS! "MekaERP POS" shortcut created on your Desktop.
+  echo  SUCCESS! "Rosella Stores POS" shortcut created on your Desktop.
   echo.
   echo  NEXT STEPS:
   echo  1. Set your thermal printer as Windows DEFAULT printer
