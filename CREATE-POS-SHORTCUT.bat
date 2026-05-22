@@ -1,63 +1,52 @@
 @echo off
 cd /d "%~dp0"
 
-echo Looking for Chrome or Edge...
+echo Looking for Firefox...
 
 set "CHROME="
 set "BROWSER_NAME="
 set "POS_URL=https://rosellastores.vercel.app/pos"
+set "FIREFOX="
 
-:: Search common Chrome locations
 for %%P in (
-  "%PROGRAMFILES%\Google\Chrome\Application\chrome.exe"
-  "%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe"
-  "%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"
+  "%PROGRAMFILES%\Mozilla Firefox\firefox.exe"
+  "%PROGRAMFILES(X86)%\Mozilla Firefox\firefox.exe"
+  "%LOCALAPPDATA%\Mozilla Firefox\firefox.exe"
 ) do (
   if exist %%P (
-    set "CHROME=%%~P"
-    set "BROWSER_NAME=Google Chrome"
+    set "FIREFOX=%%~P"
+    set "BROWSER_NAME=Mozilla Firefox"
   )
 )
 
-:: Fall back to Edge if Chrome not found
-if not defined CHROME (
-  for %%P in (
-    "%PROGRAMFILES%\Microsoft\Edge\Application\msedge.exe"
-    "%PROGRAMFILES(X86)%\Microsoft\Edge\Application\msedge.exe"
-    "%LOCALAPPDATA%\Microsoft\Edge\Application\msedge.exe"
-  ) do (
-    if exist %%P (
-      set "CHROME=%%~P"
-      set "BROWSER_NAME=Microsoft Edge"
-    )
-  )
-)
-
-if not defined CHROME (
-  echo ERROR: Could not find Chrome or Edge. Please install one of them.
+if not defined FIREFOX (
+  echo ERROR: Could not find Firefox. Please install Mozilla Firefox.
   pause
   exit /b 1
 )
 
-echo Found: %BROWSER_NAME% at %CHROME%
+echo Found: %BROWSER_NAME% at %FIREFOX%
 
 :: Write a temporary PowerShell script to avoid escaping issues
 set "PS1=%TEMP%\make_pos_shortcut.ps1"
-set "SHORTCUT=%USERPROFILE%\Desktop\Rosella Stores POS.lnk"
-set "PROFILE_DIR=%LOCALAPPDATA%\RosellaStores\ChromeKioskProfile"
+set "SHORTCUT=%USERPROFILE%\Desktop\Rosella Stores POS - Firefox.lnk"
+set "PROFILE_DIR=%LOCALAPPDATA%\RosellaStores\FirefoxKioskProfile"
 
-(
-echo $ws = New-Object -ComObject WScript.Shell
-echo $s = $ws.CreateShortcut('%SHORTCUT%'^)
-echo $s.TargetPath = '%CHROME%'
-echo $posUrl = '%POS_URL%'
-echo $profileDir = '%PROFILE_DIR%'
-echo New-Item -ItemType Directory -Force -Path $profileDir ^| Out-Null
-echo $s.Arguments = ('--user-data-dir="' + $profileDir + '" --kiosk --kiosk-printing --no-first-run --no-default-browser-check "' + $posUrl + '"'^)
-echo $s.Description = 'Rosella Stores POS Silent Print'
-echo $s.Save(^)
-echo Write-Host "Done"
-) > "%PS1%"
+> "%PS1%" echo $ws = New-Object -ComObject WScript.Shell
+>> "%PS1%" echo $s = $ws.CreateShortcut('%SHORTCUT%')
+>> "%PS1%" echo $s.TargetPath = '%FIREFOX%'
+>> "%PS1%" echo $posUrl = '%POS_URL%'
+>> "%PS1%" echo $profileDir = '%PROFILE_DIR%'
+>> "%PS1%" echo New-Item -ItemType Directory -Force -Path $profileDir ^| Out-Null
+>> "%PS1%" echo $userJs = Join-Path $profileDir 'user.js'
+>> "%PS1%" echo Set-Content -Path $userJs -Value 'user_pref("print.always_print_silent", true);' -Encoding ASCII
+>> "%PS1%" echo Add-Content -Path $userJs -Value 'user_pref("print.show_print_progress", false);' -Encoding ASCII
+>> "%PS1%" echo Add-Content -Path $userJs -Value 'user_pref("print.save_print_settings", true);' -Encoding ASCII
+>> "%PS1%" echo Add-Content -Path $userJs -Value 'user_pref("browser.shell.checkDefaultBrowser", false);' -Encoding ASCII
+>> "%PS1%" echo $s.Arguments = "-no-remote -new-instance -profile ""$profileDir"" --kiosk ""$posUrl"""
+>> "%PS1%" echo $s.Description = 'Rosella Stores POS Silent Print - Firefox'
+>> "%PS1%" echo $s.Save()
+>> "%PS1%" echo Write-Host "Done"
 
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%"
 del "%PS1%" 2>nul
@@ -65,7 +54,7 @@ del "%PS1%" 2>nul
 if exist "%SHORTCUT%" (
   echo.
   echo ============================================================
-  echo  SUCCESS! "Rosella Stores POS" shortcut created on your Desktop.
+  echo  SUCCESS! "Rosella Stores POS - Firefox" shortcut created on your Desktop.
   echo.
   echo  NEXT STEPS:
   echo  1. Set your thermal printer as Windows DEFAULT printer
