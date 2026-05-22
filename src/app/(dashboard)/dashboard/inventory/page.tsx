@@ -39,7 +39,7 @@ const emptyProductForm = {
   name: '', sku: '', barcodes: [] as string[], categoryId: '', supplierId: '',
   costPrice: '', retailPrice: '', stockQty: '', lowStockThreshold: '10',
   unit: 'pcs',
-  isTaxable: true, taxInclusive: false,
+  isTaxable: true, taxInclusive: true,
 };
 
 export default function InventoryPage() {
@@ -61,6 +61,12 @@ export default function InventoryPage() {
   const [restockQty, setRestockQty] = useState('');
   const [restockLoading, setRestockLoading] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const canAutoPrice = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER';
+  const [showAutoPricing, setShowAutoPricing] = useState(false);
+  const [autoPricingLimit, setAutoPricingLimit] = useState('25');
+  const [autoPricingRunning, setAutoPricingRunning] = useState(false);
+  const [autoPricingDryRun, setAutoPricingDryRun] = useState(true);
+  const [autoPricingResults, setAutoPricingResults] = useState<any>(null);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [productForm, setProductForm] = useState(emptyProductForm);
   const [productSaving, setProductSaving] = useState(false);
@@ -407,12 +413,137 @@ export default function InventoryPage() {
             <span className="hidden sm:inline font-medium">Price Tags</span>
           </Link>
 
+          {canAutoPrice && (
+            <button
+              onClick={() => { setAutoPricingResults(null); setAutoPricingDryRun(true); setShowAutoPricing(true); }}
+              className="btn-secondary h-10 px-4 flex items-center justify-center gap-2"
+              title="One-off: fetch market prices from Google Shopping (via API) and update product prices"
+            >
+              <ArrowUpRight className="w-4 h-4" />
+              <span className="hidden sm:inline font-medium">Auto Price</span>
+            </button>
+          )}
+
           <button onClick={() => setShowAddProduct(true)} className="btn-primary h-10 px-4 flex items-center justify-center gap-2 shadow-lg hover:shadow-primary/25 transition-all">
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline font-medium">Add Product</span>
           </button>
         </div>
       </div>
+
+      {showAutoPricing && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center p-4 sm:p-6 overflow-y-auto">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-2xl p-6 space-y-5 animate-slide-up my-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                <ArrowUpRight className="w-5 h-5 text-primary" /> Auto Pricing (Google)
+              </h2>
+              <button onClick={() => setShowAutoPricing(false)} className="p-2 rounded-lg hover:bg-muted/50"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="bg-muted/30 rounded-xl p-4 text-sm text-muted-foreground">
+              Runs a one-off market price lookup and updates Cost Price + Retail Price. Start with Dry Run to preview.
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-sm font-medium text-foreground">Limit</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={autoPricingLimit}
+                  onChange={(e) => setAutoPricingLimit(e.target.value)}
+                  className="input-base mt-1"
+                />
+              </div>
+              <div className="sm:col-span-2 flex items-end gap-3">
+                <label className="flex items-center gap-2 cursor-pointer bg-muted/40 px-3 py-2 rounded-lg border border-transparent hover:border-border transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={autoPricingDryRun}
+                    onChange={(e) => setAutoPricingDryRun(e.target.checked)}
+                    className="w-4 h-4 rounded text-primary focus:ring-primary"
+                  />
+                  <span className="text-sm font-medium">Dry Run (preview only)</span>
+                </label>
+
+                <button
+                  disabled={autoPricingRunning}
+                  onClick={async () => {
+                    if (autoPricingRunning) return;
+                    setAutoPricingRunning(true);
+                    setAutoPricingResults(null);
+                    try {
+                      const limitNum = Math.max(1, Math.min(100, parseInt(autoPricingLimit || '25', 10) || 25));
+                      const res = await fetch('/api/pricing/google', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ limit: limitNum, dryRun: autoPricingDryRun }),
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+                      setAutoPricingResults(data);
+                      setToast({ type: 'success', message: autoPricingDryRun ? 'Dry run complete' : 'Prices updated' });
+                      if (!autoPricingDryRun) setReloadKey((k) => k + 1);
+                    } catch (err: any) {
+                      setToast({ type: 'error', message: err.message || 'Auto pricing failed' });
+                    } finally {
+                      setAutoPricingRunning(false);
+                    }
+                  }}
+                  className="btn-primary flex-1 gap-2 flex items-center justify-center"
+                >
+                  {autoPricingRunning ? (
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                  ) : (
+                    <>
+                      <ArrowUpRight className="w-4 h-4" /> Run
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {autoPricingResults && (
+              <div className="space-y-3">
+                <div className="text-sm font-semibold text-foreground">
+                  Summary: {autoPricingResults?.summary?.total ?? 0} items
+                </div>
+                <div className="max-h-[320px] overflow-auto border rounded-xl">
+                  <table className="min-w-full text-left">
+                    <thead className="bg-muted/50 text-muted-foreground text-xs font-bold uppercase tracking-wider sticky top-0">
+                      <tr>
+                        <th className="px-4 py-3">Item</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3 text-right">New Mkt</th>
+                        <th className="px-4 py-3 text-right">New Retail</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {(autoPricingResults?.results || []).map((r: any) => (
+                        <tr key={r.productId}>
+                          <td className="px-4 py-3">
+                            <div className="text-sm font-bold text-foreground">{r.name}</div>
+                            <div className="text-xs text-muted-foreground font-mono">{r.sku}</div>
+                          </td>
+                          <td className="px-4 py-3 text-xs font-bold">{r.status}</td>
+                          <td className="px-4 py-3 text-right text-sm font-semibold">
+                            {typeof r.suggestedMarketPrice === 'number' ? formatCurrency(r.suggestedMarketPrice) : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right text-sm font-semibold">
+                            {typeof r.suggestedRetailPrice === 'number' ? formatCurrency(r.suggestedRetailPrice) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="card-premium p-4 flex flex-col md:flex-row items-center gap-6">
         <div className="relative flex-1 w-full">
@@ -754,7 +885,7 @@ export default function InventoryPage() {
                     <input
                       type="checkbox"
                       checked={editProductForm.isTaxable}
-                      onChange={(e) => setEditProductForm({...editProductForm, isTaxable: e.target.checked, taxInclusive: e.target.checked ? editProductForm.taxInclusive : false})}
+                      onChange={(e) => setEditProductForm({...editProductForm, isTaxable: e.target.checked, taxInclusive: e.target.checked ? true : false})}
                       className="w-4 h-4 rounded text-primary"
                     />
                     <div>
@@ -906,7 +1037,7 @@ export default function InventoryPage() {
                     <input
                       type="checkbox"
                       checked={productForm.isTaxable}
-                      onChange={(e) => setProductForm({...productForm, isTaxable: e.target.checked, taxInclusive: e.target.checked ? productForm.taxInclusive : false})}
+                      onChange={(e) => setProductForm({...productForm, isTaxable: e.target.checked, taxInclusive: e.target.checked ? true : false})}
                       className="w-4 h-4 rounded text-primary"
                     />
                     <div>
