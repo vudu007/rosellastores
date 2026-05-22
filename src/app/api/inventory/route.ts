@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
+    const exportMode = (searchParams.get('export') || '').toLowerCase();
     const lowStockOnly = searchParams.get('lowStockOnly') === 'true';
     const search = (searchParams.get('search') || '').trim();
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
@@ -55,6 +56,71 @@ export async function GET(req: NextRequest) {
       category: { select: { name: true } },
       supplier: { select: { name: true } },
     } as const;
+
+    const toCsvCell = (value: any) => {
+      const s = value === null || value === undefined ? '' : String(value);
+      if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+
+    if (exportMode === 'csv') {
+      const all = await prisma.product.findMany({
+        where,
+        select,
+        orderBy: { name: 'asc' },
+      });
+
+      const rows = lowStockOnly ? all.filter((p) => p.stockQty <= p.lowStockThreshold) : all;
+      const headers = [
+        'name',
+        'sku',
+        'barcodes',
+        'category',
+        'supplier',
+        'unit',
+        'stockQty',
+        'lowStockThreshold',
+        'costPrice',
+        'retailPrice',
+        'isTaxable',
+        'taxInclusive',
+      ];
+
+      const csv = [
+        headers.join(','),
+        ...rows.map((p) =>
+          [
+            toCsvCell(p.name),
+            toCsvCell(p.sku),
+            toCsvCell((p.barcodes || []).join('|')),
+            toCsvCell(p.category?.name ?? ''),
+            toCsvCell(p.supplier?.name ?? ''),
+            toCsvCell(p.unit ?? ''),
+            toCsvCell(p.stockQty),
+            toCsvCell(p.lowStockThreshold),
+            toCsvCell(p.costPrice),
+            toCsvCell(p.retailPrice),
+            toCsvCell(p.isTaxable ? 'true' : 'false'),
+            toCsvCell(p.taxInclusive ? 'true' : 'false'),
+          ].join(',')
+        ),
+      ].join('\r\n');
+
+      const date = new Date();
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      const filename = `inventory_export_${y}-${m}-${d}.csv`;
+
+      return new NextResponse(csv, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    }
 
     if (lowStockOnly) {
       const all = await prisma.product.findMany({

@@ -95,6 +95,17 @@ export default function InventoryPage() {
     URL.revokeObjectURL(url);
   };
 
+  const exportInventory = () => {
+    const params = new URLSearchParams();
+    params.set('export', 'csv');
+    if (lowStockOnly) params.set('lowStockOnly', 'true');
+    const q = (debouncedSearch || '').trim();
+    if (q) params.set('search', q);
+    const a = document.createElement('a');
+    a.href = `/api/inventory?${params.toString()}`;
+    a.click();
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -401,6 +412,11 @@ export default function InventoryPage() {
           
           <button onClick={downloadTemplate} className="btn-secondary h-10 px-3 flex items-center justify-center gap-2" title="Download CSV Template">
             <Download className="w-4 h-4" />
+          </button>
+
+          <button onClick={exportInventory} className="btn-secondary h-10 px-3 flex items-center justify-center gap-2" title="Export Inventory CSV">
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline font-medium">Export CSV</span>
           </button>
           
           <button onClick={() => fileInputRef.current?.click()} disabled={importing} className="btn-secondary h-10 px-4 flex items-center justify-center gap-2">
