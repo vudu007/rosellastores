@@ -61,6 +61,7 @@ export default function InventoryPage() {
   const [restockQty, setRestockQty] = useState('');
   const [restockLoading, setRestockLoading] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [rebuildingInventory, setRebuildingInventory] = useState(false);
   const canAutoPrice = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER';
   const [showAutoPricing, setShowAutoPricing] = useState(false);
   const [autoPricingLimit, setAutoPricingLimit] = useState('25');
@@ -78,6 +79,7 @@ export default function InventoryPage() {
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rebuildFileInputRef = useRef<HTMLInputElement>(null);
   const [barcodeInput, setBarcodeInput] = useState('');
   const [editBarcodeInput, setEditBarcodeInput] = useState('');
   const canDelete = session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER';
@@ -147,6 +149,45 @@ export default function InventoryPage() {
         }
       });
     });
+  };
+
+  const handleRebuildInventoryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (rebuildingInventory) return;
+
+    setRebuildingInventory(true);
+    try {
+      const text = await file.text();
+      const ok = window.confirm(
+        'This will deactivate all current inventory items and rebuild from the uploaded file. Continue?'
+      );
+      if (!ok) return;
+
+      const res = await fetch('/api/inventory/rebuild', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ csv: text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const details =
+          Array.isArray(data?.details) && data.details.length > 0 ? data.details.slice(0, 3).join(' • ') : '';
+        throw new Error([data?.error || 'Rebuild failed', details].filter(Boolean).join(': '));
+      }
+
+      setToast({
+        type: 'success',
+        message: `Rebuilt: ${data.rows} • Created: ${data.created} • Updated: ${data.updated} • Deactivated: ${data.deactivated}`,
+      });
+      setPage(1);
+      setReloadKey((k) => k + 1);
+    } catch (err: any) {
+      setToast({ type: 'error', message: err.message || 'Rebuild failed' });
+    } finally {
+      setRebuildingInventory(false);
+      if (rebuildFileInputRef.current) rebuildFileInputRef.current.value = '';
+    }
   };
 
   useEffect(() => {
@@ -409,6 +450,7 @@ export default function InventoryPage() {
         </div>
         <div className="flex items-center gap-2">
           <input type="file" accept=".csv" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
+          <input type="file" accept=".csv,.txt" className="hidden" ref={rebuildFileInputRef} onChange={handleRebuildInventoryUpload} />
           
           <button onClick={downloadTemplate} className="btn-secondary h-10 px-3 flex items-center justify-center gap-2" title="Download CSV Template">
             <Download className="w-4 h-4" />
@@ -418,6 +460,22 @@ export default function InventoryPage() {
             <Download className="w-4 h-4" />
             <span className="hidden sm:inline font-medium">Export CSV</span>
           </button>
+
+          {(session?.user?.role === 'ADMIN' || session?.user?.role === 'OWNER') && (
+            <button
+              onClick={() => rebuildFileInputRef.current?.click()}
+              disabled={rebuildingInventory}
+              className="btn-secondary h-10 px-4 flex items-center justify-center gap-2"
+              title="Clear and rebuild inventory from a CSV/TXT file"
+            >
+              {rebuildingInventory ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent flex-shrink-0" />
+              ) : (
+                <Upload className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline font-medium">Rebuild</span>
+            </button>
+          )}
           
           <button onClick={() => fileInputRef.current?.click()} disabled={importing} className="btn-secondary h-10 px-4 flex items-center justify-center gap-2">
             {importing ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent flex-shrink-0" /> : <Upload className="w-4 h-4" />}
