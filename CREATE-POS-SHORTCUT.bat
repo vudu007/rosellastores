@@ -53,7 +53,7 @@ echo $s.TargetPath = '%CHROME%'
 echo $posUrl = '%POS_URL%'
 echo $profileDir = '%PROFILE_DIR%'
 echo New-Item -ItemType Directory -Force -Path $profileDir ^| Out-Null
-echo $s.Arguments = ('--user-data-dir="' + $profileDir + '" --kiosk-printing --disable-print-preview --app="' + $posUrl + '"'^)
+echo $s.Arguments = ('--user-data-dir="' + $profileDir + '" --kiosk --kiosk-printing --no-first-run --no-default-browser-check "' + $posUrl + '"'^)
 echo $s.Description = 'Rosella Stores POS Silent Print'
 echo $s.Save(^)
 echo Write-Host "Done"
