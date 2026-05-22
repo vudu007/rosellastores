@@ -52,7 +52,7 @@ echo $s = $ws.CreateShortcut('%SHORTCUT%'^)
 echo $s.TargetPath = '%CHROME%'
 echo $posUrl = '%POS_URL%'
 echo $profileDir = '%PROFILE_DIR%'
-echo if (-not (Test-Path $profileDir^)) { New-Item -ItemType Directory -Force -Path $profileDir ^| Out-Null }
+echo New-Item -ItemType Directory -Force -Path $profileDir ^| Out-Null
 echo $s.Arguments = ('--user-data-dir="' + $profileDir + '" --kiosk-printing --disable-print-preview --app="' + $posUrl + '"'^)
 echo $s.Description = 'Rosella Stores POS Silent Print'
 echo $s.Save(^)
@@ -80,4 +80,5 @@ if exist "%SHORTCUT%" (
 )
 
 echo.
+if "%ROSELLA_NO_PAUSE%"=="1" exit /b 0
 pause
