@@ -270,35 +270,17 @@ export default function SalesPage() {
       MOBILE_MONEY: 'Mobile Money', SPLIT: 'Split Payment',
     };
 
-    const taxRate = 0.075;
-    let taxExclusive = 0;
-    let taxInclusive = 0;
-
     const itemRows = (sale.items || []).map((item) => {
       const name    = item.product.name.slice(0, 24);
-      const taxTag  = !item.product.isTaxable
-        ? '<span style="font-size:8px;color:#555"> [EX]</span>'
-        : item.product.taxInclusive
-          ? '<span style="font-size:8px;color:#555"> [TI]</span>'
-          : '';
-      if (item.product.isTaxable) {
-        if (item.product.taxInclusive) taxInclusive += item.total * taxRate / (1 + taxRate);
-        else taxExclusive += item.total * taxRate;
-      }
       return `
         <tr>
           <td style="padding:2px 0 1px;vertical-align:top">
-            <div style="font-weight:700;font-size:11px">${name}${taxTag}</div>
+            <div style="font-weight:700;font-size:11px">${name}</div>
             <div style="font-size:9.5px;color:#333;font-weight:600">${item.qty} × ${formatCurrency(item.unitPrice)}</div>
           </td>
           <td style="text-align:right;vertical-align:top;padding:2px 0 1px;font-size:11px;font-weight:700;white-space:nowrap">${formatCurrency(item.total)}</td>
         </tr>`;
     }).join('');
-
-    const taxAddedHtml  = taxExclusive > 0
-      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">VAT 7.5% (excl.)</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${formatCurrency(taxExclusive)}</td></tr>` : '';
-    const taxInclusHtml = taxInclusive > 0
-      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">VAT (incl. in price)</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${formatCurrency(taxInclusive)}</td></tr>` : '';
 
     const html = `<!DOCTYPE html>
 <html>
@@ -361,7 +343,6 @@ export default function SalesPage() {
 <hr class="dash">
 <table class="totals">
   <tr><td>Subtotal</td><td>${formatCurrency(sale.subtotal)}</td></tr>
-  ${taxAddedHtml}${taxInclusHtml}
 </table>
 <hr class="solid">
 <table class="grand">

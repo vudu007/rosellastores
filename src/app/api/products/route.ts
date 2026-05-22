@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
             ...pagination,
             select: {
               id: true, name: true, sku: true, barcodes: true,
-              retailPrice: true, stockQty: true,
+              costPrice: true, retailPrice: true, stockQty: true,
               imageUrl: true, isTaxable: true, taxInclusive: true,
               category: { select: { name: true } },
             },

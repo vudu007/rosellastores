@@ -139,6 +139,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const validatedData = createSaleSchema.parse(body);
 
+    const settings = await prisma.setting.findMany({
+      where: { key: { in: ['taxRate', 'vatMode'] } },
+    });
+    const settingsMap = settings.reduce((acc, cur) => {
+      acc[cur.key] = cur.value;
+      return acc;
+    }, {} as Record<string, string>);
+    const vatMode = settingsMap.vatMode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE';
+    const taxRateRaw = Number(settingsMap.taxRate);
+    const taxRate =
+      Number.isFinite(taxRateRaw) && taxRateRaw > 0 ? (taxRateRaw > 1 ? taxRateRaw / 100 : taxRateRaw) : 0.075;
+
     if (validatedData.clientSaleId) {
       const existing = await prisma.sale.findFirst({
         where: {
@@ -181,7 +193,7 @@ export async function POST(req: NextRequest) {
     }
 
     let subtotal = 0;
-    let taxExclusive = 0;
+    let tax = 0;
     const saleItems = [];
 
     for (const item of validatedData.items) {
@@ -205,9 +217,12 @@ export async function POST(req: NextRequest) {
       const itemTotal = item.unitPrice * item.quantity - item.discount;
       subtotal += itemTotal;
 
-      const taxRate = 0.075;
-      if (product.isTaxable && !product.taxInclusive) {
-        taxExclusive += itemTotal * taxRate;
+      if (product.isTaxable) {
+        if (vatMode === 'INCLUSIVE') {
+          tax += itemTotal * taxRate / (1 + taxRate);
+        } else {
+          tax += itemTotal * taxRate;
+        }
       }
 
       saleItems.push({
@@ -219,8 +234,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const tax = taxExclusive;
-    const total = subtotal + taxExclusive - validatedData.discount;
+    const total = vatMode === 'EXCLUSIVE' ? subtotal + tax - validatedData.discount : subtotal - validatedData.discount;
 
     const sale = await prisma.sale.create({
       data: {

@@ -17,6 +17,7 @@ interface Product {
   name: string;
   sku: string;
   barcodes: string[];
+  costPrice: number;
   retailPrice: number;
   stockQty: number;
   category: { name: string };
@@ -262,14 +263,36 @@ export default function POSPage() {
     });
   }, [products, searchQuery, selectedCategory]);
 
+  const vatMode = useMemo<'INCLUSIVE' | 'EXCLUSIVE'>(() => {
+    return storeSettings?.vatMode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE';
+  }, [storeSettings?.vatMode]);
+
+  const taxRate = useMemo(() => {
+    const raw = Number(storeSettings?.taxRate);
+    if (Number.isFinite(raw) && raw > 0) {
+      return raw > 1 ? raw / 100 : raw;
+    }
+    return 0.075;
+  }, [storeSettings?.taxRate]);
+
+  const markupPercent = useMemo(() => {
+    const raw = Number(storeSettings?.markupPercent);
+    if (Number.isFinite(raw) && raw >= 0) return raw;
+    return 5;
+  }, [storeSettings?.markupPercent]);
+
   const getProductPrice = (product: Product) => {
-    return product.retailPrice;
+    const base = Number(product.costPrice) > 0 ? Number(product.costPrice) : Number(product.retailPrice);
+    const marked = base * (1 + markupPercent / 100);
+    if (!product.isTaxable) return marked;
+    if (vatMode === 'INCLUSIVE') return marked * (1 + taxRate);
+    return marked;
   };
 
   const addToCart = useCallback((product: Product) => {
-    const price = product.retailPrice;
     const isTaxable = product.isTaxable ?? true;
-    const taxInclusive = isTaxable ? (product.taxInclusive ?? false) : false;
+    const taxInclusive = isTaxable ? vatMode === 'INCLUSIVE' : false;
+    const price = getProductPrice(product);
     const existingItem = cart.find((item) => item.productId === product.id);
 
     if (existingItem) {
@@ -312,7 +335,7 @@ export default function POSPage() {
       ]);
       triggerCartPulse(product.id);
     }
-  }, [cart, triggerCartPulse]);
+  }, [cart, getProductPrice, triggerCartPulse, vatMode]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -524,30 +547,23 @@ export default function POSPage() {
     triggerCartPulse(productId);
   }, [products, triggerCartPulse]);
 
-  const TAX_RATE = 0.075; // 7.5% VAT
-
   // Subtotal = sum of item totals as-stated (inclusive or exclusive)
   const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
 
-  // Tax breakdown per item:
-  // - Not taxable            → taxAmount = 0
-  // - Taxable, exclusive     → taxAmount = item.total * TAX_RATE   (added on top)
-  // - Taxable, tax-inclusive → taxAmount = item.total * TAX_RATE / (1 + TAX_RATE)  (already in price)
   const taxBreakdown = cart.reduce(
     (acc, item) => {
       if (!item.isTaxable) return acc;
-      if (item.taxInclusive) {
-        const embedded = item.total * TAX_RATE / (1 + TAX_RATE);
+      if (vatMode === 'INCLUSIVE') {
+        const embedded = item.total * taxRate / (1 + taxRate);
         return { ...acc, inclusive: acc.inclusive + embedded };
       }
-      const added = item.total * TAX_RATE;
+      const added = item.total * taxRate;
       return { ...acc, exclusive: acc.exclusive + added };
     },
     { exclusive: 0, inclusive: 0 }
   );
 
-  // Only tax-exclusive items add to what customer pays on top of subtotal
-  const tax = taxBreakdown.exclusive;
+  const tax = vatMode === 'EXCLUSIVE' ? taxBreakdown.exclusive : 0;
   const total = subtotal + tax;
 
   const handleCheckout = async () => {
@@ -793,11 +809,10 @@ export default function POSPage() {
   };
 
   const computeInclusiveVat = (items: Array<{ total: number; isTaxable: boolean; taxInclusive: boolean }>) => {
-    const TAX_RATE = 0.075;
     return items.reduce((acc, item) => {
       if (!item.isTaxable) return acc;
       if (!item.taxInclusive) return acc;
-      return acc + (Number(item.total) || 0) * TAX_RATE / (1 + TAX_RATE);
+      return acc + (Number(item.total) || 0) * taxRate / (1 + taxRate);
     }, 0);
   };
 
@@ -1029,26 +1044,19 @@ export default function POSPage() {
 
     const itemRows = sale.items.map((item: any) => {
       const name     = String(item.name || '').trim();
-      const taxTag   = !item.isTaxable ? '<span style="font-size:8px;color:#666"> [EX]</span>'
-                     : item.taxInclusive ? '<span style="font-size:8px;color:#666"> [TI]</span>' : '';
       const unitP    = formatCurrency(item.unitPrice);
       const tot      = formatCurrency(item.total);
       const disc     = Number(item.discount) > 0 ? `<div style="font-size:9px;color:#444;font-weight:600">Disc: -${formatCurrency(item.discount)}</div>` : '';
       return `
         <tr>
           <td style="padding:2px 0 1px;vertical-align:top">
-            <div style="font-weight:800;font-size:12px;word-break:break-word">${name}${taxTag}</div>
+            <div style="font-weight:800;font-size:12px;word-break:break-word">${name}</div>
             <div style="font-size:10.5px;color:#444;font-weight:700">${item.quantity} × ${unitP}</div>
             ${disc}
           </td>
           <td style="text-align:right;vertical-align:top;padding:2px 0 1px;font-size:12px;font-weight:800;white-space:nowrap">${tot}</td>
         </tr>`;
     }).join('');
-
-    const taxAddedHtml  = sale.tax > 0
-      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">VAT 7.5% (excl.)</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${formatCurrency(sale.tax)}</td></tr>` : '';
-    const taxInclusHtml = sale.taxInclusive > 0
-      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">VAT (incl. in price)</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${formatCurrency(sale.taxInclusive)}</td></tr>` : '';
 
     const discountHtml = discountTotal > 0
       ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Discount</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">-${formatCurrency(discountTotal)}</td></tr>`
@@ -1147,7 +1155,6 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
   <tr><td>Gross</td><td>${formatCurrency(grossSubtotal)}</td></tr>
   ${discountHtml}
   <tr><td>Subtotal</td><td>${formatCurrency(sale.subtotal)}</td></tr>
-  ${taxAddedHtml}${taxInclusHtml}
   ${splitHtml}
 </table>
 <hr class="solid">
@@ -1251,11 +1258,10 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
     autoTable(doc, {
       startY: y,
       margin: { left: M, right: M },
-      head: [['#', 'Item Description', 'Tax', 'Qty', 'Unit Price', 'Total']],
+      head: [['#', 'Item Description', 'Qty', 'Unit Price', 'Total']],
       body: lastSale.items.map((item: any, i: number) => [
         String(i + 1),
         item.name,
-        !item.isTaxable ? 'Exempt' : item.taxInclusive ? 'Incl.' : '7.5%',
         item.quantity.toString(),
         formatCurrency(item.unitPrice),
         formatCurrency(item.total),
@@ -1271,10 +1277,9 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
       columnStyles: {
         0: { cellWidth: 8,  halign: 'center' },
         1: { cellWidth: 'auto' },
-        2: { cellWidth: 16, halign: 'center', fontSize: 8 },
-        3: { cellWidth: 12, halign: 'center' },
-        4: { cellWidth: 28, halign: 'right' },
-        5: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
+        2: { cellWidth: 12, halign: 'center' },
+        3: { cellWidth: 28, halign: 'right' },
+        4: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
       },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       styles: { fontSize: 9, cellPadding: 3, textColor: DARK },
@@ -1298,12 +1303,6 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
     doc.line(totX, ty - 2, PW - M, ty - 2);
 
     drawTotalRow('Subtotal',         formatCurrency(lastSale.subtotal), ty);            ty += 6;
-    if (lastSale.tax > 0) {
-      drawTotalRow('VAT 7.5% (+tax)', formatCurrency(lastSale.tax),     ty);            ty += 6;
-    }
-    if (lastSale.taxInclusive > 0) {
-      drawTotalRow('VAT incl. (in price)', formatCurrency(lastSale.taxInclusive), ty);  ty += 6;
-    }
 
     // Total box
     doc.setFillColor(...PRIMARY);
@@ -1713,30 +1712,6 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               <span>Subtotal</span>
               <span className="font-medium text-foreground">{formatCurrency(subtotal)}</span>
             </div>
-
-            {/* Tax-exclusive line — added on top */}
-            {taxBreakdown.exclusive > 0 && (
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>VAT 7.5% <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded ml-1">+tax</span></span>
-                <span className="font-medium text-foreground">{formatCurrency(taxBreakdown.exclusive)}</span>
-              </div>
-            )}
-
-            {/* Tax-inclusive line — informational, already in the price */}
-            {taxBreakdown.inclusive > 0 && (
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>VAT incl. <span className="text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded ml-1">in price</span></span>
-                <span className="font-medium text-foreground">{formatCurrency(taxBreakdown.inclusive)}</span>
-              </div>
-            )}
-
-            {/* No-tax line — only if ALL items are exempt */}
-            {taxBreakdown.exclusive === 0 && taxBreakdown.inclusive === 0 && cart.length > 0 && (
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>VAT <span className="text-[10px] font-bold uppercase tracking-wider bg-muted text-muted-foreground px-1.5 py-0.5 rounded ml-1">exempt</span></span>
-                <span className="font-medium text-foreground">₦0</span>
-              </div>
-            )}
 
             <div className="flex justify-between items-end pt-2 border-t">
               <span className="text-base font-bold text-muted-foreground">Grand Total</span>

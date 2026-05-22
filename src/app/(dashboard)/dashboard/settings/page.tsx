@@ -14,6 +14,8 @@ export default function SettingsPage() {
     businessAddress: '',
     businessPhone: '',
     taxRate: '0',
+    vatMode: 'INCLUSIVE',
+    markupPercent: '5',
     eodTime: '21:00',
     ownerEmail: '',
     currency: 'NGN',
@@ -316,7 +318,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
                     Currency
@@ -342,6 +344,33 @@ export default function SettingsPage() {
                     step="0.01"
                     value={settings.taxRate}
                     onChange={(e) => setSettings({ ...settings, taxRate: e.target.value })}
+                    className="input-base"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    VAT Pricing
+                  </label>
+                  <select
+                    value={settings.vatMode}
+                    onChange={(e) => setSettings({ ...settings, vatMode: e.target.value })}
+                    className="input-base"
+                  >
+                    <option value="INCLUSIVE">Prices include VAT</option>
+                    <option value="EXCLUSIVE">Add VAT at checkout</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    Markup (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={settings.markupPercent}
+                    onChange={(e) => setSettings({ ...settings, markupPercent: e.target.value })}
                     className="input-base"
                   />
                 </div>
