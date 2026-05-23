@@ -178,7 +178,7 @@ export default function InventoryPage() {
 
       setToast({
         type: 'success',
-        message: `Rebuilt: ${data.rows} • Created: ${data.created} • Updated: ${data.updated} • Deactivated: ${data.deactivated}`,
+        message: `Rebuilt: ${data.rows} • Created: ${data.created} • Updated: ${data.updated} • Deactivated: ${data.deactivated} • Duplicates merged: ${data.duplicatesMerged ?? 0}`,
       });
       setPage(1);
       setReloadKey((k) => k + 1);

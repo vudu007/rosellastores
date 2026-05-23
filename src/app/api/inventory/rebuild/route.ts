@@ -155,7 +155,9 @@ export async function POST(req: NextRequest) {
     }
 
     const branchId = session.user.branchId;
-    if (!branchId) return NextResponse.json({ error: 'User does not belong to a branch' }, { status: 400 });
+    if (!branchId) {
+      return NextResponse.json({ error: 'User does not belong to a branch' }, { status: 400 });
+    }
 
     const body = bodySchema.parse(await req.json().catch(() => ({})));
     const { rows, errors } = parseCsvLike(body.csv);
@@ -167,14 +169,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No valid rows found' }, { status: 400 });
     }
 
-    const uniqueSkus = Array.from(new Set(rows.map((r) => r.sku)));
-    const uniqueCategoryNames = Array.from(new Set(rows.map((r) => r.categoryName)));
-    const uniqueSupplierNames = Array.from(new Set(rows.map((r) => r.supplierName)));
+    const skuCounts = new Map<string, number>();
+    const dedupedBySku = new Map<string, ParsedRow>();
+    for (const r of rows) {
+      skuCounts.set(r.sku, (skuCounts.get(r.sku) ?? 0) + 1);
+      dedupedBySku.set(r.sku, r);
+    }
+    const duplicateSkus = Array.from(skuCounts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([sku, count]) => ({ sku, count }));
+    const dedupedRows = Array.from(dedupedBySku.values());
 
-    await prisma.product.updateMany({
-      where: { branchId, isActive: true },
-      data: { isActive: false },
-    });
+    const uniqueSkus = Array.from(new Set(dedupedRows.map((r) => r.sku)));
+    const uniqueCategoryNames = Array.from(new Set(dedupedRows.map((r) => r.categoryName)));
+    const uniqueSupplierNames = Array.from(new Set(dedupedRows.map((r) => r.supplierName)));
 
     if (uniqueCategoryNames.length > 0) {
       const existingCats = await prisma.category.findMany({
@@ -230,8 +238,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const toCreate = rows.filter((r) => !existingBySku.has(r.sku));
-    const toUpdate = rows.filter((r) => existingBySku.has(r.sku));
+    await prisma.product.updateMany({
+      where: { branchId, isActive: true },
+      data: { isActive: false },
+    });
+
+    const toCreate = dedupedRows.filter((r) => !existingBySku.has(r.sku));
+    const toUpdate = dedupedRows.filter((r) => existingBySku.has(r.sku));
 
     if (toCreate.length > 0) {
       await prisma.product.createMany({
@@ -321,22 +334,24 @@ export async function POST(req: NextRequest) {
         entity: 'Product',
         entityId: branchId,
         newValue: JSON.stringify({
-          rows: rows.length,
+          rows: dedupedRows.length,
           created: toCreate.length,
           updated,
           deactivated: deactivated.count,
           priceTagsCreated,
+          duplicatesMerged: duplicateSkus.length,
         }),
       },
     });
 
     return NextResponse.json({
       ok: true,
-      rows: rows.length,
+      rows: dedupedRows.length,
       created: toCreate.length,
       updated,
       deactivated: deactivated.count,
       priceTagsCreated,
+      duplicatesMerged: duplicateSkus.length,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -346,4 +361,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

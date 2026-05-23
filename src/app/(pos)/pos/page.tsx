@@ -76,6 +76,11 @@ export default function POSPage() {
   const [customerForm, setCustomerForm] = useState({ name: '', phone: '', email: '' });
   const [lastSale, setLastSale] = useState<any>(null);
   const [lastCompletedSale, setLastCompletedSale] = useState<any>(null);
+  const [ticketDiscountMode, setTicketDiscountMode] = useState<'AMOUNT' | 'PERCENT'>(() => 'AMOUNT');
+  const [ticketDiscountDraft, setTicketDiscountDraft] = useState('');
+  const [ticketDiscount, setTicketDiscount] = useState(0);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showReceiptPreview, setShowReceiptPreview] = useState(false);
   const [barcodeBuffer, setBarcodeBuffer] = useState('');
   const [lastScanTime, setLastScanTime] = useState(0);
   const [storeSettings, setStoreSettings] = useState<any>({});
@@ -264,30 +269,30 @@ export default function POSPage() {
   }, [products, searchQuery, selectedCategory]);
 
   const vatMode = useMemo<'INCLUSIVE' | 'EXCLUSIVE'>(() => {
-    return storeSettings?.vatMode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE';
-  }, [storeSettings?.vatMode]);
+    return storeSettings.vatMode === 'EXCLUSIVE' ? 'EXCLUSIVE' : 'INCLUSIVE';
+  }, [storeSettings.vatMode]);
 
   const taxRate = useMemo(() => {
-    const raw = Number(storeSettings?.taxRate);
+    const raw = Number(storeSettings.taxRate);
     if (Number.isFinite(raw) && raw > 0) {
       return raw > 1 ? raw / 100 : raw;
     }
     return 0.075;
-  }, [storeSettings?.taxRate]);
+  }, [storeSettings.taxRate]);
 
   const markupPercent = useMemo(() => {
-    const raw = Number(storeSettings?.markupPercent);
+    const raw = Number(storeSettings.markupPercent);
     if (Number.isFinite(raw) && raw >= 0) return raw;
     return 5;
-  }, [storeSettings?.markupPercent]);
+  }, [storeSettings.markupPercent]);
 
-  const getProductPrice = (product: Product) => {
+  const getProductPrice = useCallback((product: Product) => {
     const base = Number(product.costPrice) > 0 ? Number(product.costPrice) : Number(product.retailPrice);
     const marked = base * (1 + markupPercent / 100);
     if (!product.isTaxable) return marked;
     if (vatMode === 'INCLUSIVE') return marked * (1 + taxRate);
     return marked;
-  };
+  }, [markupPercent, taxRate, vatMode]);
 
   const addToCart = useCallback((product: Product) => {
     const isTaxable = product.isTaxable ?? true;
@@ -353,6 +358,9 @@ export default function POSPage() {
     if (e.key === 'Escape') {
       e.preventDefault();
       setCart([]);
+      setSelectedCustomer(null);
+      setTicketDiscount(0);
+      setTicketDiscountDraft('');
       setSuccessMessage('Cart cleared');
       setTimeout(() => setSuccessMessage(null), 1200);
       return;
@@ -383,6 +391,21 @@ export default function POSPage() {
         setSuccessMessage('Failed to hold bill');
         setTimeout(() => setSuccessMessage(null), 1800);
       }
+      return;
+    }
+
+    if (e.key === 'F6') {
+      e.preventDefault();
+      if (cart.length === 0) return;
+      setTicketDiscountDraft('');
+      setTicketDiscountMode('AMOUNT');
+      setShowDiscountModal(true);
+      return;
+    }
+
+    if (e.key === 'F8') {
+      e.preventDefault();
+      openHistory();
       return;
     }
 
@@ -425,7 +448,7 @@ export default function POSPage() {
     }
 
     setLastScanTime(currentTime);
-  }, [addToCart, barcodeBuffer, cart, lastScanTime, products, selectedCustomer]);
+  }, [addToCart, barcodeBuffer, cart, lastScanTime, openHistory, products, selectedCustomer]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -509,6 +532,44 @@ export default function POSPage() {
     }
   }, [HELD_BILL_KEY, cart.length, customers]);
 
+  const voidTicket = useCallback(() => {
+    if (cart.length === 0) return;
+    const ok = confirm('Void the current ticket?');
+    if (!ok) return;
+    setCart([]);
+    setSelectedCustomer(null);
+    setTicketDiscount(0);
+    setTicketDiscountDraft('');
+    setSuccessMessage('Ticket voided');
+    setTimeout(() => setSuccessMessage(null), 1500);
+  }, [cart.length]);
+
+  const openReturnModal = useCallback(() => {
+    const canUseLast =
+      !!lastCompletedSale?.id &&
+      !lastCompletedSale?.offline &&
+      Array.isArray(lastCompletedSale?.items) &&
+      lastCompletedSale.items.some((x: any) => !!x?.productId);
+    const source: 'LAST' | 'RECEIPT' = canUseLast ? 'LAST' : 'RECEIPT';
+    setReturnSource(source);
+    setShowReturnModal(true);
+    setReturnLookup('');
+    setReturnReason('');
+    if (source === 'LAST') {
+      setReturnItems(
+        (lastCompletedSale.items || []).map((x: any) => ({
+          productId: String(x.productId),
+          name: String(x.name || 'Item'),
+          maxQty: Number(x.quantity) || 1,
+          qty: Number(x.quantity) || 1,
+          selected: true,
+        }))
+      );
+    } else {
+      setReturnItems([]);
+    }
+  }, [lastCompletedSale]);
+
   const quickAddFirst = useCallback(() => {
     const candidate = filteredProducts[0];
     if (!candidate) return;
@@ -549,6 +610,7 @@ export default function POSPage() {
 
   // Subtotal = sum of item totals as-stated (inclusive or exclusive)
   const subtotal = cart.reduce((sum, item) => sum + item.total, 0);
+  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const taxBreakdown = cart.reduce(
     (acc, item) => {
@@ -565,6 +627,8 @@ export default function POSPage() {
 
   const tax = vatMode === 'EXCLUSIVE' ? taxBreakdown.exclusive : 0;
   const total = subtotal + tax;
+  const totalBeforeTicketDiscount = total;
+  const grandTotal = Math.max(0, totalBeforeTicketDiscount - (Number(ticketDiscount) || 0));
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
@@ -595,7 +659,7 @@ export default function POSPage() {
         unitPrice: item.unitPrice,
         discount: item.discount,
       })),
-      discount: 0,
+      discount: Number(ticketDiscount) || 0,
     };
 
     try {
@@ -616,6 +680,7 @@ export default function POSPage() {
           customerType: 'RETAIL',
           paymentMethod,
           notes: savedSale?.notes ?? payload.notes,
+          discount: typeof savedSale?.discount === 'number' ? savedSale.discount : payload.discount,
           items: cart.map((item) => ({
             productId: item.productId,
             name: item.name,
@@ -629,7 +694,7 @@ export default function POSPage() {
           subtotal: typeof savedSale?.subtotal === 'number' ? savedSale.subtotal : subtotal,
           tax: typeof savedSale?.tax === 'number' ? savedSale.tax : tax,
           taxInclusive: taxBreakdown.inclusive,
-          total: typeof savedSale?.total === 'number' ? savedSale.total : total,
+          total: typeof savedSale?.total === 'number' ? savedSale.total : grandTotal,
           date: savedSale.createdAt || new Date().toISOString(),
         };
         setLastSale(completedSale);
@@ -637,6 +702,8 @@ export default function POSPage() {
         setSuccessMessage('Transaction Completed Successfully');
         setCart([]);
         setSelectedCustomer(null);
+        setTicketDiscount(0);
+        setTicketDiscountDraft('');
         setShowPaymentModal(false);
         // Auto-print receipt immediately — no button click needed
         printReceipt(completedSale);
@@ -662,6 +729,7 @@ export default function POSPage() {
         customerType: 'RETAIL',
         paymentMethod,
         notes: payload.notes,
+        discount: payload.discount,
         items: cart.map((item) => ({
           productId: item.productId,
           name: item.name,
@@ -675,7 +743,7 @@ export default function POSPage() {
         subtotal,
         tax,
         taxInclusive: taxBreakdown.inclusive,
-        total,
+        total: grandTotal,
         date: new Date().toISOString(),
         offline: true,
       };
@@ -685,6 +753,8 @@ export default function POSPage() {
       setSuccessMessage('Offline: sale saved and will sync when internet returns');
       setCart([]);
       setSelectedCustomer(null);
+      setTicketDiscount(0);
+      setTicketDiscountDraft('');
       setShowPaymentModal(false);
       printReceipt(completedSale);
       setTimeout(() => setSuccessMessage(null), 5000);
@@ -1001,10 +1071,7 @@ export default function POSPage() {
     printViaIframe(html);
   };
 
-  const printReceipt = async (saleData?: any) => {
-    const sale = saleData || lastSale;
-    if (!sale) return;
-
+  const getReceiptHtml = (sale: any) => {
     const receiptSuffixSource = String(sale.id || sale.clientSaleId || '');
     const receiptSuffix = receiptSuffixSource ? receiptSuffixSource.slice(-8).toUpperCase() : 'NA';
     const receiptNo = `R-${receiptSuffix}`;
@@ -1025,7 +1092,9 @@ export default function POSPage() {
       const unit = Number(item.unitPrice) || 0;
       return acc + qty * unit;
     }, 0);
-    const discountTotal = sale.items.reduce((acc: number, item: any) => acc + (Number(item.discount) || 0), 0);
+    const lineDiscountTotal = sale.items.reduce((acc: number, item: any) => acc + (Number(item.discount) || 0), 0);
+    const ticketDiscountTotal = Number(sale.discount) || 0;
+    const discountTotal = lineDiscountTotal + ticketDiscountTotal;
 
     const splitParts =
       sale.paymentMethod === 'SPLIT' && typeof sale.notes === 'string'
@@ -1172,8 +1241,13 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
 
 </body>
 </html>`;
+    return receiptHtml;
+  };
 
-    await printDoc(receiptHtml);
+  const printReceipt = async (saleData?: any) => {
+    const sale = saleData || lastSale;
+    if (!sale) return;
+    await printDoc(getReceiptHtml(sale));
   };
 
   const generateInvoice = () => {
@@ -1375,8 +1449,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
   })();
 
   return (
-    <div className="min-h-[calc(100vh-64px)] h-[calc(100dvh-64px)] overflow-hidden bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-foreground transition-all duration-300 relative flex flex-col">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.18),transparent_55%),radial-gradient(circle_at_bottom,rgba(16,185,129,0.18),transparent_55%)]" />
+    <div className="min-h-[calc(100vh-64px)] h-[calc(100dvh-64px)] overflow-hidden bg-slate-100 text-foreground relative flex flex-col">
       <div className="h-14 md:h-16 px-4 md:px-6 bg-gradient-to-b from-slate-950 to-slate-900 text-white flex items-center justify-between border-b border-white/10">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
@@ -1713,10 +1786,17 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               <span className="font-medium text-foreground">{formatCurrency(subtotal)}</span>
             </div>
 
+            {ticketDiscount > 0 && (
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Discount</span>
+                <span className="font-medium text-foreground">-{formatCurrency(ticketDiscount)}</span>
+              </div>
+            )}
+
             <div className="flex justify-between items-end pt-2 border-t">
               <span className="text-base font-bold text-muted-foreground">Grand Total</span>
               <span className={`text-3xl font-black text-primary tracking-tighter ${cartPulse ? 'animate-cart-bump' : ''}`} data-testid="pos-total">
-                {formatCurrency(total)}
+                {formatCurrency(grandTotal)}
               </span>
             </div>
           </div>
@@ -1775,68 +1855,6 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 </button>
               )}
             </div>
-            <button
-              onClick={holdBill}
-              disabled={cart.length === 0}
-              className="col-span-1 bg-muted text-foreground h-14 rounded-xl font-black text-sm hover:bg-muted/70 transition-colors disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2"
-              title="Hold ticket (F4)"
-            >
-              Hold Bill [F4]
-            </button>
-            <button
-              onClick={() => setShowPaymentModal(true)}
-              disabled={cart.length === 0}
-              className="col-span-1 bg-primary text-primary-foreground h-14 rounded-xl font-black text-sm shadow-lg shadow-primary/30 hover:shadow-primary/40 hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 disabled:grayscale disabled:shadow-none flex items-center justify-center gap-2"
-              data-testid="pos-checkout"
-              title="Payment (Space)"
-            >
-              <CheckCircle className="w-5 h-5" />
-              Payment [Space]
-            </button>
-            {['CASHIER', 'OWNER', 'ADMIN'].includes((session?.user as any)?.role ?? '') && (
-              <button
-                onClick={() => {
-                  const canUseLast =
-                    !!lastCompletedSale?.id &&
-                    !lastCompletedSale?.offline &&
-                    Array.isArray(lastCompletedSale?.items) &&
-                    lastCompletedSale.items.some((x: any) => !!x?.productId);
-                  const source: 'LAST' | 'RECEIPT' = canUseLast ? 'LAST' : 'RECEIPT';
-                  setReturnSource(source);
-                  setShowReturnModal(true);
-                  setReturnLookup('');
-                  setReturnReason('');
-                  if (source === 'LAST') {
-                    setReturnItems(
-                      (lastCompletedSale.items || []).map((x: any) => ({
-                        productId: String(x.productId),
-                        name: String(x.name || 'Item'),
-                        maxQty: Number(x.quantity) || 1,
-                        qty: Number(x.quantity) || 1,
-                        selected: true,
-                      }))
-                    );
-                  } else {
-                    setReturnItems([]);
-                  }
-                }}
-                className="col-span-2 bg-amber-500/15 text-amber-800 h-12 rounded-xl font-black text-sm hover:bg-amber-500/20 transition-colors flex items-center justify-center gap-2"
-                title="Return items"
-              >
-                <RotateCcw className="w-5 h-5" />
-                Item Return
-              </button>
-            )}
-            {['CASHIER', 'OWNER', 'ADMIN'].includes((session?.user as any)?.role ?? '') && (
-              <button
-                onClick={openHistory}
-                className="col-span-2 bg-muted text-foreground h-12 rounded-xl font-black text-sm hover:bg-muted-foreground/10 transition-colors flex items-center justify-center gap-2"
-                title="View transaction history"
-              >
-                <Clock className="w-5 h-5" />
-                Transaction History
-              </button>
-            )}
           </div>
         </div>
       </div>
@@ -1859,23 +1877,114 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
         </button>
       )}
 
-      <div className="hidden md:flex h-10 px-4 md:px-6 bg-slate-950 text-white border-t border-white/10 items-center justify-between text-[11px] font-bold">
-        <div className="flex items-center gap-3">
-          <span className="text-white/70">Space</span>
-          <span className="text-white/90">Payment</span>
-          <span className="text-white/40">•</span>
-          <span className="text-white/70">Esc</span>
-          <span className="text-white/90">Clear Cart</span>
-          <span className="text-white/40">•</span>
-          <span className="text-white/70">F2</span>
-          <span className="text-white/90">Customer</span>
-          <span className="text-white/40">•</span>
-          <span className="text-white/70">F4</span>
-          <span className="text-white/90">Hold</span>
+      <div className="h-16 md:h-14 px-3 md:px-6 bg-slate-950 text-white border-t border-white/10 flex items-center gap-2 md:gap-3">
+        <div className="min-w-0 flex-1 flex items-center gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wider text-white/60 font-black">Total</p>
+            <p className="text-xl md:text-2xl font-black tracking-tight truncate">{formatCurrency(grandTotal)}</p>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs font-bold text-white/80">
+            <span>{totalItems} items</span>
+            {ticketDiscount > 0 && (
+              <>
+                <span className="text-white/30">•</span>
+                <span className="text-amber-300">Disc {formatCurrency(ticketDiscount)}</span>
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-white/70">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          Terminal {isOnline ? 'Online' : 'Offline'}
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={voidTicket}
+            disabled={cart.length === 0}
+            className="h-11 md:h-10 px-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-200 hover:bg-red-500/25 transition-colors text-xs font-black disabled:opacity-50 disabled:grayscale"
+            title="Void ticket (Esc)"
+          >
+            Void
+          </button>
+          <button
+            onClick={() => {
+              if (cart.length === 0) return;
+              setTicketDiscountDraft('');
+              setTicketDiscountMode('AMOUNT');
+              setShowDiscountModal(true);
+            }}
+            disabled={cart.length === 0}
+            className="h-11 md:h-10 px-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-100 hover:bg-amber-500/25 transition-colors text-xs font-black disabled:opacity-50 disabled:grayscale"
+            title="Discount (F6)"
+          >
+            Discount
+          </button>
+          <button
+            onClick={holdBill}
+            disabled={cart.length === 0}
+            className="hidden md:inline-flex h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 transition-colors text-xs font-black disabled:opacity-50 disabled:grayscale"
+            title="Hold ticket (F4)"
+          >
+            Hold
+          </button>
+          <button
+            onClick={recallHeldBill}
+            disabled={heldBillCount === 0}
+            className="hidden md:inline-flex h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 transition-colors text-xs font-black disabled:opacity-50 disabled:grayscale"
+            title="Recall held ticket"
+          >
+            Recall
+          </button>
+          {['CASHIER', 'OWNER', 'ADMIN'].includes((session?.user as any)?.role ?? '') && (
+            <button
+              onClick={openReturnModal}
+              className="md:hidden h-11 px-3 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 transition-colors text-xs font-black"
+              title="Item Return"
+            >
+              Return
+            </button>
+          )}
+          {['CASHIER', 'OWNER', 'ADMIN'].includes((session?.user as any)?.role ?? '') && (
+            <button
+              onClick={openHistory}
+              className="md:hidden h-11 px-3 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 transition-colors text-xs font-black"
+              title="Transaction History"
+            >
+              History
+            </button>
+          )}
+          {['CASHIER', 'OWNER', 'ADMIN'].includes((session?.user as any)?.role ?? '') && (
+            <button
+              onClick={openReturnModal}
+              className="hidden md:inline-flex h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 transition-colors text-xs font-black"
+              title="Item Return"
+            >
+              Return
+            </button>
+          )}
+          {['CASHIER', 'OWNER', 'ADMIN'].includes((session?.user as any)?.role ?? '') && (
+            <button
+              onClick={openHistory}
+              className="hidden md:inline-flex h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 transition-colors text-xs font-black"
+              title="Transaction History (F8)"
+            >
+              History
+            </button>
+          )}
+          <button
+            onClick={() => setShowReceiptPreview(true)}
+            disabled={!lastCompletedSale}
+            className="hidden md:inline-flex h-10 px-3 rounded-xl bg-white/5 border border-white/10 text-white/90 hover:bg-white/10 transition-colors text-xs font-black disabled:opacity-50 disabled:grayscale"
+            title="Receipt Preview"
+          >
+            Receipt
+          </button>
+          <button
+            onClick={() => setShowPaymentModal(true)}
+            disabled={cart.length === 0}
+            className="h-11 md:h-10 px-4 rounded-xl bg-emerald-500 text-emerald-950 hover:bg-emerald-400 transition-colors text-xs font-black disabled:opacity-50 disabled:grayscale shadow-lg shadow-emerald-500/20"
+            data-testid="pos-checkout"
+            title="Checkout (Space)"
+          >
+            Checkout
+          </button>
         </div>
       </div>
 
@@ -1908,6 +2017,164 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
         </div>
       )}
 
+      {showDiscountModal &&
+        (() => {
+          const base = totalBeforeTicketDiscount;
+          const raw = Number(ticketDiscountDraft) || 0;
+          const preview =
+            ticketDiscountMode === 'PERCENT' ? (base * raw) / 100 : raw;
+          const normalized = Math.max(0, Math.min(preview, base));
+
+          return (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+              <div className="bg-card glass rounded-2xl p-7 max-w-md w-full shadow-2xl animate-entrance border-none">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-2xl font-black tracking-tight">Discount</h2>
+                    <p className="text-muted-foreground text-sm mt-1">Apply a ticket discount to the current sale.</p>
+                  </div>
+                  <button
+                    onClick={() => setShowDiscountModal(false)}
+                    className="p-2 rounded-xl hover:bg-muted/40 transition-colors text-muted-foreground"
+                    title="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setTicketDiscountMode('AMOUNT')}
+                      className={[
+                        'h-11 rounded-xl border text-sm font-black transition-colors',
+                        ticketDiscountMode === 'AMOUNT'
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-muted/20 text-muted-foreground border-white/10 hover:bg-muted/30',
+                      ].join(' ')}
+                    >
+                      Amount
+                    </button>
+                    <button
+                      onClick={() => setTicketDiscountMode('PERCENT')}
+                      className={[
+                        'h-11 rounded-xl border text-sm font-black transition-colors',
+                        ticketDiscountMode === 'PERCENT'
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-muted/20 text-muted-foreground border-white/10 hover:bg-muted/30',
+                      ].join(' ')}
+                    >
+                      Percent
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase tracking-wider font-black text-muted-foreground">
+                      Value {ticketDiscountMode === 'PERCENT' ? '(%)' : '(₦)'}
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={ticketDiscountDraft}
+                      onChange={(e) => setTicketDiscountDraft(e.target.value)}
+                      className="input-base h-12 text-base font-bold bg-muted/20 border border-white/10"
+                      placeholder={ticketDiscountMode === 'PERCENT' ? '0' : '0'}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-muted/10 p-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-bold text-muted-foreground">Ticket Total</span>
+                      <span className="font-black">{formatCurrency(base)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-2">
+                      <span className="font-bold text-muted-foreground">Discount</span>
+                      <span className="font-black text-amber-600">-{formatCurrency(normalized)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-base mt-3 pt-3 border-t border-white/10">
+                      <span className="font-black text-muted-foreground">Payable</span>
+                      <span className="font-black text-primary">{formatCurrency(Math.max(0, base - normalized))}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    {ticketDiscount > 0 && (
+                      <button
+                        onClick={() => {
+                          setTicketDiscount(0);
+                          setTicketDiscountDraft('');
+                          setShowDiscountModal(false);
+                          setSuccessMessage('Discount cleared');
+                          setTimeout(() => setSuccessMessage(null), 1500);
+                        }}
+                        className="h-12 px-4 rounded-xl font-black bg-muted hover:bg-muted-foreground/10 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowDiscountModal(false)}
+                      className="flex-1 h-12 rounded-xl font-black bg-muted hover:bg-muted-foreground/10 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTicketDiscount(normalized);
+                        setTicketDiscountDraft('');
+                        setShowDiscountModal(false);
+                        setSuccessMessage('Discount applied');
+                        setTimeout(() => setSuccessMessage(null), 1500);
+                      }}
+                      className="flex-1 h-12 rounded-xl font-black bg-amber-500 text-amber-950 hover:bg-amber-400 transition-colors"
+                      disabled={cart.length === 0}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+      {showReceiptPreview && lastCompletedSale && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
+          <div className="bg-card rounded-2xl w-full max-w-3xl shadow-2xl border border-white/10 overflow-hidden">
+            <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-wider text-muted-foreground">Receipt Preview</p>
+                <p className="font-black tracking-tight truncate">
+                  #{String(lastCompletedSale?.id || lastCompletedSale?.clientSaleId || '').slice(-8).toUpperCase()}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => printReceipt(lastCompletedSale)}
+                  className="h-10 px-4 rounded-xl bg-primary text-primary-foreground font-black text-sm"
+                >
+                  Print
+                </button>
+                <button
+                  onClick={() => setShowReceiptPreview(false)}
+                  className="h-10 px-4 rounded-xl bg-muted hover:bg-muted-foreground/10 font-black text-sm transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="bg-slate-100">
+              <iframe
+                title="Receipt Preview"
+                className="w-full h-[70vh] bg-white"
+                srcDoc={getReceiptHtml(lastCompletedSale)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Payment Modal */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
@@ -1934,13 +2201,13 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
 
               <div className="pt-4 border-t border-white/5">
                 <span className="text-xs text-muted-foreground uppercase font-bold block mb-1">Items Count</span>
-                <span className="font-black text-xl">{cart.length} Products</span>
+                <span className="font-black text-xl">{totalItems} Items</span>
               </div>
 
               <div className="pt-6 border-t border-white/5 mt-2">
                 <p className="text-xs text-muted-foreground uppercase font-bold mb-1 text-center">Grand Total</p>
                 <p className="text-4xl font-black text-primary text-center tracking-tighter">
-                  {formatCurrency(total)}
+                  {formatCurrency(grandTotal)}
                 </p>
               </div>
 
@@ -1965,8 +2232,8 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   </div>
                   <div className="col-span-2 text-center text-xs font-bold mt-2">
                     Sum: {formatCurrency(splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile)}
-                    {Math.abs((splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile) - total) > 0.01 && (
-                       <span className="text-red-500 ml-2">Mismatch! Needs {formatCurrency(Math.abs(total - (splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile)))}</span>
+                    {Math.abs((splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile) - grandTotal) > 0.01 && (
+                       <span className="text-red-500 ml-2">Mismatch! Needs {formatCurrency(Math.abs(grandTotal - (splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile)))}</span>
                     )}
                   </div>
                 </div>
@@ -1985,7 +2252,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 onClick={handleCheckout} 
                 disabled={
                   isCheckingOut ||
-                  (paymentMethod === 'SPLIT' && Math.abs((splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile) - total) > 0.01)
+                  (paymentMethod === 'SPLIT' && Math.abs((splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile) - grandTotal) > 0.01)
                 }
                 className="flex-1 bg-primary text-primary-foreground h-12 rounded-xl font-bold shadow-lg shadow-primary/20 disabled:opacity-50"
               >
