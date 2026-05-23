@@ -342,6 +342,24 @@ export default function POSPage() {
     }
   }, [cart, getProductPrice, triggerCartPulse, vatMode]);
 
+  const openHistory = async () => {
+    setShowHistoryModal(true);
+    setHistoryError(null);
+    setHistoryQuery('');
+    setHistorySales([]);
+    setHistoryLoading(true);
+    try {
+      const res = await fetch('/api/sales?limit=50&page=1');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+      setHistorySales(Array.isArray(data?.sales) ? data.sales : []);
+    } catch (e: any) {
+      setHistoryError(e?.message || 'Failed to load transactions');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     const target = e.target as HTMLElement | null;
@@ -890,24 +908,6 @@ export default function POSPage() {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
     return d.toLocaleString('en-NG', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  };
-
-  const openHistory = async () => {
-    setShowHistoryModal(true);
-    setHistoryError(null);
-    setHistoryQuery('');
-    setHistorySales([]);
-    setHistoryLoading(true);
-    try {
-      const res = await fetch('/api/sales?limit=50&page=1');
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-      setHistorySales(Array.isArray(data?.sales) ? data.sales : []);
-    } catch (e: any) {
-      setHistoryError(e?.message || 'Failed to load transactions');
-    } finally {
-      setHistoryLoading(false);
-    }
   };
 
   const refreshHistory = async (q?: string) => {
