@@ -1203,7 +1203,7 @@ export default function POSPage() {
     const receiptSuffix = receiptSuffixSource ? receiptSuffixSource.slice(-8).toUpperCase() : 'NA';
     const receiptNo = `R-${receiptSuffix}`;
     const dateObj    = new Date(sale.date);
-    const dateStr    = dateObj.toLocaleDateString('en-NG', { day: '2-digit', month: 'short', year: 'numeric' });
+    const dateStr    = dateObj.toLocaleDateString('en-NG', { day: '2-digit', month: '2-digit', year: 'numeric' });
     const timeStr    = dateObj.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' });
     const biz        = storeSettings.businessName || 'ROSELLA STORES';
     const cashier    = (session?.user as any)?.name || 'Staff';
@@ -1213,6 +1213,10 @@ export default function POSPage() {
       CASH: 'Cash', CARD: 'Card / POS', BANK_TRANSFER: 'Bank Transfer',
       MOBILE_MONEY: 'Mobile Money', SPLIT: 'Split Payment',
     };
+
+    const currencyLabel = (storeSettings.currency || 'NGN').toUpperCase();
+    const pct = Math.round(taxRate * 1000) / 10;
+    const pctLabel = Number.isFinite(pct) ? String(pct) : '7.5';
 
     const grossSubtotal = sale.items.reduce((acc: number, item: any) => {
       const qty = Number(item.quantity) || 0;
@@ -1238,32 +1242,56 @@ export default function POSPage() {
           })()
         : null;
 
-    const itemRows = sale.items.map((item: any) => {
-      const name     = String(item.name || '').trim();
-      const unitP    = formatCurrency(item.unitPrice);
-      const tot      = formatCurrency(item.total);
-      const disc     = Number(item.discount) > 0 ? `<div style="font-size:9px;color:#444;font-weight:600">Disc: -${formatCurrency(item.discount)}</div>` : '';
-      return `
-        <tr>
-          <td style="padding:2px 0 1px;vertical-align:top">
-            <div style="font-weight:800;font-size:12px;word-break:break-word">${name}</div>
-            <div style="font-size:10.5px;color:#444;font-weight:700">${item.quantity} × ${unitP}</div>
-            ${disc}
-          </td>
-          <td style="text-align:right;vertical-align:top;padding:2px 0 1px;font-size:12px;font-weight:800;white-space:nowrap">${tot}</td>
-        </tr>`;
-    }).join('');
+    const totalsByVatCode = sale.items.reduce(
+      (acc: { aNet: number; bNet: number; bVat: number }, item: any) => {
+        const lineTotal = Number(item.total) || 0;
+        const isTaxable = Boolean(item.isTaxable);
+        if (!isTaxable) {
+          acc.aNet += lineTotal;
+          return acc;
+        }
+        if (vatMode === 'INCLUSIVE' || item.taxInclusive) {
+          const net = lineTotal / (1 + taxRate);
+          const vat = lineTotal - net;
+          acc.bNet += net;
+          acc.bVat += vat;
+          return acc;
+        }
+        acc.bNet += lineTotal;
+        acc.bVat += lineTotal * taxRate;
+        return acc;
+      },
+      { aNet: 0, bNet: 0, bVat: 0 }
+    );
 
-    const discountHtml = discountTotal > 0
-      ? `<tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Discount</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">-${formatCurrency(discountTotal)}</td></tr>`
-      : '';
+    const itemRows = sale.items
+      .map((item: any) => {
+        const name     = String(item.name || '').trim();
+        const code     = item.isTaxable ? 'B' : 'A';
+        const qty      = Number(item.quantity) || 0;
+        const tot      = formatCurrency(item.total);
+        const compactName = name.length > 26 ? name.slice(0, 26) : name;
+        return `
+          <tr>
+            <td style="width:10mm;padding:3px 0 2px;vertical-align:top;font-weight:900">${code}</td>
+            <td style="padding:3px 0 2px;vertical-align:top;font-weight:800">${compactName}</td>
+            <td style="width:10mm;text-align:right;padding:3px 0 2px;vertical-align:top;font-weight:800">${qty}</td>
+            <td style="width:22mm;text-align:right;padding:3px 0 2px;vertical-align:top;font-weight:900;white-space:nowrap">${tot}</td>
+          </tr>`;
+      })
+      .join('');
+
+    const discountHtml =
+      discountTotal > 0
+        ? `<div class="line"><span>Discount</span><span>-${formatCurrency(discountTotal)}</span></div>`
+        : '';
 
     const splitHtml = splitParts
       ? `
-        <tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Split: Cash</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${splitParts.cash}</td></tr>
-        <tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Split: Card</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${splitParts.card}</td></tr>
-        <tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Split: Transfer</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${splitParts.transfer}</td></tr>
-        <tr><td style="font-size:10px;color:#333;padding:1px 0;font-weight:600">Split: Mobile</td><td style="text-align:right;font-size:10px;padding:1px 0;font-weight:600">${splitParts.mobile}</td></tr>
+        <div class="line"><span>Split: Cash</span><span>${splitParts.cash}</span></div>
+        <div class="line"><span>Split: Card</span><span>${splitParts.card}</span></div>
+        <div class="line"><span>Split: Transfer</span><span>${splitParts.transfer}</span></div>
+        <div class="line"><span>Split: Mobile</span><span>${splitParts.mobile}</span></div>
       `
       : '';
 
@@ -1307,10 +1335,13 @@ export default function POSPage() {
       padding: 2px 0;
     }
     .col-hdr td:last-child { text-align: right; }
-    .totals td { padding: 1px 0; font-size: 11.5px; font-weight: 800; }
-    .totals td:last-child { text-align: right; }
-    .grand td { font-size: 14px; font-weight: 900; padding: 2px 0; }
-    .grand td:last-child { text-align: right; }
+    .summary { margin-top: 6px; }
+    .line { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; font-weight: 900; padding: 2px 0; }
+    .subline { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; font-weight: 800; padding: 1px 0; }
+    .muted { color: #222; font-weight: 800; }
+    .vat-row { display: grid; grid-template-columns: 12mm 1fr 16mm 16mm; gap: 2mm; font-size: 12px; font-weight: 900; padding: 1px 0; }
+    .vat-row div:last-child { text-align: right; }
+    .vat-row .r { text-align: right; }
     .footer { text-align: center; font-size: 10.5px; font-weight: 700; color: #222; line-height: 1.7; margin-top: 3px; }
     .rcpt-id { text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 1px; margin-top: 2px; color: #444; }
   </style>
@@ -1330,33 +1361,45 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
 <hr class="dash">
 
 <table class="meta">
-  <tr><td>Receipt #</td><td>${receiptNo}</td></tr>
-  <tr><td>Date</td><td>${dateStr} ${timeStr}</td></tr>
-  <tr><td>Customer</td><td>${sale.customerName || 'Walk-In'}</td></tr>
-  <tr><td>Cashier</td><td>${cashier}</td></tr>
-  <tr><td>Payment</td><td>${payLabel[sale.paymentMethod] || sale.paymentMethod}</td></tr>
+  <tr><td>Date:</td><td>${dateStr}</td></tr>
+  <tr><td>Time:</td><td>${timeStr}</td></tr>
+  <tr><td>Cashier:</td><td>${cashier}</td></tr>
 </table>
 
 <hr class="dash">
 <table>
   <tr class="col-hdr">
-    <td>ITEM DESCRIPTION</td>
-    <td style="text-align:right">AMOUNT</td>
+    <td style="width:10mm">TC</td>
+    <td>Item Description</td>
+    <td style="width:10mm;text-align:right">Qty</td>
+    <td style="width:22mm;text-align:right">Amt(${currencyLabel})</td>
   </tr>
   ${itemRows}
 </table>
 
 <hr class="dash">
-<table class="totals">
-  <tr><td>Gross</td><td>${formatCurrency(grossSubtotal)}</td></tr>
+<div class="summary">
+  <div class="line"><span>${totalItems} ${totalItems === 1 ? 'Item Sold' : 'Items Sold'}</span><span></span></div>
+  <div class="line"><span>Sale Subtotal:</span><span>${formatCurrency(sale.subtotal)}</span></div>
   ${discountHtml}
-  <tr><td>Subtotal</td><td>${formatCurrency(sale.subtotal)}</td></tr>
   ${splitHtml}
-</table>
+  <div style="height:4px"></div>
+  <div class="vat-row">
+    <div>A</div>
+    <div class="muted">0% Net Amount</div>
+    <div class="r">${formatCurrency(totalsByVatCode.aNet)}</div>
+    <div class="r">VAT ${formatCurrency(0)}</div>
+  </div>
+  <div class="vat-row">
+    <div>B${pctLabel}%</div>
+    <div class="muted">Net Amount</div>
+    <div class="r">${formatCurrency(totalsByVatCode.bNet)}</div>
+    <div class="r">VAT ${formatCurrency(totalsByVatCode.bVat)}</div>
+  </div>
+</div>
+
 <hr class="solid">
-<table class="grand">
-  <tr><td>TOTAL PAID</td><td>${formatCurrency(sale.total)}</td></tr>
-</table>
+<div class="line"><span>${payLabel[sale.paymentMethod] || sale.paymentMethod}</span><span>${formatCurrency(sale.total)}</span></div>
 <hr class="dash">
 
 <div class="footer">
@@ -1364,7 +1407,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
   <br>Please keep this receipt for your records.
 </div>
 <hr class="dash">
-<div class="rcpt-id">${receiptNo} &bull; ${dateStr}</div>
+<div class="rcpt-id">${receiptNo}</div>
 
 </body>
 </html>`;
