@@ -52,6 +52,8 @@ export default function POSPage() {
   const [pulseItemId, setPulseItemId] = useState<string | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+  const [searchActiveIndex, setSearchActiveIndex] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [categories, setCategories] = useState<string[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('CASH');
@@ -108,6 +110,8 @@ export default function POSPage() {
   const [customerLookup, setCustomerLookup] = useState('');
   const customerLookupRef = useRef<HTMLInputElement | null>(null);
   const productSearchRef = useRef<HTMLInputElement | null>(null);
+  const searchWrapRef = useRef<HTMLDivElement | null>(null);
+  const searchDropdownRef = useRef<HTMLDivElement | null>(null);
   const [heldBillCount, setHeldBillCount] = useState(0);
   const HELD_BILL_KEY = 'meka_held_bill_v1';
 
@@ -266,13 +270,54 @@ export default function POSPage() {
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
+      const q = searchQuery.trim().toLowerCase();
       const matchesSearch =
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.sku.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory = searchQuery ? true : !selectedCategory || product.category.name === selectedCategory;
+        !q ||
+        product.name.toLowerCase().includes(q) ||
+        product.sku.toLowerCase().includes(q) ||
+        (Array.isArray(product.barcodes) && product.barcodes.some((b) => String(b).toLowerCase().includes(q)));
+      const matchesCategory = q ? true : !selectedCategory || product.category.name === selectedCategory;
       return matchesSearch && matchesCategory;
     });
   }, [products, searchQuery, selectedCategory]);
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    const scored: Array<{ product: Product; score: number }> = [];
+    for (const p of products) {
+      const name = String(p.name || '').toLowerCase();
+      const sku = String(p.sku || '').toLowerCase();
+      const barcodes = Array.isArray(p.barcodes) ? p.barcodes.map((b) => String(b).toLowerCase()) : [];
+      const barcodeExact = barcodes.includes(q);
+      const barcodeStarts = barcodes.some((b) => b.startsWith(q));
+      const barcodeIncludes = barcodes.some((b) => b.includes(q));
+      const skuExact = sku === q;
+      const skuStarts = sku.startsWith(q);
+      const skuIncludes = sku.includes(q);
+      const nameStarts = name.startsWith(q);
+      const nameIncludes = name.includes(q);
+
+      const isMatch = skuIncludes || barcodeIncludes || nameIncludes;
+      if (!isMatch) continue;
+
+      const score =
+        skuExact || barcodeExact ? 0 :
+        skuStarts || barcodeStarts ? 1 :
+        nameStarts ? 2 :
+        skuIncludes || barcodeIncludes ? 3 :
+        4;
+
+      scored.push({ product: p, score });
+    }
+
+    scored.sort((a, b) => {
+      if (a.score !== b.score) return a.score - b.score;
+      return a.product.name.localeCompare(b.product.name);
+    });
+
+    return scored.slice(0, 8).map((x) => x.product);
+  }, [products, searchQuery]);
 
   const productById = useMemo(() => {
     return new Map<string, Product>(products.map((p) => [p.id, p]));
@@ -352,6 +397,27 @@ export default function POSPage() {
     }
   }, [cart, getProductPrice, triggerCartPulse, vatMode]);
 
+  const selectProductFromSearch = useCallback((product: Product) => {
+    addToCart(product);
+    setSearchQuery('');
+    setBarcodeBuffer('');
+    setSearchDropdownOpen(false);
+    setSearchActiveIndex(0);
+    productSearchRef.current?.focus();
+  }, [addToCart]);
+
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (searchWrapRef.current && searchWrapRef.current.contains(t)) return;
+      if (searchDropdownRef.current && searchDropdownRef.current.contains(t)) return;
+      setSearchDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, []);
+
   const openHistory = async () => {
     setShowHistoryModal(true);
     setHistoryError(null);
@@ -373,14 +439,11 @@ export default function POSPage() {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     const target = e.target as HTMLElement | null;
-    if (
-      target &&
-      (target.isContentEditable ||
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.tagName === 'SELECT')
-    ) {
-      return;
+    if (target && (target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) {
+      const allowWhenFocused =
+        (productSearchRef.current && target === productSearchRef.current) ||
+        (customerLookupRef.current && target === customerLookupRef.current);
+      if (!allowWhenFocused) return;
     }
 
     if (e.key === 'Escape') {
@@ -448,16 +511,15 @@ export default function POSPage() {
 
     const currentTime = e.timeStamp;
 
-    if (currentTime - lastScanTime > 80) {
+    if (currentTime - lastScanTime > 250) {
       setBarcodeBuffer('');
     }
 
     if (e.key === 'Enter') {
       if (barcodeBuffer.length > 2) {
-        const product = products.find(p => 
-  p.sku === barcodeBuffer || 
-  (p.barcodes && p.barcodes.includes(barcodeBuffer))
-);
+        const product = products.find(
+          (p) => p.sku === barcodeBuffer || (p.barcodes && p.barcodes.includes(barcodeBuffer))
+        );
         if (product) {
           addToCart(product);
           setSuccessMessage(`Scanned: ${product.name}`);
@@ -1551,44 +1613,132 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
       </div>
 
       <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-[1fr,380px]">
-        <div className="p-3 md:p-4 flex flex-col gap-2 overflow-hidden">
+        <div className="p-3 md:p-4 flex flex-col gap-2 overflow-hidden" data-testid="pos-terminal">
           <div className="grid grid-cols-1 md:grid-cols-[1fr,1fr] gap-2">
-            <div className="bg-white border border-slate-300 h-10 flex items-center px-2">
-              <Search className="w-4 h-4 text-slate-500 mr-2" />
-              <input
-                ref={productSearchRef}
-                value={searchQuery}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setSearchQuery(next);
-                  if (next.trim()) setSelectedCategory('');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    quickAddFirst();
-                  }
-                }}
-                className="w-full outline-none text-sm font-semibold"
-                placeholder="Search / scan item"
-                data-testid="pos-search"
-              />
-              {searchQuery.trim() && (
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSelectedCategory('');
-                    productSearchRef.current?.focus();
+            <div ref={searchWrapRef} className="relative">
+              <div className="bg-white border border-slate-300 h-10 flex items-center px-2 text-slate-900">
+                <Search className="w-4 h-4 text-slate-500 mr-2" />
+                <input
+                  ref={productSearchRef}
+                  value={searchQuery}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setSearchQuery(next);
+                    setSearchActiveIndex(0);
+                    if (next.trim()) setSelectedCategory('');
+                    setSearchDropdownOpen(!!next.trim());
                   }}
-                  className="ml-2 w-7 h-7 rounded border border-slate-300 hover:bg-slate-100 flex items-center justify-center"
-                  title="Clear"
+                  onFocus={() => {
+                    if (searchQuery.trim()) setSearchDropdownOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setSearchDropdownOpen(false);
+                      return;
+                    }
+
+                    if (e.key === 'ArrowDown') {
+                      if (!searchQuery.trim()) return;
+                      e.preventDefault();
+                      setSearchDropdownOpen(true);
+                      setSearchActiveIndex((prev) => {
+                        const max = Math.max(0, searchResults.length - 1);
+                        return prev >= max ? 0 : prev + 1;
+                      });
+                      return;
+                    }
+
+                    if (e.key === 'ArrowUp') {
+                      if (!searchQuery.trim()) return;
+                      e.preventDefault();
+                      setSearchDropdownOpen(true);
+                      setSearchActiveIndex((prev) => {
+                        const max = Math.max(0, searchResults.length - 1);
+                        return prev <= 0 ? max : prev - 1;
+                      });
+                      return;
+                    }
+
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (searchDropdownOpen && searchResults.length > 0) {
+                        const picked = searchResults[Math.max(0, Math.min(searchActiveIndex, searchResults.length - 1))];
+                        if (picked) selectProductFromSearch(picked);
+                        return;
+                      }
+                      quickAddFirst();
+                    }
+                  }}
+                  className="w-full bg-transparent outline-none text-sm font-semibold !text-slate-900 caret-slate-900 !placeholder:text-slate-500 selection:bg-sky-200"
+                  placeholder="Search / scan item"
+                  data-testid="pos-search"
+                  style={{ color: '#0f172a', caretColor: '#0f172a' }}
+                />
+                {searchQuery.trim() && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelectedCategory('');
+                      setSearchActiveIndex(0);
+                      setSearchDropdownOpen(false);
+                      productSearchRef.current?.focus();
+                    }}
+                    className="ml-2 w-7 h-7 rounded border border-slate-300 hover:bg-slate-100 active:scale-[0.98] transition flex items-center justify-center"
+                    title="Clear"
+                  >
+                    <X className="w-4 h-4 text-slate-600" />
+                  </button>
+                )}
+              </div>
+
+              {searchDropdownOpen && searchQuery.trim() && (
+                <div
+                  ref={searchDropdownRef}
+                  className="absolute left-0 right-0 mt-1 bg-white border border-slate-300 shadow-xl z-[80] max-h-[260px] overflow-auto"
+                  data-testid="pos-search-dropdown"
                 >
-                  <X className="w-4 h-4 text-slate-600" />
-                </button>
+                  {searchResults.length === 0 ? (
+                    <div className="px-3 py-2 text-sm font-semibold text-slate-600">No matching items</div>
+                  ) : (
+                    <div className="py-1">
+                      {searchResults.map((p, idx) => {
+                        const active = idx === searchActiveIndex;
+                        const price = getProductPrice(p);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onMouseEnter={() => setSearchActiveIndex(idx)}
+                            onClick={() => selectProductFromSearch(p)}
+                            className={[
+                              'w-full px-3 py-2 flex items-center justify-between gap-3 text-left',
+                              active ? 'bg-sky-100' : 'hover:bg-slate-50',
+                            ].join(' ')}
+                            data-testid={`pos-search-option-${p.sku}`}
+                            title={`${p.name} (${p.sku})`}
+                          >
+                            <div className="min-w-0">
+                              <div className="text-sm font-black text-slate-900 truncate">{p.name}</div>
+                              <div className="text-[11px] font-mono text-slate-600 truncate">
+                                {p.sku}
+                                {Array.isArray(p.barcodes) && p.barcodes.length > 0 ? ` • ${String(p.barcodes[0])}` : ''}
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <div className="text-sm font-black text-slate-900">{formatCurrency(price)}</div>
+                              <div className="text-[11px] font-bold text-slate-600">{p.stockQty} in stock</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
-            <div className="bg-white border border-slate-300 h-10 flex items-center px-2">
+            <div className="bg-white border border-slate-300 h-10 flex items-center px-2 text-slate-900">
               <User className="w-4 h-4 text-slate-500 mr-2" />
               <input
                 ref={customerLookupRef}
@@ -1603,25 +1753,28 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                     setCustomerLookup('');
                   }
                 }}
-                className="w-full outline-none text-sm font-semibold"
+                className="w-full bg-transparent outline-none text-sm font-semibold !text-slate-900 caret-slate-900 !placeholder:text-slate-500 selection:bg-sky-200"
                 placeholder="Customer lookup"
+                data-testid="pos-customer-lookup"
+                style={{ color: '#0f172a', caretColor: '#0f172a' }}
               />
             </div>
           </div>
 
-          <div className="bg-white border border-slate-300 p-2">
+          <div className="bg-white border border-slate-300 p-2 text-slate-900">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
                 <button
                   onClick={() => setShowAddCustomerModal(true)}
-                  className="w-9 h-9 border border-slate-300 hover:bg-slate-100 flex items-center justify-center"
-                  title="Add / edit customer"
+                  className="w-12 h-12 border border-slate-300 bg-white hover:bg-slate-50 active:scale-[0.99] transition flex items-center justify-center"
+                  title="Add New Customer"
+                  aria-label="Add New Customer"
+                  data-testid="pos-add-customer"
                 >
-                  <Plus className="w-5 h-5" />
+                  <Plus className="w-6 h-6 text-slate-500" />
                 </button>
                 <div className="min-w-0">
-                  <div className="font-bold truncate">{selectedCustomer?.name || 'POS Customer'}</div>
-                  <div className="text-xs text-slate-600">Reward points: N/A</div>
+                  <div className="font-bold text-slate-900 truncate">{selectedCustomer?.name || 'POS Customer'}</div>
                 </div>
               </div>
               <div className="text-[11px] font-bold text-slate-600">
@@ -1630,8 +1783,11 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
             </div>
           </div>
 
-          <div className="flex-1 bg-white border border-slate-300 overflow-hidden flex flex-col">
-            <div className="bg-slate-100 border-b border-slate-200 text-[11px] font-black text-slate-700 px-2 py-1">
+          <div
+            className="flex-1 bg-white border border-slate-300 overflow-hidden flex flex-col text-slate-900"
+            data-testid="pos-cart-panel"
+          >
+            <div className="bg-slate-100 border-b border-slate-200 text-[11px] font-black text-slate-800 px-2 py-1">
               <div className="grid grid-cols-[90px,1fr,140px,110px,120px,36px] gap-2 items-center">
                 <div>SKU ID</div>
                 <div>Product name</div>
@@ -1644,8 +1800,11 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
 
             <div className="flex-1 overflow-y-auto">
               {cart.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-sm font-bold text-slate-500">
-                  Scan or select products to start a sale.
+                <div className="h-full flex flex-col items-center justify-center text-sm font-bold text-slate-600 gap-1">
+                  <div className="text-slate-800" data-testid="pos-empty">
+                    Empty Terminal
+                  </div>
+                  <div className="text-xs font-semibold text-slate-500">Scan or select products to start a sale.</div>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-200">
@@ -1655,25 +1814,34 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                     const grossLine = (Number(item.unitPrice) || 0) * (Number(item.quantity) || 0);
                     const pct = grossLine > 0 ? Math.round(((Number(item.discount) || 0) / grossLine) * 100) : 0;
                     return (
-                      <div key={item.productId} className="px-2 py-2 text-[12px]">
+                      <div
+                        key={item.productId}
+                        className="px-2 py-2 text-[12px]"
+                        data-testid={`pos-cart-item-${item.productId}`}
+                      >
                         <div className="grid grid-cols-[90px,1fr,140px,110px,120px,36px] gap-2 items-center">
-                          <div className="font-mono text-slate-700 truncate">{sku}</div>
+                          <div className="font-mono text-slate-800 truncate">{sku}</div>
                           <div className="font-bold text-slate-900 truncate">{item.name}</div>
                           <div className="flex items-center justify-center gap-1">
                             <button
                               onClick={() => updateCartItem(item.productId, item.quantity - 1, item.discount)}
-                              className="w-8 h-8 border border-slate-300 hover:bg-slate-100 flex items-center justify-center"
+                              className="w-8 h-8 border border-slate-300 hover:bg-slate-100 active:scale-[0.98] transition flex items-center justify-center"
                               title="Decrease"
+                              aria-label={`Decrease quantity for ${item.name}`}
                             >
                               <Minus className="w-4 h-4" />
                             </button>
-                            <div className="w-10 h-8 border border-slate-300 flex items-center justify-center font-black">
+                            <div
+                              className="w-10 h-8 border border-slate-300 flex items-center justify-center font-black text-slate-900"
+                              data-testid={`pos-cart-qty-${item.productId}`}
+                            >
                               {item.quantity}
                             </div>
                             <button
                               onClick={() => updateCartItem(item.productId, item.quantity + 1, item.discount)}
-                              className="w-8 h-8 border border-slate-300 hover:bg-slate-100 flex items-center justify-center"
+                              className="w-8 h-8 border border-slate-300 hover:bg-slate-100 active:scale-[0.98] transition flex items-center justify-center"
                               title="Increase"
+                              aria-label={`Increase quantity for ${item.name}`}
                             >
                               <Plus className="w-4 h-4" />
                             </button>
@@ -1689,16 +1857,20 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                                 const nextDiscount = (grossLine * nextPct) / 100;
                                 updateCartItem(item.productId, item.quantity, nextDiscount);
                               }}
-                              className="w-16 h-8 border border-slate-300 text-center font-black outline-none"
+                              className="w-16 h-8 border border-slate-300 text-center font-black outline-none text-slate-900 placeholder:text-slate-500"
                               title="Discount %"
+                              data-testid={`pos-cart-discount-${item.productId}`}
                             />
                             <div className="text-xs font-black text-slate-500">%</div>
                           </div>
-                          <div className="text-right font-black pr-2">{formatCurrency(item.total)}</div>
+                          <div className="text-right font-black pr-2" data-testid={`pos-cart-rowtotal-${item.productId}`}>
+                            {formatCurrency(item.total)}
+                          </div>
                           <button
                             onClick={() => removeFromCart(item.productId)}
-                            className="w-8 h-8 border border-slate-300 hover:bg-red-50 flex items-center justify-center"
+                            className="w-8 h-8 border border-slate-300 hover:bg-red-50 active:scale-[0.98] transition flex items-center justify-center"
                             title="Remove"
+                            aria-label={`Remove ${item.name}`}
                           >
                             <X className="w-4 h-4 text-red-600" />
                           </button>
@@ -1711,7 +1883,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
             </div>
           </div>
 
-          <div className="bg-white border border-slate-300 p-2">
+          <div className="bg-white border border-slate-300 p-2 text-slate-900">
             {(() => {
               const gross = cart.reduce((acc, it) => acc + (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0), 0);
               const lineDiscount = cart.reduce((acc, it) => acc + (Number(it.discount) || 0), 0);
@@ -1721,13 +1893,21 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
               return (
                 <div className="grid grid-cols-[1fr,140px] gap-y-1 text-[12px]">
                   <div className="text-right text-slate-600 font-bold">Discount:</div>
-                  <div className="text-right font-black">{formatCurrency(discountShown)}</div>
+                  <div className="text-right font-black text-slate-900" data-testid="pos-total-discount">
+                    {formatCurrency(discountShown)}
+                  </div>
                   <div className="text-right text-slate-600 font-bold">Net total:</div>
-                  <div className="text-right font-black">{formatCurrency(netShown)}</div>
+                  <div className="text-right font-black text-slate-900" data-testid="pos-total-net">
+                    {formatCurrency(netShown)}
+                  </div>
                   <div className="text-right text-slate-600 font-bold">Total tax:</div>
-                  <div className="text-right font-black">{formatCurrency(taxShown)}</div>
+                  <div className="text-right font-black text-slate-900" data-testid="pos-total-tax">
+                    {formatCurrency(taxShown)}
+                  </div>
                   <div className="text-right text-slate-900 font-black text-[13px]">Total:</div>
-                  <div className="text-right font-black text-[13px]">{formatCurrency(grandTotal)}</div>
+                  <div className="text-right font-black text-[13px] text-slate-900" data-testid="pos-total-grand">
+                    {formatCurrency(grandTotal)}
+                  </div>
                   <div className="hidden">{gross}</div>
                 </div>
               );
@@ -1797,6 +1977,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   disabled={p.stockQty === 0}
                   className="h-14 bg-sky-200 hover:bg-sky-300 text-slate-900 border border-slate-300 font-black text-[10px] leading-tight p-1 text-left disabled:opacity-50 disabled:grayscale"
                   title={p.name}
+                  data-testid={`pos-product-${p.sku}`}
                 >
                   <div className="line-clamp-2">{p.name}</div>
                 </button>
@@ -1819,6 +2000,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 }}
                 disabled={cart.length === 0}
                 className="h-14 bg-sky-600 hover:bg-sky-500 text-white font-black text-[11px] disabled:opacity-50 disabled:grayscale"
+                data-testid="pos-btn-discount"
               >
                 Discount
               </button>
@@ -1829,6 +2011,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 }}
                 disabled={cart.length === 0}
                 className="h-14 bg-sky-600 hover:bg-sky-500 text-white font-black text-[11px] disabled:opacity-50 disabled:grayscale"
+                data-testid="pos-btn-split"
               >
                 Split sale
               </button>
@@ -1838,6 +2021,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 }}
                 disabled={cart.length === 0}
                 className="h-14 bg-sky-600 hover:bg-sky-500 text-white font-black text-[11px] disabled:opacity-50 disabled:grayscale"
+                data-testid="pos-btn-hold"
               >
                 Save sale
               </button>
@@ -1847,6 +2031,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 }}
                 disabled={heldBillCount === 0}
                 className="h-14 bg-sky-600 hover:bg-sky-500 text-white font-black text-[11px] disabled:opacity-50 disabled:grayscale"
+                data-testid="pos-btn-recall"
               >
                 Unfinished
               </button>
@@ -1856,6 +2041,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   openCashModal('IN');
                 }}
                 className="h-14 bg-sky-600 hover:bg-sky-500 text-white font-black text-[11px]"
+                data-testid="pos-btn-cash-in"
               >
                 Cash IN
               </button>
@@ -1864,6 +2050,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   openCashModal('OUT');
                 }}
                 className="h-14 bg-sky-600 hover:bg-sky-500 text-white font-black text-[11px]"
+                data-testid="pos-btn-cash-out"
               >
                 Cash OUT
               </button>
@@ -1872,6 +2059,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   openHistory();
                 }}
                 className="h-14 bg-sky-600 hover:bg-sky-500 text-white font-black text-[11px]"
+                data-testid="pos-btn-history"
               >
                 History
               </button>
@@ -1882,6 +2070,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 }}
                 disabled={!lastCompletedSale}
                 className="h-14 bg-sky-600 hover:bg-sky-500 text-white font-black text-[11px] disabled:opacity-50 disabled:grayscale"
+                data-testid="pos-btn-receipt"
               >
                 Receipt
               </button>
@@ -1894,6 +2083,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 onClick={() => setShowAddCustomerModal(true)}
                 className="h-14 bg-yellow-400 hover:bg-yellow-300 text-yellow-950 font-black flex items-center justify-center"
                 title="Customer"
+                data-testid="pos-btn-customer"
               >
                 <User className="w-6 h-6" />
               </button>
@@ -1901,12 +2091,14 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 onClick={voidTicket}
                 disabled={cart.length === 0}
                 className="h-14 bg-red-500 hover:bg-red-400 text-white font-black disabled:opacity-50 disabled:grayscale"
+                data-testid="pos-btn-void"
               >
                 Void
               </button>
               <button
                 onClick={openReturnModal}
                 className="h-14 bg-rose-500 hover:bg-rose-400 text-white font-black"
+                data-testid="pos-btn-return"
               >
                 Return
               </button>
@@ -1914,6 +2106,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 onClick={() => setShowPaymentModal(true)}
                 disabled={cart.length === 0}
                 className="h-14 bg-lime-500 hover:bg-lime-400 text-lime-950 font-black disabled:opacity-50 disabled:grayscale"
+                data-testid="pos-btn-pay"
               >
                 Pay
               </button>
@@ -2021,6 +2214,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                       className="input-base h-12 text-base font-bold bg-muted/20 border border-white/10"
                       placeholder={ticketDiscountMode === 'PERCENT' ? '0' : '0'}
                       autoFocus
+                      data-testid="pos-ticket-discount-value"
                     />
                   </div>
 
@@ -2070,6 +2264,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                       }}
                       className="flex-1 h-12 rounded-xl font-black bg-amber-500 text-amber-950 hover:bg-amber-400 transition-colors"
                       disabled={cart.length === 0}
+                      data-testid="pos-ticket-discount-apply"
                     >
                       Apply
                     </button>
@@ -2094,12 +2289,14 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 <button
                   onClick={() => printReceipt(lastCompletedSale)}
                   className="h-10 px-4 rounded-xl bg-primary text-primary-foreground font-black text-sm"
+                  data-testid="pos-receipt-print"
                 >
                   Print
                 </button>
                 <button
                   onClick={() => setShowReceiptPreview(false)}
                   className="h-10 px-4 rounded-xl bg-muted hover:bg-muted-foreground/10 font-black text-sm transition-colors"
+                  data-testid="pos-receipt-close"
                 >
                   Close
                 </button>
@@ -2110,6 +2307,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 title="Receipt Preview"
                 className="w-full h-[70vh] bg-white"
                 srcDoc={getReceiptHtml(lastCompletedSale)}
+                data-testid="pos-receipt-iframe"
               />
             </div>
           </div>
@@ -2118,7 +2316,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
 
       {showCashModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
-          <div className="bg-card rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-white/10">
+          <div className="bg-card rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-white/10" data-testid="pos-cash-modal">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-xl font-black tracking-tight">{cashMode === 'IN' ? 'Cash In' : 'Cash Out'}</h2>
@@ -2128,6 +2326,8 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 onClick={() => setShowCashModal(false)}
                 className="p-2 rounded-xl hover:bg-muted/40 transition-colors text-muted-foreground"
                 title="Close"
+                aria-label="Close"
+                data-testid="pos-cash-close"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2144,6 +2344,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   className="input-base h-12 text-base font-bold bg-muted/20 border border-white/10"
                   placeholder="0"
                   autoFocus
+                  data-testid="pos-cash-amount"
                 />
               </div>
               <div>
@@ -2153,6 +2354,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   onChange={(e) => setCashNoteDraft(e.target.value)}
                   className="input-base h-12 text-base font-bold bg-muted/20 border border-white/10"
                   placeholder="Reason / description"
+                  data-testid="pos-cash-note"
                 />
               </div>
 
@@ -2161,6 +2363,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   onClick={() => setShowCashModal(false)}
                   disabled={cashSubmitting}
                   className="flex-1 h-12 rounded-xl font-black bg-muted hover:bg-muted-foreground/10 transition-colors disabled:opacity-50"
+                  data-testid="pos-cash-cancel"
                 >
                   Cancel
                 </button>
@@ -2168,6 +2371,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   onClick={submitCashMovement}
                   disabled={cashSubmitting || !cashAmountDraft.trim() || !cashNoteDraft.trim()}
                   className="flex-1 h-12 rounded-xl font-black bg-primary text-primary-foreground disabled:opacity-50"
+                  data-testid="pos-cash-save"
                 >
                   {cashSubmitting ? 'Saving…' : 'Save'}
                 </button>
@@ -2180,7 +2384,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
       {/* Payment Modal */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
-          <div className="bg-card glass rounded-2xl p-8 max-w-md w-full shadow-2xl animate-entrance border-none">
+          <div className="bg-card glass rounded-2xl p-8 max-w-md w-full shadow-2xl animate-entrance border-none" data-testid="pos-payment-modal">
             <h2 className="text-3xl font-black tracking-tight mb-2">Checkout</h2>
             <p className="text-muted-foreground text-sm mb-6">Confirm and process the outgoing transaction.</p>
 
@@ -2218,19 +2422,19 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   <p className="col-span-2 text-xs text-muted-foreground uppercase font-bold">Split Amounts Breakdown</p>
                   <div>
                     <label className="text-[10px] uppercase font-bold">Cash</label>
-                    <input type="number" min="0" value={splitAmounts.cash || ''} onChange={(e) => setSplitAmounts({...splitAmounts, cash: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" />
+                    <input type="number" min="0" value={splitAmounts.cash || ''} onChange={(e) => setSplitAmounts({...splitAmounts, cash: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" data-testid="pos-split-cash" />
                   </div>
                   <div>
                     <label className="text-[10px] uppercase font-bold">Card</label>
-                    <input type="number" min="0" value={splitAmounts.card || ''} onChange={(e) => setSplitAmounts({...splitAmounts, card: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" />
+                    <input type="number" min="0" value={splitAmounts.card || ''} onChange={(e) => setSplitAmounts({...splitAmounts, card: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" data-testid="pos-split-card" />
                   </div>
                   <div>
                     <label className="text-[10px] uppercase font-bold">Transfer</label>
-                    <input type="number" min="0" value={splitAmounts.transfer || ''} onChange={(e) => setSplitAmounts({...splitAmounts, transfer: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" />
+                    <input type="number" min="0" value={splitAmounts.transfer || ''} onChange={(e) => setSplitAmounts({...splitAmounts, transfer: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" data-testid="pos-split-transfer" />
                   </div>
                   <div>
                     <label className="text-[10px] uppercase font-bold">Mobile</label>
-                    <input type="number" min="0" value={splitAmounts.mobile || ''} onChange={(e) => setSplitAmounts({...splitAmounts, mobile: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" />
+                    <input type="number" min="0" value={splitAmounts.mobile || ''} onChange={(e) => setSplitAmounts({...splitAmounts, mobile: parseFloat(e.target.value) || 0})} className="input-base py-1 px-2 text-sm" placeholder="0" data-testid="pos-split-mobile" />
                   </div>
                   <div className="col-span-2 text-center text-xs font-bold mt-2">
                     Sum: {formatCurrency(splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile)}
@@ -2247,6 +2451,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 onClick={() => setShowPaymentModal(false)}
                 disabled={isCheckingOut}
                 className="flex-1 h-12 rounded-xl font-bold bg-muted hover:bg-muted-foreground/10 transition-colors disabled:opacity-50"
+                data-testid="pos-payment-back"
               >
                 Go Back
               </button>
@@ -2257,6 +2462,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                   (paymentMethod === 'SPLIT' && Math.abs((splitAmounts.cash + splitAmounts.card + splitAmounts.transfer + splitAmounts.mobile) - grandTotal) > 0.01)
                 }
                 className="flex-1 bg-primary text-primary-foreground h-12 rounded-xl font-bold shadow-lg shadow-primary/20 disabled:opacity-50"
+                data-testid="pos-payment-confirm"
               >
                 {isCheckingOut ? 'Processing…' : 'Confirm Payment'}
               </button>
@@ -2403,6 +2609,7 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
                 onClick={() => { setShowHistoryModal(false); setHistorySales([]); setHistoryQuery(''); setHistoryError(null); }}
                 className="p-2 rounded-xl hover:bg-muted transition-colors"
                 title="Close"
+                aria-label="Close"
               >
                 <X className="w-5 h-5" />
               </button>

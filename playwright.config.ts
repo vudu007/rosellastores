@@ -72,9 +72,10 @@ export default defineConfig({
   /* Run your local dev server before starting the tests */
   webServer: shouldRunWebServer
     ? {
-        command: 'npm run dev',
+        command: 'node scripts/e2e-webserver.mjs',
         url: 'http://localhost:3000',
         reuseExistingServer: !process.env.CI,
+        timeout: 1_800_000,
       }
     : undefined,
 });

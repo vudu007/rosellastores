@@ -50,6 +50,7 @@
     "@types/react-dom": "^18.3.0",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.4",
+    "mongodb-memory-server": "^10.1.4",
     "ts-node": "^10.9.2"
   },
   "overrides": {
