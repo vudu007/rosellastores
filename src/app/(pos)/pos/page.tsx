@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { printHTMLWithQZ } from '@/lib/qztray';
+import { printHTMLWithQZ, printRawWithQZ } from '@/lib/qztray';
 
 interface Product {
   id: string;
@@ -1181,11 +1181,16 @@ export default function POSPage() {
    * 1. If a thermal printer is configured, tries QZ Tray for silent printing.
    * 2. Falls back to iframe printing (shows browser print dialog) on any error.
    */
-  const printDoc = async (html: string) => {
+  const printDoc = async (html: string, sale?: any) => {
     if (thermalPrinter) {
       try {
         console.log(`[Rosella Stores] Attempting QZ Tray print to "${thermalPrinter}"…`);
-        await printHTMLWithQZ(html, thermalPrinter);
+        const rawSale = sale || lastSale;
+        if (rawSale) {
+          await printRawWithQZ(getReceiptRaw(rawSale), thermalPrinter);
+        } else {
+          await printHTMLWithQZ(html, thermalPrinter);
+        }
         console.log('[Rosella Stores] QZ Tray print successful.');
         return; // Skip fallback if successful
       } catch (err: any) {
@@ -1217,6 +1222,11 @@ export default function POSPage() {
     const currencyLabel = (storeSettings.currency || 'NGN').toUpperCase();
     const pct = Math.round(taxRate * 1000) / 10;
     const pctLabel = Number.isFinite(pct) ? String(pct) : '7.5';
+    const money = (value: number) =>
+      new Intl.NumberFormat('en-NG', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(Number(value) || 0);
 
     const grossSubtotal = sale.items.reduce((acc: number, item: any) => {
       const qty = Number(item.quantity) || 0;
@@ -1232,7 +1242,7 @@ export default function POSPage() {
         ? (() => {
             const m = sale.notes.match(/Cash:\s*([\d.]+),\s*Card:\s*([\d.]+),\s*Transfer:\s*([\d.]+),\s*Mobile:\s*([\d.]+)/i);
             if (!m) return null;
-            const toMoney = (s: string) => formatCurrency(Number(s) || 0);
+            const toMoney = (s: string) => money(Number(s) || 0);
             return {
               cash: toMoney(m[1]),
               card: toMoney(m[2]),
@@ -1276,14 +1286,14 @@ export default function POSPage() {
             <td style="width:10mm;padding:3px 0 2px;vertical-align:top;font-weight:900">${code}</td>
             <td style="padding:3px 0 2px;vertical-align:top;font-weight:800">${compactName}</td>
             <td style="width:10mm;text-align:right;padding:3px 0 2px;vertical-align:top;font-weight:800">${qty}</td>
-            <td style="width:22mm;text-align:right;padding:3px 0 2px;vertical-align:top;font-weight:900;white-space:nowrap">${tot}</td>
+            <td style="width:22mm;text-align:right;padding:3px 0 2px;vertical-align:top;font-weight:900;white-space:nowrap">${money(item.total)}</td>
           </tr>`;
       })
       .join('');
 
     const discountHtml =
       discountTotal > 0
-        ? `<div class="line"><span>Discount</span><span>-${formatCurrency(discountTotal)}</span></div>`
+        ? `<div class="line"><span>Discount</span><span>-${money(discountTotal)}</span></div>`
         : '';
 
     const splitHtml = splitParts
@@ -1303,13 +1313,14 @@ export default function POSPage() {
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Courier New', Courier, monospace;
+      font-family: 'Lucida Console', Consolas, 'Courier New', monospace;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 400;
       line-height: 1.45;
       width: 74mm;
       color: #000;
       background: #fff;
+      letter-spacing: 0.2px;
     }
     td { word-break: break-word; }
     table { width: 100%; border-collapse: collapse; }
@@ -1380,26 +1391,26 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
 <hr class="dash">
 <div class="summary">
   <div class="line"><span>${totalItems} ${totalItems === 1 ? 'Item Sold' : 'Items Sold'}</span><span></span></div>
-  <div class="line"><span>Sale Subtotal:</span><span>${formatCurrency(sale.subtotal)}</span></div>
+  <div class="line"><span>Sale Subtotal:</span><span>${money(sale.subtotal)}</span></div>
   ${discountHtml}
   ${splitHtml}
   <div style="height:4px"></div>
   <div class="vat-row">
     <div>A</div>
     <div class="muted">0% Net Amount</div>
-    <div class="r">${formatCurrency(totalsByVatCode.aNet)}</div>
-    <div class="r">VAT ${formatCurrency(0)}</div>
+    <div class="r">${money(totalsByVatCode.aNet)}</div>
+    <div class="r">VAT ${money(0)}</div>
   </div>
   <div class="vat-row">
     <div>B${pctLabel}%</div>
     <div class="muted">Net Amount</div>
-    <div class="r">${formatCurrency(totalsByVatCode.bNet)}</div>
-    <div class="r">VAT ${formatCurrency(totalsByVatCode.bVat)}</div>
+    <div class="r">${money(totalsByVatCode.bNet)}</div>
+    <div class="r">VAT ${money(totalsByVatCode.bVat)}</div>
   </div>
 </div>
 
 <hr class="solid">
-<div class="line"><span>${payLabel[sale.paymentMethod] || sale.paymentMethod}</span><span>${formatCurrency(sale.total)}</span></div>
+<div class="line"><span>${payLabel[sale.paymentMethod] || sale.paymentMethod}</span><span>${money(sale.total)}</span></div>
 <hr class="dash">
 
 <div class="footer">
@@ -1414,10 +1425,136 @@ ${storeSettings.businessLogo ? `<div class="logo"><img src="${storeSettings.busi
     return receiptHtml;
   };
 
+  const getReceiptRaw = (sale: any) => {
+    const cols = 42;
+    const dateObj = new Date(sale?.date || sale?.createdAt || new Date().toISOString());
+    const dd = String(dateObj.getDate()).padStart(2, '0');
+    const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const yyyy = String(dateObj.getFullYear());
+    const dateStr = `${dd}.${mm}.${yyyy}`;
+    const timeStr = dateObj.toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' }).toLowerCase();
+    const biz = String(storeSettings.businessName || 'ROSELLA STORES');
+    const addr = String(storeSettings.businessAddress || '').trim();
+    const receiptSuffixSource = String(sale?.id || sale?.clientSaleId || '');
+    const receiptSuffix = receiptSuffixSource ? receiptSuffixSource.slice(-8).toUpperCase() : 'NA';
+    const receiptNo = `R-${receiptSuffix}`;
+
+    const money = (value: number) =>
+      new Intl.NumberFormat('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value) || 0);
+
+    const pad = (s: string, n: number, dir: 'L' | 'R' = 'R') => {
+      const str = String(s);
+      if (str.length === n) return str;
+      if (str.length > n) return dir === 'R' ? str.slice(0, n) : str.slice(-n);
+      const spaces = ' '.repeat(n - str.length);
+      return dir === 'R' ? str + spaces : spaces + str;
+    };
+    const center = (s: string) => {
+      const str = String(s);
+      if (str.length >= cols) return str.slice(0, cols);
+      const left = Math.floor((cols - str.length) / 2);
+      return ' '.repeat(left) + str;
+    };
+    const line = (ch = '-') => ch.repeat(cols);
+
+    const vatAgg = sale.items.reduce(
+      (acc: { aNet: number; bNet: number; bVat: number }, item: any) => {
+        const lineTotal = Number(item.total) || 0;
+        const isTaxable = Boolean(item.isTaxable);
+        if (!isTaxable) {
+          acc.aNet += lineTotal;
+          return acc;
+        }
+        if (vatMode === 'INCLUSIVE' || item.taxInclusive) {
+          const net = lineTotal / (1 + taxRate);
+          const vat = lineTotal - net;
+          acc.bNet += net;
+          acc.bVat += vat;
+          return acc;
+        }
+        acc.bNet += lineTotal;
+        acc.bVat += lineTotal * taxRate;
+        return acc;
+      },
+      { aNet: 0, bNet: 0, bVat: 0 }
+    );
+
+    const items = Array.isArray(sale.items) ? sale.items : [];
+    const totalItems = items.reduce((s: number, it: any) => s + (Number(it.quantity) || 0), 0);
+
+    const header = `${pad('Date:' + dateStr, Math.floor(cols / 2))}${pad('Time:' + timeStr, cols - Math.floor(cols / 2), 'L')}`;
+    const itemHdr = (() => {
+      const tc = pad('TC', 3);
+      const qty = pad('Qty', 4, 'L');
+      const amt = pad('Amt(NGN)', 10, 'L');
+      const descrW = cols - 3 - 1 - 4 - 1 - 10;
+      return `${tc} ${pad('Item Description', descrW)} ${qty} ${amt}`;
+    })();
+
+    const itemLines = items
+      .map((it: any) => {
+        const tc = it.isTaxable ? 'B' : 'A';
+        const qty = String(Number(it.quantity) || 0);
+        const amt = money(Number(it.total) || 0);
+        const descrW = cols - 3 - 1 - 4 - 1 - 10;
+        const name = String(it.name || '').trim();
+        return `${pad(tc, 3)} ${pad(name, descrW)} ${pad(qty, 4, 'L')} ${pad(amt, 10, 'L')}`;
+      })
+      .join('\n');
+
+    const subtotal = money(Number(sale.subtotal) || 0);
+    const total = money(Number(sale.total) || 0);
+
+    const pct = Math.round(taxRate * 1000) / 10;
+    const pctLabel = Number.isFinite(pct) ? String(pct) : '7.5';
+
+    const vatA = `A 0% Net Amount ${pad(money(vatAgg.aNet), 10, 'L')} VAT ${pad(money(0), 10, 'L')}`;
+    const vatB = `B${pctLabel}% Net Amount ${pad(money(vatAgg.bNet), 10, 'L')} VAT ${pad(money(vatAgg.bVat), 10, 'L')}`;
+
+    const payLabel: Record<string, string> = {
+      CASH: 'Cash',
+      CARD: 'Debit Card',
+      BANK_TRANSFER: 'Transfer',
+      MOBILE_MONEY: 'Mobile Money',
+      SPLIT: 'Split Payment',
+    };
+
+    const payment = String(payLabel[sale.paymentMethod] || sale.paymentMethod);
+
+    const esc = '\x1b';
+    const gs = '\x1d';
+    const init = `${esc}@${esc}M\x00${esc}!\x00`;
+    const cut = `${gs}V\x00`;
+
+    const body = [
+      center(biz.toUpperCase()),
+      ...(addr ? [center(addr)] : []),
+      '',
+      header,
+      line('-'),
+      itemHdr,
+      line('-'),
+      itemLines,
+      line('-'),
+      center(`${totalItems} ${totalItems === 1 ? 'Item Sold' : 'Items Sold'}`),
+      `Sale Subtotal: ${pad(subtotal, cols - 'Sale Subtotal: '.length, 'L')}`,
+      vatA,
+      vatB,
+      '',
+      `${payment}${pad(total, cols - payment.length, 'L')}`,
+      '',
+      center(receiptNo),
+      '',
+      '',
+    ].filter((x) => x !== undefined).join('\n');
+
+    return init + body + cut;
+  };
+
   const printReceipt = async (saleData?: any) => {
     const sale = saleData || lastSale;
     if (!sale) return;
-    await printDoc(getReceiptHtml(sale));
+    await printDoc(getReceiptHtml(sale), sale);
   };
 
   const generateInvoice = () => {

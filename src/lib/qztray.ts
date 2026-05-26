@@ -187,3 +187,18 @@ export async function printHTMLWithQZ(html: string, printerName: string): Promis
     options: { pageWidth: 72, pageHeight: null },
   }]);
 }
+
+export async function printRawWithQZ(data: string, printerName: string): Promise<void> {
+  await connectQZ();
+  const qz = (window as any).qz;
+
+  const config = qz.configs.create(printerName, {
+    copies: 1,
+  });
+
+  await qz.print(config, [{
+    type: 'raw',
+    format: 'plain',
+    data,
+  }]);
+}

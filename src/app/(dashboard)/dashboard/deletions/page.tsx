@@ -148,6 +148,26 @@ export default function DeletionsPage() {
     }
   };
 
+  const clearTransactions = async () => {
+    if (!confirm('Clear ALL transaction history (sales, sale items, returns) now? This cannot be undone.')) return;
+    setWorkingId('clear-transactions');
+    try {
+      const response: Response = await fetch('/api/admin/transactions/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'CLEAR_ALL_TRANSACTIONS' }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to clear transactions');
+      const msg = `Cleared: ${data.deleted?.sales ?? 0} sales • ${data.deleted?.saleItems ?? 0} items • ${data.deleted?.returnRequests ?? 0} returns`;
+      setToast({ type: 'success', message: msg });
+    } catch (e: any) {
+      setToast({ type: 'error', message: e.message || 'Failed to clear transactions' });
+    } finally {
+      setWorkingId(null);
+    }
+  };
+
   const activeCount = useMemo(() => rows.filter((r) => r.status !== 'PERMANENT_DELETED').length, [rows]);
 
   const describeEntity = (r: DeletionRow) => {
@@ -194,6 +214,16 @@ export default function DeletionsPage() {
             >
               <Trash2 className="w-4 h-4" />
               Purge All
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={clearTransactions}
+              disabled={workingId === 'clear-transactions' || loading}
+              className="btn-secondary h-10 px-4 flex items-center gap-2 disabled:opacity-40"
+            >
+              <Trash2 className="w-4 h-4" />
+              Clear Transactions
             </button>
           )}
           {isAdmin && (
